@@ -1,0 +1,3369 @@
+# P2F Network — Техническое задание: Шард 0 (Genesis Shard) и протокол автоматического развёртывания шардов
+
+**Статус:** архитектурный проект для технического ревью. Не является обещанием достижимости заявленной производительности. Не готов к mainnet без прототипа, нагрузочных испытаний и независимого аудита.
+
+**Цель документа:** описать развёртывание первого блокчейна (Шард 0) и заложить в систему механизм автоматического создания и подключения дополнительных шардов (Spawn Protocol) для горизонтального масштабирования до 1 000 000 TPS суммарно.
+
+---
+
+## 0. Термины и нормативные слова
+
+- **ДОЛЖЕН / MUST** — обязательное требование.
+- **НЕ ДОЛЖЕН / MUST NOT** — запрещённое поведение.
+- **СЛЕДУЕТ / SHOULD** — рекомендуемое решение; отклонение требует обоснования.
+- **МОЖЕТ / MAY** — допустимый вариант.
+- **Шард 0 (Genesis Shard)** — первый блокчейн сети P2F, развёрнутый на Cosmos SDK.
+- **Контрольная цепочка (Control Chain)** — специализированный шард, отвечающий за реестр шардов, чекпоинты и кросс-шардовую маршрутизацию.
+- **Spawn Protocol** — протокол автоматического создания, регистрации и подключения новых шардов.
+- **Оператор** — человек/организация, управляющая VPS через ограниченный пульт.
+- **Валидатор** — узел, голосующий за блоки в шарде.
+- **Каноническое состояние** — состояние, вычисляемое по правилам протокола; определяет балансы и права.
+
+---
+
+## 1. Цели и не-цели
+
+### 1.1 Цели
+
+1. Развернуть **Шард 0** — работающий блокчейн на Cosmos SDK с CometBFT.
+2. Обеспечить **10 000 TPS** на одном шарде.
+3. Заложить в архитектуру **Spawn Protocol** для автоматического создания дополнительных шардов.
+4. Реализовать **контрольную цепочку** для координации шардов.
+5. Обеспечить **кросс-шардовую коммуникацию** через IBC.
+6. Реализовать **защиту от махинаций валидаторов** через slashing, evidence, BFT-гарантии.
+7. Обеспечить **data availability** для всех шардов.
+8. Реализовать **governance** для управления протоколом.
+9. Обеспечить **VPS-only** валидаторов с one-click deploy.
+10. Масштабироваться до **100 шардов = 1 000 000 TPS** суммарно.
+
+### 1.2 Не-цели
+
+- Обещание 1 млн TPS до воспроизводимого бенчмарка.
+- Собственный консенсус с нуля.
+- Полная анонимность от валидаторов.
+- Мгновенная атомарность кросс-шардовых операций.
+- Автоматический spawn без PoP, VRF, Oracle, Attestation (MVP — whitelist).
+- Исполнение произвольного native-кода Web2 без sandbox.
+
+---
+
+## 2. Архитектура: Шард 0 + Контрольная цепочка
+
+### 2.1 Общая схема
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Контрольная цепочка (Control Chain)                        │
+│  - Реестр шардов                                            │
+│  - Чекпоинты всех шардов                                    │
+│  - Кросс-шардовые сообщения                                 │
+│  - Governance                                               │
+│  - НЕ обрабатывает пользовательские транзакции              │
+└─────────────────────────────────────────────────────────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│  Шард 0      │    │  Шард 1      │    │  Шард N      │
+│  (Genesis)   │    │  (Spawned)   │    │  (Spawned)   │
+│  Cosmos SDK  │    │  Cosmos SDK  │    │  Cosmos SDK  │
+│  10k TPS     │    │  10k TPS     │    │  10k TPS     │
+│  Свой набор  │    │  Свой набор  │    │  Свой набор  │
+│  валидаторов │    │  валидаторов │    │  валидаторов │
+└──────────────┘    └──────────────┘    └──────────────┘
+         │                    │                    │
+         └────────────────────┼────────────────────┘
+                              │
+                         IBC (связь)
+```
+
+### 2.2 Компоненты
+
+| Компонент | Назначение | Технология |
+|---|---|---|
+| Consensus | BFT-консенсус | CometBFT v0.38+ |
+| Application | Логика состояния | Cosmos SDK v0.50+ |
+| Interface | ABCI++ | CometBFT ABCI++ |
+| Cross-chain | IBC | IBC v2 |
+| State | Merkle trie | IAVL+ |
+| Index | История и поиск | PostgreSQL |
+| DA | Доступность данных | Celestia / Avail |
+| Governance | Управление | x/gov |
+| Slashing | Наказания | x/slashing |
+| Evidence | Доказательства | x/evidence |
+| Spawn | Создание шардов | rollchains/spawn + custom |
+
+---
+
+## 3. Шард 0 — Детальная спецификация
+
+### 3.1 Технологический стек
+
+- **Язык ядра:** Go 1.22+.
+- **Консенсус:** CometBFT v0.38+ (BFT, 2/3+1).
+- **Приложение:** Cosmos SDK v0.50+ с ABCI++.
+- **Состояние:** IAVL+ (проверенная библиотека).
+- **Индексы:** PostgreSQL 16.
+- **Кеш:** Redis 7 (по измеренной необходимости).
+- **WASM:** Wasmtime с детерминированным fuel.
+- **P2P:** libp2p / CometBFT P2P.
+- **RPC:** gRPC + JSON-RPC + WebSocket.
+
+### 3.2 Модули Cosmos SDK (базовые)
+
+| Модуль | Назначение |
+|---|---|
+| `x/auth` | Аккаунты, подписи, nonce |
+| `x/bank` | Балансы, переводы |
+| `x/staking` | Стейкинг, валидаторы |
+| `x/slashing` | Наказания за нарушения |
+| `x/evidence` | Доказательства нарушений |
+| `x/gov` | Управление |
+| `x/distribution` | Распределение наград |
+| `x/params` | Параметры протокола |
+| `x/upgrade` | Обновления протокола |
+| `x/ibc` | Кросс-чейн коммуникация |
+
+### 3.3 Кастомные модули P2F
+
+| Модуль | Назначение | Приоритет |
+|---|---|---|
+| `x/p2f/roles` | Роли: loader, pricer, replica, validator | MVP |
+| `x/p2f/wallet` | B2C/B2B кошельки с политиками | MVP |
+| `x/p2f/mempool` | Приватный мемпул (threshold encryption) | Phase 3 |
+| `x/p2f/amm` | AMM с целочисленной математикой | Phase 3 |
+| `x/p2f/spawn` | Spawn Protocol | Phase 2 (whitelist) |
+| `x/p2f/control` | Контрольная цепочка | Phase 2 |
+| `x/p2f/da` | Data availability интеграция | Phase 3 |
+| `x/p2f/mpc` | MPC/threshold подписи | Phase 4 |
+
+### 3.4 Генезис Шарда 0
+
+```json
+{
+  "genesis_time": "2026-01-01T00:00:00Z",
+  "chain_id": "p2f-shard-0",
+  "consensus_params": {
+    "block": {
+      "max_bytes": "22020096",
+      "max_gas": "10000000",
+      "time_iota_ms": "1000"
+    },
+    "evidence": {
+      "max_age_num_blocks": "100000",
+      "max_age_duration": "172800000000000",
+      "max_bytes": "1048576"
+    }
+  },
+  "app_state": {
+    "auth": { "accounts": [] },
+    "bank": { "balances": [] },
+    "staking": {
+      "params": {
+        "unbonding_time": "1814400000000000",
+        "max_validators": 100,
+        "max_entries": 7,
+        "historical_entries": 10000,
+        "bond_denom": "up2f"
+      }
+    },
+    "slashing": {
+      "params": {
+        "signed_blocks_window": "10000",
+        "min_signed_per_window": "0.5",
+        "downtime_jail_duration": "600000000000",
+        "slash_fraction_double_sign": "0.05",
+        "slash_fraction_downtime": "0.0001"
+      }
+    },
+    "gov": {
+      "params": {
+        "min_deposit": "10000000",
+        "max_deposit_period": "172800000000000",
+        "voting_period": "172800000000000",
+        "quorum": "0.334",
+        "threshold": "0.5",
+        "veto_threshold": "0.334"
+      }
+    },
+    "p2f": {
+      "roles": {
+        "loaders": [],
+        "pricers": [],
+        "replicas": [],
+        "validators": []
+      },
+      "wallet": {
+        "b2c_enabled": true,
+        "b2b_enabled": true
+      },
+      "spawn": {
+        "enabled": false,
+        "whitelist": [],
+        "max_vps_per_operator": 3,
+        "cooldown": "604800",
+        "deposit": "1000000000"
+      }
+    }
+  }
+}
+```
+
+### 3.5 Параметры Шарда 0
+
+| Параметр | Значение | Обоснование |
+|---|---|---|
+| Chain ID | `p2f-shard-0` | Идентификатор шарда |
+| Block time | 1–2 сек | Быстрая финалити |
+| Max validators | 100 | BFT-баланс |
+| Min stake | 1000 P2F | Анти-Sybil |
+| Unbonding time | 21 день | Безопасность |
+| Slash double sign | 5% | Наказание |
+| Slash downtime | 0.01% | Наказание |
+| Governance deposit | 10 P2F | Анти-спам |
+| Voting period | 48 часов | Быстрое управление |
+| TPS target | 10 000 | MVP |
+
+---
+
+## 4. Spawn Protocol — Автоматическое создание шардов
+
+### 4.1 Компоненты Spawn Protocol
+
+| Компонент | Назначение | Где живёт |
+|---|---|---|
+| SpawnRequest | Запрос на создание шарда | Контрольная цепочка |
+| OperatorRegistry | Реестр операторов | Контрольная цепочка |
+| VRFCoordinator | Случайный выбор | Контрольная цепочка |
+| Oracle | Attestation, heartbeat | Off-chain |
+| PoPRegistry | Proof-of-Personhood | Off-chain |
+| DepositVault | Депозиты | Контрольная цепочка |
+| RewardDistributor | Награды | Контрольная цепочка |
+| SlashingModule | Наказания | Контрольная цепочка |
+
+### 4.2 MVP-Spawn (Phase 2)
+
+**Правила:**
+- Только whitelist операторов (10–20).
+- Ручное одобрение DAO (66%).
+- Лимит 3 VPS на оператора.
+- Cooldown 7 дней.
+- Депозит 1000 P2F.
+- Slashing при нарушении.
+- Прозрачность всех событий.
+
+**Структура:**
+```rust
+struct SpawnRequest {
+    id: bytes32,
+    operator: Address,
+    shard_id: u32,
+    region: string,
+    specs: VpsSpecs,
+    deposit: U256,
+    status: Pending | Approved | Rejected | Completed | Failed,
+    created_at: u64,
+    approved_at: u64,
+    completed_at: u64,
+}
+
+struct VpsSpecs {
+    cpu: u32,
+    ram: u32,
+    disk: u32,
+    bandwidth: u32,
+    provider: CloudProvider,
+    image_hash: bytes32,
+}
+```
+
+### 4.3 Полный Spawn Protocol (Phase 6+)
+
+**Правила:**
+- Permissionless участие.
+- PoP обязателен (минимум 2 провайдера).
+- VRF-выбор среди заявок.
+- Депозит 100 P2F.
+- Google Cloud Attestation.
+- Oracle-верификация.
+- Лимиты по репутации.
+- KYC для крупных операторов.
+
+**Структура:**
+```rust
+struct Operator {
+    address: Address,
+    pop_proofs: Vec<PoPProof>,
+    cloud_account_id: bytes32,
+    billing_account_id: bytes32,
+    asn: u32,
+    region: string,
+    deposit: U256,
+    reputation: u64,
+    vps_count: u32,
+    max_vps: u32,
+    approved_by_dao: bool,
+    status: Active | Suspended | Banned,
+}
+
+struct SpawnClaim {
+    request_id: bytes32,
+    operator: Address,
+    pop_proofs: Vec<PoPProof>,
+    cloud_account_id: bytes32,
+    vrf_ticket: bytes32,
+    claimed_at: u64,
+}
+```
+
+### 4.4 VRF-выбор оператора
+
+```
+score = vrf_ticket / (reputation_factor * region_factor * asn_factor * vps_penalty)
+
+reputation_factor = 1 + reputation / 1000
+region_factor = 1 + region_bonus
+asn_factor = 1 + asn_bonus
+vps_penalty = 1 + vps_count / max_vps
+```
+
+Выбирается оператор с **наибольшим** score.
+
+### 4.5 Лимиты и защита от Sybil
+
+```
+max_vps = BASE_MAX * reputation_factor * pop_factor * kyc_factor
+
+BASE_MAX = 1
+reputation_factor = 1 + reputation / 1000
+pop_factor = 1 + (pop_providers - 2) * 0.5
+kyc_factor = 1 + (kyc_verified ? 2 : 0)
+```
+
+| Статус | max_vps |
+|---|---|
+| Новый, 2 PoP | 1 |
+| Проверенный, 4 PoP | 4 |
+| Проверенный, 4 PoP + KYC | 12 |
+| Топ, 6 PoP + KYC | 20 |
+
+### 4.6 Cooldown между spawn
+
+```
+cooldown = BASE_COOLDOWN * (1 + vps_count) / reputation_factor
+
+BASE_COOLDOWN = 24 часа
+reputation_factor = 1 + reputation / 1000
+```
+
+### 4.7 Награды и депозиты
+
+```
+reward = base_reward * region_factor * urgency_factor * reputation_factor
+
+base_reward = 50 P2F
+region_factor = 1.0 - 2.0
+urgency_factor = 1.0 - 3.0
+reputation_factor = 1.0 - 2.0
+```
+
+**Slashing:**
+| Нарушение | Штраф |
+|---|---|
+| Attestation не прошла | 10% депозита |
+| Heartbeat отсутствует 30 мин | 5% депозита |
+| Heartbeat отсутствует 2 часа | 50% депозита |
+| Двойная подпись | 100% депозита |
+| Вредоносный образ | 100% депозита |
+| Сговор | 100% депозита + бан |
+
+### 4.8 API Spawn Protocol
+
+```
+POST /v1/spawn/request
+GET  /v1/spawn/requests
+GET  /v1/spawn/requests/{id}
+POST /v1/spawn/claim
+GET  /v1/spawn/operators
+GET  /v1/spawn/operators/{address}
+GET  /v1/spawn/stats
+GET  /v1/spawn/slashing
+```
+
+### 4.9 События Spawn Protocol
+
+```solidity
+event SpawnRequestCreated(
+    bytes32 indexed requestId,
+    address indexed operator,
+    string region,
+    VpsSpecs specs
+);
+
+event SpawnOperatorSelected(
+    bytes32 indexed requestId,
+    address indexed operator,
+    bytes32 vrfProof
+);
+
+event SpawnCompleted(
+    bytes32 indexed requestId,
+    bytes vpsPubkey,
+    bytes32 attestationHash
+);
+
+event OperatorSlashed(
+    address indexed operator,
+    uint256 amount,
+    string reason
+);
+```
+
+---
+
+## 5. Защита от махинаций валидаторов
+
+### 5.1 Экономический уровень: Slashing
+
+**x/slashing** — модуль Cosmos SDK, который наказывает валидаторов за доказанное вредоносное поведение.
+
+| Нарушение | Наказание |
+|---|---|
+| Double-signing (двойная подпись) | 100% стейка + tombstone (пожизненный бан) |
+| Downtime (простой) | Jailing (арест) + частичный slashing |
+
+**Tombstone cap:** валидатор может быть слэшнут за двойную подпись только один раз за инцидент. Это предотвращает катастрофические последствия от случайных ошибок HSM.
+
+### 5.2 Доказательный уровень: x/evidence
+
+**x/evidence** — модуль, который позволяет любому отправить доказательство нарушения в блокчейн.
+
+```rust
+struct Evidence {
+    type: DoubleVoting | LightClientAttack | ...
+    validator: Address,
+    height: u64,
+    time: u64,
+    proof: bytes,
+}
+```
+
+**Handler:** проверяет доказательство и инициирует slashing, jailing, tombstoning.
+
+### 5.3 Математический уровень: BFT-гарантии
+
+CometBFT гарантирует безопасность (отсутствие форков), пока **менее 1/3** от общего объёма голосующей мощности действуют византийски.
+
+**Порог безопасности:** даже если 33% валидаторов сговорились, они не смогут заставить сеть принять неверный блок. Им нужно контролировать более 2/3 сети.
+
+### 5.4 Защита от фронтраннинга: Vote Extensions
+
+ABCI 2.0引入 **Vote Extensions** — механизм, который позволяет валидаторам обмениваться информацией о мемпуле до формирования блока. Это позволяет создать более справедливый порядок транзакций и бороться с MEV-атаками.
+
+### 5.5 Slash Throttling
+
+Механизм **slash throttling** гарантирует, что за один раз может быть наказана только определённая доля валидаторов. Это предотвращает сценарий, когда одна вредоносная цепочка может «убить» безопасность главной сети.
+
+### 5.6 Защита от Sybil
+
+| Уровень | Механизм |
+|---|---|
+| PoP | Worldcoin, Gitcoin Passport, BrightID |
+| Депозит | 100–1000 P2F за узел |
+| Лимит | max_vps по репутации и PoP |
+| VRF | Случайный выбор комитета |
+| Ротация | Смена валидаторов каждую эпоху |
+| Прозрачность | Все spawn-события публичны |
+
+---
+
+## 6. Кросс-шардовая коммуникация (IBC)
+
+### 6.1 IBC v2
+
+IBC v2 обеспечивает прямую связь между Cosmos-цепочками и EVM-совместимыми сетями.
+
+**Компоненты:**
+- Light clients — проверка состояния друг друга.
+- Relayers — передача сообщений.
+- IBC Core — маршрутизация.
+
+### 6.2 Кросс-шардовый протокол
+
+```protobuf
+message CrossShardMessage {
+    bytes message_id = 1;    // hash(shard_from, shard_to, nonce, payload)
+    uint32 shard_from = 2;
+    uint32 shard_to = 3;
+    bytes sender = 4;
+    bytes recipient = 5;
+    bytes asset_id = 6;
+    uint256 amount = 7;
+    uint64 nonce = 8;
+    bytes proof = 9;          // Merkle proof финализации
+    uint64 valid_until_height = 10;
+}
+```
+
+**Правила:**
+- Блокировка/списание на исходном шарде.
+- Proof финализации исходной операции.
+- Однократное применение на целевом (`processed_messages` set).
+- Тайм-аут → возврат.
+- Защита от двойного расходования.
+- Финалити — после подтверждения от целевого.
+
+### 6.3 API IBC
+
+```
+GET  /v1/ibc/channels
+GET  /v1/ibc/channels/{id}
+POST /v1/ibc/transfer
+GET  /v1/ibc/transfer/{id}
+```
+
+---
+
+## 7. Data Availability
+
+### 7.1 Интеграция с Celestia
+
+Celestia использует CometBFT и Cosmos SDK для DA-слоя. Ключевые функции: **data availability sampling (DAS)** и **namespaced Merkle trees (NMT)**.
+
+**Модуль CADA:**
+- Отправляет данные шарда в Celestia.
+- Подтверждает доступность.
+- Обновляет статус blob.
+
+### 7.2 Чекпоинты
+
+```rust
+struct Checkpoint {
+    shard_id: u32,
+    height: u64,
+    state_root: bytes32,
+    da_id: bytes32,
+    schema_version: u32,
+    runtime_version: u32,
+    validator_set_id: bytes32,
+    signatures: Vec<bytes>,
+}
+```
+
+**Правила:**
+- Чекпоинт публикуется каждые N блоков.
+- DA-идентификатор привязан к данным.
+- Чекпоинт не считается достаточным, если данные недоступны.
+
+### 7.3 API DA
+
+```
+POST /v1/da/submit
+GET  /v1/da/blob/{id}
+GET  /v1/da/status/{id}
+```
+
+---
+
+## 8. Governance
+
+### 8.1 Модель
+
+- **Предложение:** любой оператор с ≥ N узлов или ≥ X репутации.
+- **Обсуждение:** 7 дней.
+- **Голосование:** 7 дней.
+- **Timelock:** 48 часов.
+- **Активация:** на заданной высоте блока.
+
+### 8.2 Voting Power
+
+```
+power = reputation^0.5 * uptime_factor * log(1 + service_score)
+```
+
+- Логарифм — чтобы крупные не доминировали.
+- Квадратный корень — анти-плаутократия.
+
+### 8.3 Quorum
+
+- 33% от общего voting power.
+- 50%+1 от проголосовавших.
+- Для критических изменений — 66%.
+
+### 8.4 Break-glass
+
+- Multi-sig из 7 независимых аудиторов.
+- 5 из 7 подписей.
+- Только для остановки сети при критической уязвимости.
+- Не может переводить средства.
+- Публичный журнал.
+
+### 8.5 API Governance
+
+```
+POST /v1/gov/proposal
+GET  /v1/gov/proposals
+GET  /v1/gov/proposals/{id}
+POST /v1/gov/vote
+GET  /v1/gov/votes/{proposal_id}
+```
+
+---
+
+## 9. VPS-инфраструктура
+
+### 9.1 Требования
+
+- VPS-only для валидаторов.
+- One-click deploy.
+- Docker-образ.
+- Подписанные релизы.
+- Проверка хеша при скачивании.
+
+### 9.2 Пульт управления
+
+**Три функции:**
+1. **Оплата** — через биллинг провайдера.
+2. **Перезапуск сервера** — restart/stop/start.
+3. **Участие в DAO** — голосование, апелляции.
+
+Больше ничего. Ключи, код, конфиги — недоступны через пульт.
+
+### 9.3 Ограниченный API-токен
+
+```rust
+struct ApiToken {
+    provider: CloudProvider,
+    scopes: Vec<Scope>,             // create, restart, stop, delete
+    expires_at: u64,
+    rotation_period: u64,           // 30 дней
+    storage: Vault | TEE,           // защищённое хранилище
+    revoked: bool,
+}
+
+enum Scope {
+    CreateInstance,
+    RestartInstance,
+    StopInstance,
+    DeleteInstance,
+    // НЕТ: billing, IAM, data, SSH
+}
+```
+
+### 9.4 Google Cloud Attestation
+
+```rust
+struct GoogleAttestation {
+    instance_id: bytes32,
+    project_id: bytes32,
+    zone: string,
+    image_hash: bytes32,
+    vps_pubkey: bytes,
+    nonce: bytes32,
+    signature: bytes,               // подпись Google
+    timestamp: u64,
+    verified: bool,
+}
+```
+
+### 9.5 Heartbeat
+
+VPS отправляет heartbeat каждые 60 секунд.
+
+```rust
+struct Heartbeat {
+    vps_pubkey: bytes,
+    height: u64,
+    uptime_seconds: u64,
+    peers: u32,
+    cpu_usage: u32,
+    ram_usage: u32,
+    disk_usage: u32,
+    signature: bytes,
+}
+```
+
+**Правила:**
+- Если heartbeat отсутствует 5 минут — `Unreachable`.
+- Если 30 минут — `Suspended`.
+- Если 2 часа — `Slashed`.
+
+---
+
+## 10. API (уровень протокола)
+
+### 10.1 RPC
+
+```
+POST /v1/tx/submit
+GET  /v1/tx/{tx_hash}
+GET  /v1/account/{address}
+GET  /v1/account/{address}/balances
+GET  /v1/asset/{asset_id}
+GET  /v1/block/{shard_id}/{height}
+GET  /v1/shards
+GET  /v1/validators?shard_id=...
+GET  /v1/app/{app_id}
+POST /v1/operator/enroll
+POST /v1/operator/node-command
+GET  /v1/node/health
+```
+
+### 10.2 WebSocket
+
+- Публичные потоки: finalized block, finalized tx, публичные события.
+- Публичная подписка на сырой mempool запрещена.
+- Приватные операторские метрики — аутентификация.
+
+### 10.3 Ответ на отправку tx
+
+- Приём = `accepted_for_processing`, не финализация.
+- Ответ: `tx_hash`, `shard_id`, статус, высота, код ошибки.
+- Клиент отдельно запрашивает inclusion и finality proof.
+
+---
+
+## 11. Хранение и индексация
+
+- Каноническое состояние и индексная БД разделены.
+- SQL/Redis/очереди — не источник истины для балансов.
+- Канонические изменения воспроизводимы из tx и версий протокола.
+- IAVL+ — authenticated data structure.
+- PostgreSQL — индекс для истории/поиска.
+- API, возвращающий proof, включает root/hash и высоту/шард.
+
+---
+
+## 12. Тестирование и приёмка
+
+### 12.1 MVP
+
+- 4 локальных валидатора, одинаковый app/state root.
+- Тесты: перевод, nonce, комиссии, недостаток средств, невалидная подпись, повтор, истёкшая tx.
+- Два узла с одинаковой конфигурацией → одинаковый результат.
+- Перезапуск восстанавливает состояние, проходит проверку корня.
+- PostgreSQL удаляется и пересоздаётся без потери канонического состояния.
+- Подписанный релиз проходит проверку.
+- Нагрузочные тесты публикуют valid finalized TPS.
+- Отказ одного узла не приводит к двойному исполнению.
+
+### 12.2 Безопасность перед тестнетом
+
+- Fuzzing parser/serialization/RPC/decoder.
+- Property-based tests для balances, supply, nonce, AMM.
+- Differential test между сборками/платформами.
+- Fault injection: задержки, дубли, перестановка, потеря, повреждение.
+- Тест конфликтующих tx и повторного исполнения.
+- Threat-model review.
+- Независимый аудит консенсуса, ключей, обновлений, экономики допуска.
+- Проверка восстановления после state corruption и недоступности DA.
+
+### 12.3 Критерии 1 млн TPS
+
+- 1 000 000 валидных финализированных tx/с по всем шардам на опубликованном профиле.
+- ≥ 60 минут устойчивой нагрузки после прогрева.
+- Опубликованные hardware/network specs.
+- Проверка восстановления после отказа части узлов.
+- p50/p95/p99 latency, доля ошибок.
+- Учёт DA/storage/replication.
+- Независимое воспроизведение.
+- Отдельный отчёт по кросс-шарду и тяжёлому исполнению.
+
+---
+
+## 13. Этапы реализации
+
+### Phase 1 — Шард 0 (Genesis) — 6 месяцев
+
+- CometBFT + Cosmos SDK.
+- Transfer, account, balances, fee, nonce.
+- Токен.
+- Публичная история.
+- 4 локальных валидатора.
+- 10 000 TPS на тестовом стенде.
+
+**Выход:** работающий блокчейн с базовой логикой.
+
+### Phase 2 — Контрольная цепочка + MVP-Spawn — 3 месяца
+
+- Контрольная цепочка.
+- Реестр шардов.
+- Чекпоинты.
+- MVP-Spawn (whitelist, DAO, лимиты).
+- 10 доверенных операторов.
+- 30 VPS.
+
+**Выход:** сеть из 2+ шардов, управляемая через контрольную цепочку.
+
+### Phase 3 — Приватный mempool, AMM, DA — 3 месяца
+
+- Закрытая маршрутизация mempool.
+- AMM с целочисленной математикой.
+- min_out/deadline.
+- Интеграция с Celestia/Avail.
+- Threshold encryption.
+
+### Phase 4 — B2C/B2B, MPC — 4 месяца
+
+- Policies/session keys/allowlists.
+- FROST (Ed25519) + GG20 (ECDSA).
+- Recovery с delay/cancel.
+- Тест потери узла/долей.
+
+### Phase 5 — Приложения — 4 месяца
+
+- WASM runtime.
+- API состояния и событий.
+- Deterministic gas/fuel.
+- Пакетирование, версии, permissions.
+
+### Phase 6 — Полный Spawn Protocol — 12–18 месяцев
+
+- PoP.
+- VRF.
+- Oracle.
+- Google Cloud Attestation.
+- Смарт-контракт на Polygon.
+- Permissionless.
+- KYC для крупных.
+- Масштабирование до 100 шардов = 1M TPS.
+
+### Phase 7 — Исследовательские функции
+
+- Threshold encrypted ordering.
+- Продвинутый DA и sampling.
+- Постквантовая миграция.
+- Приватные переводы с криптографическими доказательствами.
+
+---
+
+## 14. Технологические ориентиры
+
+| Компонент | Технология | Версия |
+|---|---|---|
+| Ядро | Go | 1.22+ |
+| Консенсус | CometBFT | v0.38+ |
+| SDK | Cosmos SDK | v0.50+ |
+| ABCI | ABCI++ | — |
+| Состояние | IAVL+ | — |
+| Индексы | PostgreSQL | 16 |
+| WASM | Wasmtime | latest |
+| IBC | IBC v2 | — |
+| DA | Celestia / Avail | — |
+| Spawn | rollchains/spawn + custom | — |
+
+---
+
+## 15. Открытые риски до mainnet
+
+1. **Anti-Sybil:** точная процедура допуска consensus-validator и остаточный риск.
+2. **Шардовая безопасность:** committee model или validity/fraud proofs.
+3. **1M TPS:** workload, hardware, DA budget, внешняя проверка.
+4. **Кросс-шардовые активы:** финальность и recovery.
+5. **Приватный мемпул:** какой противник не видит tx, защита от MEV.
+6. **MPC/recovery:** схема, порог, ротация, утечка долей, отмена.
+7. **Web2-состояние:** что доказывает сеть.
+8. **Управление:** кто меняет протокол, как предотвращается захват.
+9. **Обновления:** signing keys, rollback, компрометация CI/CD.
+10. **Юридика:** PII, санкции, KYC/AML, обязательства операторов.
+
+---
+
+## 16. Критерий готовности к статусу «утверждённое ТЗ»
+
+- Выбраны точные версии зависимостей.
+- Определена модель консенсуса и допуска.
+- Написаны канонические схемы сериализации и тест-векторы.
+- Зафиксированы правила состояния, активов, fees, ошибок.
+- Описан межшардовый протокол и предположения доверия.
+- Выбраны схема хранения state root и data availability.
+- Выбрана схема ключей/MPC или явно отложена.
+- Определены threat model и критерии тестирования.
+- Независимый review не выявил неоднозначных consensus-critical правил.
+
+---
+
+## Приложение A. Источники
+
+- Cosmos SDK Architecture: https://docs.cosmos.network
+- CometBFT ABCI++: https://docs.cometbft.com
+- IBC v2: https://docs.cosmos.network/ibc
+- x/slashing: https://docs.cosmos.network/x/slashing
+- x/evidence: https://docs.cosmos.network/x/evidence
+- rollchains/spawn: https://github.com/rollchains/spawn
+- Celestia DA: https://docs.celestia.org
+- Avail DA: https://docs.availproject.org
+
+---
+
+**Ключевой принцип P2F:** Шард 0 — это фундамент. Контрольная цепочка — координатор. Spawn Protocol — механизм роста. Защита валидаторов — slashing, evidence, BFT. Масштабирование — горизонтальное, через добавление шардов. Один шард — 10 000 TPS. Сто шардов — 1 000 000 TPS.
+
+
+# P2F Network — Система геймификации на поинтах v0.1
+
+**Статус:** архитектурная спецификация. Не входит в MVP Phase 1. Входит в Phase 2.
+
+**Назначение:** описать систему поинтов для мотивации участников сети без привязки к токену. Поинты — это учёт полезного вклада. Конвертация в токены будет определена позже через governance.
+
+**Ключевой принцип:** поинты нельзя купить. Только заработать полезной работой.
+
+---
+
+## 0. Термины
+
+- **Поинт (P2F Point, PFP)** — единица учёта полезного вклада.
+- **Уровень** — статус участника, зависящий от поинтов и других факторов.
+- **Эпоха** — период пересчёта (24 часа).
+- **Сезон** — период сброса части поинтов (90 дней).
+- **Вклад** — измеримое полезное действие.
+- **Множитель** — коэффициент, увеличивающий начисление.
+- **Анти-абьюз** — механизмы против накрутки.
+
+---
+
+## 1. Философия
+
+### 1.1 Что такое поинты
+
+Поинты — это **не токен**. Это учёт вклада. Они:
+
+- начисляются за полезную работу;
+- не передаются между участниками;
+- не покупаются;
+- не дают voting power напрямую;
+- конвертируются в токены только через governance.
+
+### 1.2 Почему поинты, а не токены сразу
+
+- Нет привязки к рыночной цене.
+- Нет спекуляций на старте.
+- Можно калибровать формулу без финансовых последствий.
+- Governance решает конвертацию позже.
+
+### 1.3 Принципы
+
+1. **Поинты нельзя купить.** Только заработать.
+2. **Поинты нельзя передать.** Они привязаны к адресу.
+3. **Поинты не дают voting power.** Governance — отдельно.
+4. **Формула публична.** Каждый может проверить.
+5. **Анти-абьюз обязателен.** Накрутка наказывается.
+6. **Сезонность.** Часть поинтов сбрасывается каждые 90 дней.
+7. **Прозрачность.** Все начисления публичны.
+
+---
+
+## 2. Роли и вклад
+
+### 2.1 Роли
+
+| Роль | Что делает | Поинты за |
+|---|---|---|
+| Loader | Принимает tx, антиспам | Принятые tx |
+| Pricer | Симуляция AMM, проверка | Симуляции |
+| State Replica | Хранит proofs | Репликацию |
+| DA Node | Хранит данные | Доступность |
+| Archive/Indexer | История, API | Запросы |
+| App Executor | Исполняет приложения | Исполнение |
+| Validator | Голосует за блоки | Блоки |
+| DAO Participant | Управление, апелляции | Голоса |
+| Operator | Управляет VPS | Uptime |
+| Referrer | Приглашает участников | Активные рефералы |
+
+### 2.2 Вклад
+
+**Измеримый вклад** — это действие, которое:
+
+- проверяемо;
+- полезно сети;
+- не может быть накручено без последствий.
+
+**Примеры:**
+- Принял 100 tx за эпоху → +100 PFP.
+- Держал узел онлайн 24 часа → +50 PFP.
+- Проголосовал в governance → +10 PFP.
+- Пригласил активного участника → +20 PFP.
+
+---
+
+## 3. Формула начисления
+
+### 3.1 Базовая формула
+
+```
+points_earned = base_points 
+              * quality_factor 
+              * uptime_factor 
+              * reputation_factor 
+              * streak_factor
+              * season_factor
+```
+
+### 3.2 Компоненты
+
+#### base_points
+Фиксированное количество за действие.
+
+| Действие | base_points |
+|---|---|
+| Принятая tx (loader) | 1 |
+| Симуляция (pricer) | 2 |
+| Репликация блока (replica) | 5 |
+| Хранение данных (DA) | 3 |
+| Запрос API (indexer) | 0.1 |
+| Исполнение (app executor) | 10 |
+| Подписанный блок (validator) | 100 |
+| Голос в governance | 10 |
+| Час uptime | 2 |
+| Активный реферал | 20 |
+
+#### quality_factor
+Зависит от качества работы.
+
+```
+quality_factor = 1.0 + (quality_score - 0.5) * 0.5
+
+quality_score = [0, 1]
+```
+
+- Если quality = 0.5 → factor = 1.0.
+- Если quality = 1.0 → factor = 1.25.
+- Если quality = 0.0 → factor = 0.75.
+
+**Как считается quality:**
+- Для loader: доля принятых tx без ошибок.
+- Для pricer: доля симуляций, совпавших с каноническим результатом.
+- Для validator: доля подписанных блоков без пропусков.
+- Для DA: доля доступных данных.
+
+#### uptime_factor
+Зависит от доступности.
+
+```
+uptime_factor = min(uptime / 0.99, 1.5)
+
+uptime = доля времени онлайн за эпоху
+```
+
+- 99% → 1.0.
+- 99.5% → 1.005.
+- 100% → 1.01.
+- Максимум 1.5 (при 148.5% — невозможно, значит кап).
+
+**Реально:** uptime_factor = 1.0 при 99%, 1.01 при 100%.
+
+#### reputation_factor
+Зависит от репутации.
+
+```
+reputation_factor = 1.0 + reputation / 10000
+
+reputation = [0, 10000]
+```
+
+- reputation = 0 → 1.0.
+- reputation = 1000 → 1.1.
+- reputation = 10000 → 2.0.
+
+**Как растёт reputation:**
+- +10 за эпоху без нарушений.
+- +50 за закрытый спор в пользу участника.
+- -100 за доказанное нарушение.
+- -1000 за критическое нарушение.
+
+#### streak_factor
+Зависит от непрерывной работы.
+
+```
+streak_factor = 1.0 + min(streak_days, 30) * 0.01
+
+streak_days = дней подряд без пропусков
+```
+
+- 1 день → 1.01.
+- 10 дней → 1.10.
+- 30 дней → 1.30.
+- Максимум 1.30.
+
+**Сброс:** пропуск дня → streak = 0.
+
+#### season_factor
+Зависит от сезона.
+
+```
+season_factor = 1.0 + season_bonus
+
+season_bonus = [0, 0.5]
+```
+
+- Сезон 1 (первые 90 дней): +0.5.
+- Сезон 2: +0.3.
+- Сезон 3: +0.1.
+- Сезон 4+: 0.
+
+**Зачем:** стимулировать ранних участников.
+
+### 3.3 Пример расчёта
+
+**Loader принял 100 tx за эпоху:**
+```
+base_points = 100
+quality_factor = 1.1  (quality = 0.7)
+uptime_factor = 1.0   (99% uptime)
+reputation_factor = 1.05  (reputation = 500)
+streak_factor = 1.1   (10 дней подряд)
+season_factor = 1.5   (сезон 1)
+
+points = 100 * 1.1 * 1.0 * 1.05 * 1.1 * 1.5 = 190.575 PFP
+```
+
+**Validator подписал 100 блоков:**
+```
+base_points = 100 * 100 = 10000
+quality_factor = 1.2   (quality = 0.9)
+uptime_factor = 1.0
+reputation_factor = 1.1
+streak_factor = 1.3
+season_factor = 1.5
+
+points = 10000 * 1.2 * 1.0 * 1.1 * 1.3 * 1.5 = 25740 PFP
+```
+
+---
+
+## 4. Уровни
+
+### 4.1 Уровни участника
+
+| Уровень | Поинтов | Бонус к начислению |
+|---|---|---|
+| Bronze | 0 | +0% |
+| Silver | 10 000 | +5% |
+| Gold | 100 000 | +10% |
+| Platinum | 1 000 000 | +20% |
+| Diamond | 10 000 000 | +40% |
+
+**Правила:**
+- Уровень пересчитывается каждую эпоху.
+- Уровень не сбрасывается при падении поинтов (только растёт).
+- Уровень не даёт voting power.
+- Уровень не даёт приоритет в консенсусе.
+
+### 4.2 Уровни шарда
+
+| Уровень | Условия | Бонус |
+|---|---|---|
+| New | Запущен < 30 дней | +100% |
+| Active | 30–90 дней | +50% |
+| Mature | > 90 дней | +0% |
+| Idle | Загрузка < 10% | +50% |
+| Critical | Загрузка > 90% | +25% |
+
+**Правила:**
+- Уровень шарда пересчитывается каждую эпоху.
+- Idle и Critical — временные.
+- New и Active — стимулируют рост.
+- Mature — базовый.
+
+### 4.3 Уровни оператора
+
+| Уровень | Условия | Бонус |
+|---|---|---|
+| Bronze | 1 шард, uptime 99% | +0% |
+| Silver | 3 шарда, uptime 99.5% | +10% |
+| Gold | 5 шардов, uptime 99.9% | +25% |
+| Platinum | 10 шардов, uptime 99.95% | +50% |
+| Diamond | 20 шардов, uptime 99.99% | +100% |
+
+**Правила:**
+- Уровень пересчитывается каждую эпоху.
+- Требования должны выполняться одновременно.
+- Уровень не даёт voting power.
+- Уровень не покупается.
+
+---
+
+## 5. Специальные бонусы
+
+### 5.1 Idle Bonus
+
+**Зачем:** мотивировать операторов держать простаивающие шарды онлайн.
+
+```
+idle_bonus = IDLE_MAX * (1.0 - load / capacity)
+
+IDLE_MAX = 0.5
+load = текущая загрузка шарда (tx/сек)
+capacity = максимальная пропускная способность
+```
+
+| Загрузка | idle_bonus |
+|---|---|
+| 0% | +50% |
+| 25% | +37.5% |
+| 50% | +25% |
+| 75% | +12.5% |
+| 100% | +0% |
+
+**Применяется к:** всем поинтам, заработанным на этом шарде.
+
+### 5.2 Routing Bonus
+
+**Зачем:** мотивировать кросс-шардовую маршрутизацию.
+
+```
+routing_bonus = ROUTING_BASE * log(1 + routed_tx)
+
+ROUTING_BASE = 0.05
+routed_tx = маршрутизированные tx за эпоху
+```
+
+| routed_tx | routing_bonus |
+|---|---|
+| 0 | +0% |
+| 10 | +12% |
+| 100 | +23% |
+| 1000 | +35% |
+| 10000 | +46% |
+
+**Применяется к:** поинтам шарда-маршрутизатора.
+
+### 5.3 Referral Bonus
+
+**Зачем:** мотивировать привлечение участников.
+
+```
+referral_bonus = REFERRAL_BASE * log(1 + active_referrals)
+
+REFERRAL_BASE = 0.1
+active_referrals = рефералы с > 1000 PFP
+```
+
+| active_referrals | referral_bonus |
+|---|---|
+| 0 | +0% |
+| 1 | +7% |
+| 10 | +24% |
+| 100 | +46% |
+| 1000 | +69% |
+
+**Ограничения:**
+- Только активные рефералы (> 1000 PFP).
+- Не даёт voting power.
+- Не даёт приоритет в консенсусе.
+- Максимум +100%.
+
+### 5.4 Long-term Bonus
+
+**Зачем:** мотивировать долгосрочное участие.
+
+```
+long_term_bonus = min(months_active, 24) * 0.01
+
+months_active = месяцев с первого заработанного PFP
+```
+
+| Месяцев | long_term_bonus |
+|---|---|
+| 1 | +1% |
+| 6 | +6% |
+| 12 | +12% |
+| 24 | +24% |
+
+**Максимум:** +24%.
+
+### 5.5 Shard Pioneer Bonus
+
+**Зачем:** мотивировать запуск новых шардов.
+
+```
+pioneer_bonus = 1.0 для первых 10 операторов нового шарда
+              = 0.5 для следующих 20
+              = 0.0 для остальных
+```
+
+**Применяется:** первые 30 дней существования шарда.
+
+---
+
+## 6. Сезонность
+
+### 6.1 Сезоны
+
+- Сезон = 90 дней.
+- 4 сезона в году.
+- Сезон 1 — с запуска сети.
+
+### 6.2 Сброс поинтов
+
+В конце сезона:
+
+```
+points_kept = points_earned * SEASON_KEEP
+points_reset = points_earned * (1 - SEASON_KEEP)
+
+SEASON_KEEP = 0.7
+```
+
+- 70% поинтов переносятся.
+- 30% сбрасываются.
+
+**Зачем:**
+- Стимулировать постоянную работу.
+- Не давать «застрять» на старых заслугах.
+- Обновлять лидерборд.
+
+### 6.3 Уровни не сбрасываются
+
+Уровень участника не сбрасывается. Только поинты.
+
+**Пример:**
+- Участник набрал 100 000 PFP → Gold.
+- В конце сезона 30 000 сброшено → 70 000 PFP.
+- Уровень остаётся Gold.
+- Для Diamond нужно 10 000 000 PFP.
+
+---
+
+## 7. Анти-абьюз
+
+### 7.1 Основные атаки
+
+| Атака | Как работает | Защита |
+|---|---|---|
+| Накрутка tx | Спам транзакциями | Quality factor, лимиты |
+| Накрутка uptime | Fake heartbeat | Подпись, attestation |
+| Накрутка рефералов | Фейковые аккаунты | PoP, активность > 1000 PFP |
+| Накрутка симуляций | Фейковые запросы | Quality factor, проверка |
+| Накрутка голосов | Много аккаунтов | PoP, репутация |
+| Sybil | Много узлов | PoP, депозит, лимиты |
+| Сговор | Группа участников | Прозрачность, апелляция |
+
+### 7.2 Quality Factor
+
+**Для loader:**
+```
+quality = принятые_без_ошибок / всего_принятых
+```
+
+**Для pricer:**
+```
+quality = симуляций_совпало / всего_симуляций
+```
+
+**Для validator:**
+```
+quality = подписанных_блоков / всего_блоков
+```
+
+**Для DA:**
+```
+quality = доступных_данных / всего_данных
+```
+
+**Правила:**
+- Quality < 0.5 → quality_factor = 0.75.
+- Quality > 0.9 → quality_factor = 1.2.
+- Quality = 0 → points = 0.
+
+### 7.3 Лимиты
+
+| Действие | Лимит в эпоху |
+|---|---|
+| Принятые tx | 10 000 |
+| Симуляции | 5 000 |
+| Репликации | 1 000 |
+| Запросы API | 100 000 |
+| Исполнения | 500 |
+| Подписанные блоки | 100 |
+| Голоса | 10 |
+| Часы uptime | 24 |
+
+**Превышение лимита:** поинты не начисляются.
+
+### 7.4 Аномалии
+
+Система отслеживает:
+
+- резкий рост поинтов;
+- аномально высокий quality;
+- множественные рефералы за короткое время;
+- одинаковые паттерны у разных участников;
+- коррелированные действия.
+
+**При обнаружении:** флаг для ручного review.
+
+### 7.5 Санкции
+
+| Нарушение | Санкция |
+|---|---|
+| Накрутка tx | Сброс поинтов за эпоху |
+| Fake heartbeat | Сброс поинтов за 7 дней |
+| Фейковые рефералы | Сброс реферальных поинтов |
+| Sybil | Бан, сброс всех поинтов |
+| Сговор | Бан, сброс всех поинтов |
+
+**Апелляция:** через DAO. 7 дней.
+
+### 7.6 Прозрачность
+
+- Все начисления публичны.
+- Все формулы публичны.
+- Все санкции публичны.
+- Лидерборд публичен.
+- API для проверки.
+
+---
+
+## 8. API
+
+### 8.1 Поинты
+
+```
+GET  /v1/points/balance/{address}
+GET  /v1/points/history/{address}
+GET  /v1/points/breakdown/{address}
+GET  /v1/points/leaderboard
+GET  /v1/points/leaderboard/{role}
+GET  /v1/points/formula
+```
+
+### 8.2 Уровни
+
+```
+GET  /v1/levels/{address}
+GET  /v1/levels/shard/{shard_id}
+GET  /v1/levels/operator/{address}
+GET  /v1/levels/requirements
+```
+
+### 8.3 Бонусы
+
+```
+GET  /v1/bonuses/idle/{shard_id}
+GET  /v1/bonuses/routing/{shard_id}
+GET  /v1/bonuses/referral/{address}
+GET  /v1/bonuses/long-term/{address}
+GET  /v1/bonuses/pioneer/{shard_id}
+```
+
+### 8.4 Рефералы
+
+```
+POST /v1/referral/register
+GET  /v1/referral/stats/{address}
+GET  /v1/referral/list/{address}
+```
+
+### 8.5 Сезоны
+
+```
+GET  /v1/season/current
+GET  /v1/season/history
+GET  /v1/season/{id}/stats
+```
+
+---
+
+## 9. События
+
+```solidity
+event PointsEarned(
+    address indexed participant,
+    string role,
+    uint256 basePoints,
+    uint256 totalPoints,
+    uint64 epoch
+);
+
+event LevelUp(
+    address indexed participant,
+    uint8 oldLevel,
+    uint8 newLevel,
+    uint64 epoch
+);
+
+event ShardLevelChanged(
+    uint32 indexed shardId,
+    uint8 oldLevel,
+    uint8 newLevel,
+    uint64 epoch
+);
+
+event BonusApplied(
+    address indexed participant,
+    string bonusType,
+    uint64 bonusValue,
+    uint64 epoch
+);
+
+event ReferralRegistered(
+    address indexed referrer,
+    address indexed referee,
+    uint64 epoch
+);
+
+event SeasonEnded(
+    uint64 seasonId,
+    uint256 pointsKept,
+    uint256 pointsReset
+);
+
+event AnomalyDetected(
+    address indexed participant,
+    string anomalyType,
+    uint64 epoch
+);
+```
+
+---
+
+## 10. Хранение
+
+### 10.1 Схема БД
+
+```sql
+CREATE TABLE points_balance (
+    address         BYTEA PRIMARY KEY,
+    total_points    NUMERIC,
+    season_points   NUMERIC,
+    lifetime_points NUMERIC,
+    level           SMALLINT,
+    reputation      BIGINT,
+    streak_days     INTEGER,
+    last_updated    BIGINT
+);
+
+CREATE TABLE points_history (
+    id              BIGSERIAL PRIMARY KEY,
+    address         BYTEA,
+    role            TEXT,
+    base_points     NUMERIC,
+    quality_factor  NUMERIC,
+    uptime_factor   NUMERIC,
+    reputation_factor NUMERIC,
+    streak_factor   NUMERIC,
+    season_factor   NUMERIC,
+    total_points    NUMERIC,
+    epoch           BIGINT,
+    created_at      BIGINT
+);
+
+CREATE TABLE shard_stats (
+    shard_id        INTEGER PRIMARY KEY,
+    load            BIGINT,
+    capacity        BIGINT,
+    uptime          NUMERIC,
+    routed_tx       BIGINT,
+    referrals       BIGINT,
+    level           SMALLINT,
+    idle_bonus      NUMERIC,
+    routing_bonus   NUMERIC,
+    last_updated    BIGINT
+);
+
+CREATE TABLE referrals (
+    referrer        BYTEA,
+    referee         BYTEA,
+    active          BOOLEAN,
+    points_earned   NUMERIC,
+    registered_at   BIGINT,
+    PRIMARY KEY (referrer, referee)
+);
+
+CREATE TABLE seasons (
+    id              SERIAL PRIMARY KEY,
+    started_at      BIGINT,
+    ended_at        BIGINT,
+    points_kept     NUMERIC,
+    points_reset    NUMERIC
+);
+```
+
+### 10.2 Индексы
+
+```sql
+CREATE INDEX idx_points_history_address ON points_history(address);
+CREATE INDEX idx_points_history_epoch ON points_history(epoch);
+CREATE INDEX idx_referrals_referrer ON referrals(referrer);
+CREATE INDEX idx_referrals_referee ON referrals(referee);
+```
+
+---
+
+## 11. Модуль Cosmos SDK
+
+### 11.1 Структура
+
+```
+x/p2f/gamification/
+├── keeper/
+│   ├── keeper.go
+│   ├── points.go
+│   ├── levels.go
+│   ├── bonuses.go
+│   ├── referrals.go
+│   ├── seasons.go
+│   └── anti_abuse.go
+├── types/
+│   ├── types.go
+│   ├── points.go
+│   ├── levels.go
+│   ├── bonuses.go
+│   ├── referrals.go
+│   ├── seasons.go
+│   ├── events.go
+│   └── errors.go
+├── client/
+│   ├── cli/
+│   └── rest/
+├── module.go
+└── genesis.go
+```
+
+### 11.2 Keeper
+
+```go
+type Keeper struct {
+    storeKey    sdk.StoreKey
+    bankKeeper  types.BankKeeper
+    stakingKeeper types.StakingKeeper
+    // ...
+}
+
+func (k Keeper) EarnPoints(ctx sdk.Context, address sdk.AccAddress, role string, basePoints uint64) error
+func (k Keeper) GetPoints(ctx sdk.Context, address sdk.AccAddress) (Points, error)
+func (k Keeper) GetLevel(ctx sdk.Context, address sdk.AccAddress) (Level, error)
+func (k Keeper) ApplyBonus(ctx sdk.Context, address sdk.AccAddress, bonusType string, value uint64) error
+func (k Keeper) RegisterReferral(ctx sdk.Context, referrer, referee sdk.AccAddress) error
+func (k Keeper) EndSeason(ctx sdk.Context) error
+func (k Keeper) DetectAnomaly(ctx sdk.Context, address sdk.AccAddress) error
+```
+
+### 11.3 Genesis
+
+```json
+{
+  "points": {
+    "balances": [],
+    "history": [],
+    "shard_stats": [],
+    "referrals": [],
+    "seasons": [
+      {
+        "id": 1,
+        "started_at": 0,
+        "ended_at": 0,
+        "points_kept": "0",
+        "points_reset": "0"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 12. Governance
+
+### 12.1 Что решает governance
+
+- Формула начисления.
+- Значения `base_points`.
+- Значения `IDLE_MAX`, `ROUTING_BASE`, `REFERRAL_BASE`.
+- Значения `SEASON_KEEP`.
+- Требования уровней.
+- Конвертация поинтов в токены (позже).
+
+### 12.2 Как решает
+
+- Предложение → обсуждение (7 дней) → голосование (7 дней) → timelock (48 ч).
+- Quorum: 33% от voting power.
+- Порог: 50%+1.
+- Критические изменения: 66%.
+
+### 12.3 Voting power
+
+- Не поинты.
+- Репутация × uptime × log(service).
+- Отдельно от геймификации.
+
+---
+
+## 13. Конвертация в токены (TBD)
+
+**Не определено в v0.1.** Будет решено governance после:
+
+- запуска MVP;
+- сбора данных о начислениях;
+- калибровки формулы;
+- аудита экономики.
+
+**Возможные модели:**
+
+1. **Фиксированный курс.** 1 PFP = X P2F.
+2. **Динамический курс.** Зависит от общего supply PFP.
+3. **Периодические дропы.** Каждые 90 дней.
+4. **Гибрид.** Часть фиксированная, часть динамическая.
+
+**Решение — за governance.**
+
+---
+
+## 14. Метрики
+
+| Метрика | Цель |
+|---|---|
+| Средний PFP за эпоху (loader) | 100 |
+| Средний PFP за эпоху (validator) | 10 000 |
+| Средний PFP за эпоху (operator) | 5 000 |
+| Доля аномалий | < 1% |
+| Доля санкций | < 0.1% |
+| Доля активных рефералов | > 50% |
+| Средний streak | > 7 дней |
+| Средний uptime | > 99% |
+
+---
+
+## 15. Примеры
+
+### 15.1 Новый участник
+
+- День 1: зарегистрировался, запустил узел.
+- Эпоха 1: 2 часа uptime → 4 PFP.
+- Эпоха 2: 24 часа uptime → 48 PFP.
+- Эпоха 30: 24 часа uptime, 100 tx → 148 PFP.
+- Месяц 1: 4 440 PFP. Уровень Bronze.
+
+### 15.2 Опытный оператор
+
+- 5 шардов, uptime 99.9%.
+- Gold уровень.
+- Рефералы: 10 активных.
+- Streak: 30 дней.
+- Сезон 1: +50%.
+- Эпоха: 5 000 PFP базовых × 1.25 (quality) × 1.01 (uptime) × 1.5 (reputation) × 1.3 (streak) × 1.5 (season) × 1.25 (Gold) × 1.24 (referral) = 22 500 PFP.
+
+### 15.3 Простаивающий шард
+
+- Загрузка 5%.
+- Idle bonus: +47.5%.
+- New уровень: +100%.
+- Итого: ×2.475 к базовым поинтам.
+- Оператор мотивирован держать шард онлайн.
+
+---
+
+## 16. Открытые вопросы
+
+1. **Конвертация в токены.** Когда? Как? Governance.
+2. **Supply PFP.** Ограничен? Нет?
+3. **Инфляция.** Есть ли?
+4. **Сезонность.** 90 дней — оптимально?
+5. **Сброс.** 30% — оптимально?
+6. **Уровни.** 5 уровней — достаточно?
+7. **Анти-абьюз.** Как ловить сложные схемы?
+8. **Апелляция.** Кто судит?
+9. **Прозрачность.** Что публиковать?
+10. **Юридика.** Поинты — не ценная бумага?
+
+---
+
+## 17. Решения v0.1
+
+- Поинты — не токен.
+- Поинты нельзя купить.
+- Поинты нельзя передать.
+- Поинты не дают voting power.
+- Уровни не сбрасываются.
+- Поинты сбрасываются на 30% в конце сезона.
+- Idle bonus +50%.
+- Routing bonus до +46%.
+- Referral bonus до +69%.
+- Long-term bonus до +24%.
+- Pioneer bonus +100%.
+- Анти-абьюз обязателен.
+- Конвертация в токены — позже через governance.
+
+---
+
+## 18. Ключевой принцип
+
+**Поинты — это учёт полезного вклада, а не спекулятивный актив.**
+
+- Нельзя купить.
+- Нельзя передать.
+- Нельзя накрутить без последствий.
+- Не дают власти.
+- Конвертируются в токены только через governance.
+
+**Цель геймификации:**
+- Мотивировать простаивающие шарды.
+- Стимулировать рост сети.
+- Поощрять долгосрочное участие.
+- Награждать полезную работу.
+- Не создавать pay-to-win.
+- Не создавать плаутократию.
+
+---
+
+# Как выглядит сеть, способная принимать Web2-приложения
+
+Разберу с точки зрения архитектуры, потоков данных и того, что видит разработчик. Это синтез всего, что мы обсуждали: Cosmos SDK, шарды, B2C/B2B, три режима приложений.
+
+---
+
+## 1. Общая картина
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    P2F Network                                  │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Control Chain (координация)                             │  │
+│  │  - Реестр шардов                                         │  │
+│  │  - Реестр приложений                                     │  │
+│  │  - Чекпоинты                                             │  │
+│  │  - Governance                                            │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│           │              │              │                       │
+│           ▼              ▼              ▼                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
+│  │  Шард 0     │  │  Шард 1     │  │  Шард N     │            │
+│  │  (DeFi)     │  │  (Games)    │  │  (Social)   │            │
+│  │             │  │             │  │             │            │
+│  │  Mode A     │  │  Mode B     │  │  Mode C     │            │
+│  │  WASM/EVM   │  │  Anchored   │  │  Hybrid     │            │
+│  └─────────────┘  └─────────────┘  └─────────────┘            │
+│           │              │              │                       │
+│           └──────────────┼──────────────┘                       │
+│                          │                                      │
+│                     IBC (связь)                                 │
+└────────────────────────────────────────────────────────────────┘
+           ▲              ▲              ▲
+           │              │              │
+    ┌──────┴──────┐ ┌─────┴──────┐ ┌────┴───────┐
+    │ Разработчик │ │ Разработчик│ │ Разработчик│
+    │  Web2       │ │  Web3      │ │  Гибрид    │
+    └─────────────┘ └────────────┘ └────────────┘
+```
+
+**Ключевое:** сеть состоит из множества шардов. Каждый шард специализируется под свой тип приложений. Control Chain координирует.
+
+---
+
+## 2. Три режима приложений
+
+### 2.1 Режим A — Детерминированное исполнение
+
+**Для кого:** DeFi, простые игры, логика с чёткими правилами.
+
+**Как выглядит:**
+
+```
+Разработчик → пишет код → компилирует → загружает в шард
+                                              │
+                                              ▼
+                                    ┌──────────────────┐
+                                    │  WASM / EVM      │
+                                    │  контракт        │
+                                    └──────────────────┘
+                                              │
+                                              ▼
+                              Валидаторы исполняют код
+                              каждый независимо
+                                              │
+                                              ▼
+                              Результат одинаков на всех
+                                              │
+                                              ▼
+                              Состояние обновляется
+```
+
+**Технологии:**
+- **CosmWasm** — для Rust-разработчиков.
+- **Cosmos EVM** — для Solidity-разработчиков.
+- **Wasmtime** — sandbox, детерминированный fuel.
+
+**Что видит разработчик:**
+- Знакомый стек: Rust или Solidity.
+- Привычные инструменты: Hardhat, Foundry, MetaMask.
+- Деплой как в Ethereum: одна транзакция.
+- Полная проверяемость: каждый валидатор воспроизводит результат.
+
+**Что видит пользователь:**
+- Кошелёк B2C или B2B.
+- Транзакции за 1–2 секунды.
+- Комиссии в P2F.
+- Полная история (если публичный режим).
+
+### 2.2 Режим B — Anchored State
+
+**Для кого:** реалтайм-игры, соцсети, тяжёлые вычисления.
+
+**Как выглядит:**
+
+```
+Разработчик → держит свои серверы → пишет логику off-chain
+                                              │
+                                              ▼
+                                    ┌──────────────────┐
+                                    │  Внешний сервер  │
+                                    │  (игра, соцсеть) │
+                                    └──────────────────┘
+                                              │
+                                              ▼
+                              Периодически отправляет
+                              state root + checkpoint
+                                              │
+                                              ▼
+                                    ┌──────────────────┐
+                                    │  Шард P2F        │
+                                    │  фиксирует       │
+                                    │  обязательство   │
+                                    └──────────────────┘
+                                              │
+                                              ▼
+                              Данные доступны через DA
+                              (Celestia / Avail)
+```
+
+**Что видит разработчик:**
+- Свои серверы остаются.
+- Логика не переписывается.
+- Интеграция через SDK.
+- Отправка чекпоинтов в P2F.
+
+**Что видит пользователь:**
+- Игра работает быстро (off-chain).
+- Активы защищены (on-chain).
+- Покупки и продажи через P2F.
+- История транзакций в P2F.
+
+**Ограничение:** хеш состояния доказывает неизменность, но не честность исполнения. Нужны fraud proofs или validity proofs для полной защиты.
+
+### 2.3 Режим C — Гибрид
+
+**Для кого:** большинство современных приложений.
+
+**Как выглядит:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Off-chain (быстро)                                     │
+│  - UI, рендеринг                                        │
+│  - Real-time симуляция                                  │
+│  - Тяжёлые вычисления                                   │
+│  - Соцграф                                              │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          │ события, чекпоинты
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  On-chain (безопасно)                                   │
+│  - Владение активами                                    │
+│  - Платежи                                              │
+│  - Инвентарь                                            │
+│  - Лимиты                                               │
+│  - Финальные результаты                                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Что видит разработчик:**
+- Гибридная архитектура.
+- Критичные данные — on-chain.
+- Быстрые данные — off-chain.
+- SDK для интеграции.
+
+**Что видит пользователь:**
+- Быстрый UI.
+- Безопасные активы.
+- Прозрачные транзакции.
+- Кошелёк B2C или B2B.
+
+---
+
+## 3. Что видит разработчик при загрузке приложения
+
+### 3.1 Процесс
+
+```
+1. Регистрация
+   └─ Разработчик создаёт аккаунт в P2F.
+
+2. Выбор режима
+   └─ AI-агент анализирует код.
+   └─ Предлагает Mode A / B / C.
+   └─ Разработчик подтверждает.
+
+3. Загрузка кода
+   └─ Mode A: компиляция в WASM / Solidity.
+   └─ Mode B: SDK для чекпоинтов.
+   └─ Mode C: гибридный SDK.
+
+4. Проверка
+   └─ AI-агент проверяет код.
+   └─ Статический анализ.
+   └─ Тесты в sandbox.
+   └─ Ручной review (для критичных).
+
+5. Деплой
+   └─ Приложение регистрируется в Control Chain.
+   └─ Получает app_id.
+   └─ Создаётся B2B кошелёк.
+   └─ Приложение готово.
+
+6. Обновления
+   └─ Новая версия → новый hash.
+   └─ Старая версия не переписывается.
+   └─ Пользователи видят changelog.
+```
+
+### 3.2 Что получает разработчик
+
+- **app_id** — уникальный идентификатор.
+- **B2B кошелёк** — для управления активами приложения.
+- **SDK** — для интеграции.
+- **Dashboard** — метрики, логи, пользователи.
+- **API** — для внешних интеграций.
+- **Документация** — туториалы, примеры.
+
+---
+
+## 4. Что видит пользователь
+
+### 4.1 Кошельки
+
+**B2C кошелёк:**
+- Для обычных пользователей.
+- Управление ключами через MPC.
+- Session keys для приложений.
+- Лимиты, whitelist.
+
+**B2B кошелёк:**
+- Для приложений.
+- Ввод/вывод только по коду приложения.
+- Policies, allowlist.
+- Аудит всех операций.
+
+### 4.2 Взаимодействие с приложением
+
+```
+Пользователь → открывает приложение → подключает кошелёк
+                                              │
+                                              ▼
+                                    ┌──────────────────┐
+                                    │  Кошелёк P2F     │
+                                    │  (B2C или B2B)   │
+                                    └──────────────────┘
+                                              │
+                                              ▼
+                              Приложение запрашивает действие
+                                              │
+                                              ▼
+                              Кошелёк проверяет политику
+                                              │
+                                              ▼
+                              Пользователь подтверждает
+                                              │
+                                              ▼
+                              Транзакция идёт в шард
+                                              │
+                                              ▼
+                              Валидаторы исполняют
+                                              │
+                                              ▼
+                              Результат за 1-2 секунды
+```
+
+### 4.3 Что видит пользователь
+
+- **Быстро.** Транзакции за 1–2 секунды.
+- **Безопасно.** Активы в B2C или B2B.
+- **Прозрачно.** История в блокчейне (если публичный режим).
+- **Приватно.** Скрытый мемпул (если включён).
+- **Без seed-фразы.** MPC-подпись.
+- **Псевдонимы.** `Vitaliy`, `№1` вместо `0x6f9C...`.
+
+---
+
+## 5. Как выглядит сеть изнутри
+
+### 5.1 Control Chain
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Control Chain                                       │
+│                                                      │
+│  - Registry of Shards                               │
+│  - Registry of Apps                                 │
+│  - Checkpoints of Shards                            │
+│  - Cross-shard Messages                             │
+│  - Governance                                        │
+│  - Operator Registry                                │
+│  - Spawn Protocol                                    │
+│                                                      │
+│  НЕ обрабатывает пользовательские транзакции        │
+└─────────────────────────────────────────────────────┘
+```
+
+### 5.2 Шарды
+
+**Шард 0 — DeFi:**
+- Mode A (WASM/EVM).
+- AMM, lending, stablecoins.
+- 10 000 TPS.
+
+**Шард 1 — Games:**
+- Mode B (Anchored State).
+- Реалтайм-игры, инвентарь.
+- 10 000 TPS.
+
+**Шард 2 — Social:**
+- Mode C (Hybrid).
+- Соцсети, мессенджеры.
+- 10 000 TPS.
+
+**Шард N — ...**
+
+### 5.3 Кросс-шардовая коммуникация
+
+```
+Пользователь на Шарде 0 хочет отправить токен в Шард 1
+                          │
+                          ▼
+              ┌──────────────────────┐
+              │  IBC Message         │
+              │  - message_id        │
+              │  - shard_from        │
+              │  - shard_to          │
+              │  - sender            │
+              │  - recipient         │
+              │  - amount            │
+              │  - proof             │
+              └──────────────────────┘
+                          │
+                          ▼
+              Шард 1 верифицирует proof
+                          │
+                          ▼
+              Зачисляет токен
+                          │
+                          ▼
+              Финалити через 2-10 секунд
+```
+
+---
+
+## 6. Технологический стек
+
+### 6.1 Ядро
+
+| Компонент | Технология |
+|---|---|
+| Consensus | CometBFT |
+| SDK | Cosmos SDK v0.50+ |
+| ABCI | ABCI++ |
+| State | IAVL+ |
+| Index | PostgreSQL |
+| Cross-chain | IBC v2 |
+| DA | Celestia / Avail |
+
+### 6.2 Исполнение
+
+| Режим | Технология |
+|---|---|
+| Mode A (WASM) | CosmWasm + Wasmtime |
+| Mode A (EVM) | Cosmos EVM |
+| Mode B | Custom SDK + DA |
+| Mode C | Hybrid SDK |
+
+### 6.3 Кошельки
+
+| Компонент | Технология |
+|---|---|
+| B2C | Cosmos SDK + MPC |
+| B2B | Custom policies |
+| MPC | FROST + GG20 |
+| Session keys | ERC-4337-like |
+
+### 6.4 Инфраструктура
+
+| Компонент | Технология |
+|---|---|
+| VPS | Google Cloud / AWS / Hetzner |
+| Deploy | Docker + Kubernetes |
+| Monitoring | Prometheus + Grafana |
+| Logs | Loki |
+| Secrets | Vault |
+
+---
+
+## 7. Как это работает для разных типов приложений
+
+### 7.1 DeFi-протокол
+
+**Режим:** A (EVM).
+
+**Что делает:**
+- Пишет Solidity-контракты.
+- Деплоит в Шард 0.
+- Пользователи подключают MetaMask.
+- Все операции on-chain.
+
+**Что получает:**
+- 10 000 TPS.
+- Финалити 2 секунды.
+- Совместимость с Ethereum-инструментами.
+- IBC для кросс-чейн переводов.
+
+### 7.2 Реалтайм-игра
+
+**Режим:** B (Anchored State).
+
+**Что делает:**
+- Держит свои игровые серверы.
+- Логика игры off-chain.
+- Периодически отправляет чекпоинты в Шард 1.
+- Покупки и продажи on-chain.
+
+**Что получает:**
+- Быстрый геймплей.
+- Безопасные активы.
+- Защита от подмены сервера.
+- Прозрачная экономика.
+
+### 7.3 Соцсеть
+
+**Режим:** C (Hybrid).
+
+**Что делает:**
+- UI и контент off-chain.
+- Владение аккаунтами on-chain.
+- Платежи on-chain.
+- Репутация on-chain.
+
+**Что получает:**
+- Быстрый UI.
+- Безопасные активы.
+- Прозрачная репутация.
+- Возможность монетизации.
+
+### 7.4 Маркетплейс
+
+**Режим:** C (Hybrid).
+
+**Что делает:**
+- Каталог off-chain.
+- Платежи on-chain.
+- Владение товарами on-chain.
+- Доставка off-chain.
+
+**Что получает:**
+- Быстрый поиск.
+- Безопасные платежи.
+- Прозрачные права.
+- Низкие комиссии.
+
+---
+
+## 8. Экономика для приложений
+
+### 8.1 Комиссии
+
+- **Деплой приложения:** 100 P2F.
+- **Транзакция:** 0.001 P2F.
+- **Обновление:** 50 P2F.
+- **Регистрация B2B кошелька:** 10 P2F.
+
+### 8.2 Награды
+
+- **Разработчику:** 90% от комиссий приложения.
+- **Шарду:** 5% от комиссий.
+- **Control Chain:** 5% от комиссий.
+
+### 8.3 Стимулы
+
+- **Первые 100 приложений:** 0% комиссии первые 6 месяцев.
+- **Приложения с > 10 000 пользователей:** -50% комиссии.
+- **Приложения с > 100 000 пользователей:** -80% комиссии.
+
+---
+
+## 9. Безопасность
+
+### 9.1 Для пользователей
+
+- MPC-кошелёк.
+- Session keys с лимитами.
+- B2B policies.
+- Скрытый мемпул.
+- Slashing валидаторов.
+
+### 9.2 Для разработчиков
+
+- AI-аудит кода.
+- Sandbox для тестов.
+- Ручной review критичных.
+- Страхование депозита.
+- Апелляция через DAO.
+
+### 9.3 Для сети
+
+- BFT-консенсус.
+- VRF-выбор комитета.
+- Ротация валидаторов.
+- Чекпоинты в Control Chain.
+- Data availability.
+
+---
+
+## 10. Roadmap
+
+### Phase 1 — База (6 месяцев)
+- Control Chain.
+- Шард 0.
+- Mode A (EVM).
+- B2C кошелёк.
+- 10 000 TPS.
+
+### Phase 2 — Web2 (3 месяца)
+- Mode B (Anchored State).
+- Mode C (Hybrid).
+- B2B кошелёк.
+- SDK для разработчиков.
+
+### Phase 3 — Масштаб (6 месяцев)
+- Дополнительные шарды.
+- IBC между шардами.
+- DA интеграция.
+- 100 000 TPS.
+
+### Phase 4 — Экосистема (6 месяцев)
+- 100+ приложений.
+- 1M+ пользователей.
+- 1 000 000 TPS суммарно.
+- Полная децентрализация.
+
+---
+
+## 11. Что это даёт
+
+### 11.1 Разработчикам
+- Знакомый стек.
+- Быстрый деплой.
+- Низкие комиссии.
+- Доступ к пользователям.
+- IBC для кросс-чейн.
+
+### 11.2 Пользователям
+- Быстрые транзакции.
+- Безопасные активы.
+- Псевдонимы.
+- MPC-кошелёк.
+- Скрытый мемпул.
+
+### 11.3 Операторам
+- One-click VPS.
+- Геймификация.
+- Idle bonus.
+- Рефералка.
+- Долгосрочные бонусы.
+
+### 11.4 Сети
+- 1 000 000 TPS.
+- Децентрализация.
+- Устойчивость к Sybil.
+- Прозрачность.
+- Governance.
+
+---
+
+## 12. Вердикт
+
+**Сеть, способная принимать Web2-приложения, выглядит так:**
+
+- **Много шардов.** Каждый под свой тип приложений.
+- **Control Chain.** Координирует шарды.
+- **Три режима.** A (on-chain), B (anchored), C (hybrid).
+- **B2C и B2B кошельки.** Разные политики.
+- **SDK для разработчиков.** Быстрый деплой.
+- **IBC.** Кросс-шардовая коммуникация.
+- **DA.** Доступность данных.
+- **Геймификация.** Мотивация операторов.
+- **Governance.** Управление сетью.
+- **Безопасность.** BFT + slashing + MPC.
+
+**Разработчик видит:**
+- Знакомый стек.
+- Быстрый деплой.
+- SDK и документацию.
+- Dashboard.
+- Аудиторию.
+
+**Пользователь видит:**
+- Быстрые приложения.
+- Безопасные активы.
+- Псевдонимы.
+- MPC-кошелёк.
+- Низкие комиссии.
+
+**Сеть видит:**
+- Рост числа приложений.
+- Рост числа пользователей.
+- Рост числа шардов.
+- Рост TPS.
+- Устойчивость.
+
+**Это не просто блокчейн. Это экосистема для Web2 и Web3 приложений с уникальной архитектурой P2F.**
+
+Масштабирование шардов в P2F Network будет работать как автоматическая, самоподдерживающаяся система, которая реагирует на нагрузку в реальном времени. Это ключевой механизм для достижения целевых 1 000 000 TPS. В основе лежит мониторинг ключевых показателей (KPI), на основе которых протокол принимает решение о запуске нового шарда.
+
+### ⚙️ Механика масштабирования: Триггеры и Процесс
+
+Система не ждет ручного вмешательства. Масштабирование запускается автоматически при достижении пороговых значений KPI, которые отслеживаются в `Control Chain`.
+
+**Ключевые KPI (Триггеры для масштабирования):**
+
+*   **Утилизация блока (Block Utilization):** Основной показатель. Если средняя загрузка газового лимита в блоках шарда превышает **80%** в течение определенного периода (например, 1 минуты), это сигнал к расширению.
+*   **Пропускная способность (TPS):** Если фактический TPS шарда приближается к его расчетному максимуму (например, **8 000 TPS** при лимите в 10 000), система готовится к запуску нового шарда.
+*   **Задержка финализации (Finality Latency):** Если время до финализации блока стабильно превышает целевой показатель (например, **3 секунды**), это может указывать на необходимость перераспределения нагрузки.
+*   **Плата за газ (Gas Fees):** Резкий рост средней комиссии может свидетельствовать о конкуренции за пространство в блоке, что также является триггером для расширения.
+
+**Процесс запуска нового шарда (Spawn Protocol):**
+
+1.  **Обнаружение:** `Control Chain` фиксирует устойчивое превышение пороговых значений KPI в одном из шардов.
+2.  **Формирование запроса:** `Control Chain` создает `SpawnRequest` — публичный запрос на создание нового шарда с указанием требуемых ресурсов (CPU, RAM, регион).
+3.  **Выбор оператора:** Операторы VPS подают заявки. Система выбирает оператора с помощью **VRF (Verifiable Random Function)** с учетом их репутации и текущей нагрузки, чтобы избежать централизации и гонки.
+4.  **Развертывание:** Выбранный оператор разворачивает новый VPS и устанавливает на него стандартный Docker-образ P2F.
+5.  **Регистрация:** Новый шард генерирует свои ключи и регистрируется в `Control Chain`, проходя проверку через **Google Cloud Attestation** для подтверждения целостности кода.
+6.  **Интеграция:** Новый шард подключается к сети через **IBC (Inter-Blockchain Communication)**, становясь доступным для кросс-шардовых транзакций.
+
+### 📊 Ключевые показатели эффективности (KPI)
+
+Для управления сетью и оценки ее здоровья используется набор KPI. Они делятся на технические и экономические.
+
+**Технические KPI:**
+
+*   **TPS (Транзакций в секунду):** Основной показатель производительности. Цель — 10 000 TPS на шард и 1 000 000 TPS суммарно.
+*   **Время финализации (Finality Time):** Целевое значение — **1–2 секунды** для мгновенного подтверждения транзакций.
+*   **Задержка сети (Network Latency):** p99 задержка должна быть минимальной (например, <100 мс), чтобы обеспечить быстрый консенсус.
+*   **Uptime:** Доступность каждого узла и шарда должна быть не менее **99%**. Это критически важно для надежности сети.
+*   **Стоимость транзакции (Transaction Cost):** Средняя комиссия должна оставаться низкой и предсказуемой, чтобы привлекать пользователей.
+*   **Эффективность параллельного исполнения (Block-STM):** Скорость обработки транзакций должна увеличиваться пропорционально количеству ядер CPU (целевой показатель — ускорение в **5-10 раз** на параллелизуемых нагрузках).
+
+**Экономические KPI (для системы геймификации):**
+
+*   **Средний PFP за эпоху:** Показывает активность и вклад участников. Например, для валидатора это может быть 10 000 PFP.
+*   **Доля активных рефералов:** Процент рефералов, которые активно участвуют в сети (например, >50%).
+*   **Средний Streak (дней подряд):** Показывает стабильность работы операторов (например, >7 дней).
+*   **Коэффициент Slashing:** Доля участников, подвергшихся штрафам за нарушения (цель — <0.1%).
+
+### 📈 Пример работы системы
+
+Представим, что шард #1, на котором запущено популярное DeFi-приложение, начинает испытывать нагрузку.
+
+1.  **Нагрузка растет:** TPS шарда #1 превышает **8 000**, утилизация блока — **85%**. KPI фиксируют это в течение 1 минуты.
+2.  **Триггер срабатывает:** `Control Chain` автоматически создает `SpawnRequest` на новый шард.
+3.  **Развертывание:** Оператор разворачивает новый VPS. Через несколько минут новый шард #5 регистрируется в сети.
+4.  **Балансировка:** Часть новых транзакций и смарт-контрактов автоматически перенаправляется на шард #5 через IBC. Нагрузка на шард #1 снижается до комфортных 60%.
+5.  **Обратное слияние (Downscaling):** Если нагрузка на всех шардах падает (например, в ночное время), и TPS на каком-либо шарде стабильно держится ниже **2 000** в течение 5 минут, система может инициировать процедуру слияния шардов для экономии ресурсов.
+
+### 💎 Итог
+
+Система масштабирования P2F — это **автоматический, самоподдерживающийся механизм**, который позволяет сети эластично расширяться и сжиматься в зависимости от нагрузки. В основе лежит мониторинг четких KPI (TPS, утилизация, задержка) и использование **Spawn Protocol** для быстрого и безопасного добавления новых вычислительных мощностей. Это обеспечивает сети способность достигать целевых 1 000 000 TPS, сохраняя при этом низкие комиссии и высокую скорость финализации.
+
+
+## 🔴 Критические разделы
+
+### 1. Токеномика
+
+**Общий supply:** 1 000 000 000 P2F (1 млрд). Это стандарт для сетей с долгосрочным горизонтом.
+
+**Распределение:**
+
+| Категория | Доля | Vesting |
+|---|---|---|
+| Сообщество и награды | 40% | 10 лет, линейно |
+| Команда | 15% | 4 года, cliff 1 год |
+| Инвесторы | 15% | 3 года, cliff 1 год |
+| Фонд развития | 15% | 10 лет |
+| Резервный пул (slashing) | 10% | 10 лет |
+| Публичное распределение | 5% | сразу |
+
+**Инфляция:** 2% в год. Идёт на награды валидаторам и операторам. В Cosmos SDK это реализуется через модуль `x/mint`, где инфляция привязывается к проценту застейканных токенов (goal % bonded). Если застейкано больше цели — инфляция снижается до минимума; если меньше — растёт. Можно задать кастомную `MintFn` для специализированной логики.
+
+**Сжигание:** 50% от базовой комиссии сжигается. 50% идёт в резервный пул.
+
+**Связь PFP → P2F:** конвертация только через governance. Курс определяется после сбора данных о начислениях за первые 2–3 сезона. Возможные модели: фиксированный курс, динамический курс (от общего supply PFP), периодические дропы.
+
+**Fee assets:** только P2F. Стейблы — через AMM, не напрямую.
+
+**Treasury:** управляется governance. Расходы — через предложения с timelock 48 часов.
+
+---
+
+### 2. Безопасность шардов (межшардовое доверие)
+
+**Модель:** IBC light clients + fraud proofs.
+
+**Как работает:**
+- Каждый шард запускает light client для каждого другого шарда.
+- Light client проверяет блок-заголовки и консенсусные подписи.
+- IBC обеспечивает криптографическую верификацию без централизованного моста.
+- Validity predicate проверяет обновления состояния удалённой машины.
+
+**Fraud proofs vs validity proofs:**
+- **Validity proofs** дают криптографическую гарантию, но дороги в вычислении.
+- **Fraud proofs** работают по optimistic модели: транзакция считается валидной, пока не доказано обратное в течение периода оспаривания.
+
+**Рекомендация:** гибрид. Для мелких сумм — optimistic с периодом оспаривания 1 час. Для крупных (> X P2F) — validity proofs или увеличенный период.
+
+**Механизм оспаривания:**
+- Любой может подать fraud proof с Merkle-доказательством.
+- Если proof верен — чекпоинт откатывается, валидаторы шарда slashing.
+- Награда за fraud proof: 10% от slashed суммы.
+
+**Модуль `x/evidence`** позволяет любому отправить доказательство нарушения, которое затем передаётся в основную цепь для slashing.
+
+---
+
+### 3. Emergency procedures
+
+**Incident response plan:**
+
+| Ситуация | Действие | Кто решает |
+|---|---|---|
+| Компрометация шарда (>1/3 сговор) | Остановка шарда, slashing, перевыбор комитета | Break-glass 5 из 7 |
+| Остановка Control Chain | Emergency upgrade через `cosmovisor --upgrade-height` | Break-glass 5 из 7 |
+| Потеря DA-данных | Приостановка операций шарда, восстановление из реплик | Автоматически + операторы |
+| Критическая уязвимость консенсуса | Emergency upgrade, откат до последнего чекпоинта | Break-glass 5 из 7 |
+| Атака на bridge | Заморозка IBC-канала, расследование | Break-glass 5 из 7 |
+| Массовый slashing | Приостановка slashing, review | Governance |
+
+**Emergency upgrade** — процедура, позволяющая обойти governance при критической необходимости. Используется `cosmovisor` с флагом `--upgrade-height`.
+
+**`x/crisis`** — модуль, который останавливает блокчейн при нарушении инварианта. В v0.53+ депрекирован, но логика перенесена в другие модули.
+
+**Роли:**
+- **Break-glass (5 из 7):** только остановка/возобновление, не перевод средств.
+- **Security contact:** обязателен для всех операторов.
+- **dCERT group:** группа для экстренного реагирования, может быть распущена при сговоре.
+
+---
+
+### 4. Выбор комитета валидаторов для шардов
+
+**Кто выбирает:** Control Chain через VRF.
+
+**Размер комитета:** 
+- Минимум: 10 валидаторов.
+- Оптимум: 50 валидаторов.
+- Максимум: 100 валидаторов.
+
+**Как выбираются:**
+- Операторы подают заявки на участие в шарде.
+- VRF выбирает из подавших с учётом:
+  - стейка (минимум 1000 P2F);
+  - репутации;
+  - текущей нагрузки (vps_count / max_vps);
+  - региона/ASN (для распределения).
+
+**Ротация:** каждую эпоху (24 часа). 20% комитета меняется.
+
+**Если недостаточно желающих:**
+- Шард работает с меньшим комитетом.
+- Если < 10 — шард переходит в режим read-only.
+- Control Chain создаёт SpawnRequest с повышенной наградой.
+
+**VRF:** ECVRF на Ed25519. Доказано, что добавление ECVRF в процедуру консенсуса не вызывает критической деградации. Модуль ECVRF может быть интегрирован в Cosmos SDK и совместим с CosmWasm.
+
+---
+
+### 5. State migration между шардами
+
+**Когда:** при перегрузке шарда (TPS > 80% capacity стабильно).
+
+**Как:**
+1. Создаётся snapshot состояния на высоте H.
+2. Snapshot мигрируется асинхронно через MigrationStream.
+3. Новый шард инициализируется с мигрированным состоянием.
+4. IBC-канал перенаправляется на новый шард.
+5. Старый шард переходит в режим read-only и постепенно останавливается.
+
+**Инструменты:** Cosmos SDK предоставляет `store/v2` migration framework. Для ручной миграции — `genesis.json migrate`. Для миграции данных между версиями кодека — `AltValueCodec` (ленивая миграция).
+
+**Что происходит с транзакциями:**
+- Во время миграции шард работает в read-only.
+- Новые транзакции буферизуются в Control Chain.
+- После завершения миграции буфер разгружается в новый шард.
+
+**Кто платит:** протокол. Стоимость миграции вычитается из резервного пула.
+
+**Длительность:** 1–6 часов в зависимости от размера состояния.
+
+---
+
+### 6. Upgrade mechanism
+
+**Как работает:**
+- Предложение в governance с `MsgSoftwareUpgrade`, указывающее имя upgrade и целевую высоту.
+- Валидаторы голосуют.
+- Если предложение проходит — цепь останавливается на заданной высоте.
+- `cosmovisor` автоматически заменяет бинарник и перезапускает узел.
+
+**Кто инициирует:** любой оператор с достаточным депозитом.
+
+**Как голосуют:** стандартное governance-голосование (quorum 33%, порог 50%+1).
+
+**Откат:** если upgrade неудачен — emergency upgrade через `--upgrade-height` с откатом до предыдущей версии.
+
+**Совместимость версий:** `x/upgrade` обеспечивает `BeginBlocker` hook, который предотвращает продолжение state machine до достижения высоты upgrade.
+
+---
+
+### 7. Fraud proofs / validity proofs
+
+**Выбор:** Optimistic rollup с fraud proofs для мелких сумм; validity proofs для крупных.
+
+**Optimistic:**
+- Период оспаривания: 1 час для мелких, 24 часа для крупных.
+- Кто может подать: любой с Merkle-доказательством.
+- Награда: 10% от slashed.
+- Штраф за ложный fraud proof: 10% депозита заявителя.
+
+**Validity:**
+- ZK-SNARK для кросс-шардовых транзакций > 100 000 P2F.
+- Дорого, но даёт мгновенную финальность.
+
+**Что если fraud proof ошибочный:** заявитель теряет депозит, транзакция остаётся валидной.
+
+---
+
+### 8. Light client
+
+**Как работает:**
+- Лёгкий клиент синхронизирует только блок-заголовки.
+- Проверяет Merkle proofs для состояния и транзакций.
+- Не требует полной синхронизации.
+
+**Мобильный:**
+- Go light client библиотека (Cosmos SDK `light` package).
+- Проверка блок-заголовков, Merkle proof, консенсусных подписей.
+- Solo machine light client — для мобильных устройств.
+
+**Как проверяет чекпоинты:**
+- Light client отслеживает trusted validator set.
+- Проверяет каждый block commit с pre-commit подписями.
+- Merkle proof для состояния.
+
+**Кросс-шардовые транзакции:** через IBC light client для каждого шарда.
+
+---
+
+### 9. Cross-shard MEV
+
+**Проблема:** IBC relayer может видеть пакеты и извлекать MEV.
+
+**Защита:**
+- **Batch auctions:** relayer группирует пакеты, а не пересылает по одному.
+- **Private routing:** пакеты идут через приватный канал.
+- **Parallel nonces:** IBC relayer может использовать разные nonce series для параллельных транзакций.
+- **Cross-chain proposerless block building:** рандомизация порядка пакетов.
+
+**Рекомендация:** batch auctions + parallel nonces на MVP.
+
+---
+
+### 10. Reputation system
+
+**Как растёт:**
+- +10 за эпоху без нарушений.
+- +50 за выигранный спор.
+- +100 за успешный fraud proof.
+
+**Как падает:**
+- -100 за доказанное нарушение.
+- -1000 за критическое нарушение.
+- -50 за пропуск эпохи.
+
+**Влияние на выбор комитета:** `reputation_factor = 1 + reputation / 1000`.
+
+**Влияние на voting power:** `power = reputation^0.5 * uptime_factor * log(1 + service_score)`.
+
+**Защита от накрутки:** репутация не покупается, не передаётся, проверяется через `x/evidence`.
+
+---
+
+## 🟡 Желательные разделы
+
+### 11. Oracle design
+
+**Кто держит:** мультисиг 5 из 7 независимых узлов.
+
+**Консенсус:** 66% подписей для аттестации.
+
+**Как получает данные от Google:** Google Cloud Attestation API. Oracle-узлы независимо запрашивают и проверяют подпись Google.
+
+**Защита от компрометации:** мультисиг, ротация узлов каждые 6 месяцев, аудит, публикация доказательств.
+
+**Альтернативы:** Tellor Layer (L1 на Cosmos SDK для субъективных данных), Band Protocol (100+ валидаторов).
+
+---
+
+### 12. VRF details
+
+**Схема:** ECVRF на Ed25519.
+
+**Кто держит:** VRF Coordinator (мультисиг 5 из 7).
+
+**Как публикует seed:** seed публикуется до выбора, результат верифицируем.
+
+**Верификация:** ECVRF proof проверяется любым участником.
+
+**Если Coordinator скомпрометирован:** emergency break-glass, пересоздание координатора.
+
+---
+
+### 13. PoP details
+
+**Основной провайдер:** Worldcoin (World ID).
+
+**Резервный:** Gitcoin Passport.
+
+**Ротация:** каждые 12 месяцев.
+
+**Защита от купленных личностей:** минимальная стоимость PoP + KYC для крупных операторов.
+
+**Апелляция:** через DAO, 7 дней.
+
+---
+
+### 14. MPC details
+
+**Для Ed25519:** FROST (RFC 9591).
+
+**Для ECDSA:** GG20.
+
+**Порог:** 2 из 3 (юзер + 1 VPS) или 3 из 5 (юзер + 2 VPS).
+
+**Ротация долей:** каждые 90 дней.
+
+**Recovery:** через 3 VPS, задержка 60 минут, отмена доступна.
+
+**Потеря доли:** восстановление из backup-шейра, хранящегося у другого VPS.
+
+---
+
+### 15. Multi-sig с другими блокчейнами
+
+**Как P2F участвует:** через threshold signing (FROST/GG20) для Ethereum, Bitcoin, Solana.
+
+**Хранение ключей:** доли у разных VPS, полный ключ никогда не собирается.
+
+**Лимиты и whitelist:** в смарт-контракте на EVM L2, валидаторы берут оттуда.
+
+**Кто платит за газ:** пользователь. P2F не субсидирует.
+
+**Если другая цепочка изменит формат:** обновление адаптера через governance.
+
+---
+
+### 16. CI/CD security
+
+**Кто подписывает:** 3 из 5 независимых разработчиков.
+
+**Ключи:** HSM, отдельно от CI/CD.
+
+**Защита от компрометации:** reproducible builds, multi-party review, no `curl | bash`.
+
+**Ротация ключей:** каждые 6 месяцев.
+
+---
+
+### 17. Мониторинг и алертинг
+
+**Метрики:** TPS, uptime, finality latency, gas fees, anomaly detection.
+
+**Частота:** каждые 10 секунд.
+
+**Кто смотрит:** операторы + автоматические алерты.
+
+**Реакция:** автоматическая эскалация, ручной review.
+
+**Связь с операторами:** Telegram/Discord бот, email, PagerDuty.
+
+---
+
+### 18. Документация и онбординг
+
+**Что нужно:**
+- Quick start (запуск узла за 10 минут).
+- SDK для Rust, Go, TypeScript.
+- Примеры приложений для Mode A/B/C.
+- API reference.
+- Туториалы по Spawn Protocol.
+- FAQ.
+
+**Как разработчик начинает:** `git clone`, `make install`, `p2f start`. Документация на docs.p2f.network.
+
+---
+
+## Сводка
+
+| # | Раздел | Решение |
+|---|---|---|
+| 1 | Токеномика | 1 млрд P2F, 2% инфляция, 40% сообществу |
+| 2 | Безопасность шардов | IBC light clients + fraud proofs + validity proofs |
+| 3 | Emergency | Break-glass 5/7, emergency upgrade, `x/crisis` |
+| 4 | Выбор комитета | VRF (ECVRF) + стейк + репутация |
+| 5 | State migration | `store/v2` framework, асинхронная миграция |
+| 6 | Upgrade | `x/upgrade` + governance + `cosmovisor` |
+| 7 | Fraud/validity proofs | Optimistic для мелких, ZK для крупных |
+| 8 | Light client | Go light client, Merkle proofs, solo machine |
+| 9 | Cross-shard MEV | Batch auctions + parallel nonces |
+| 10 | Reputation | Формула, защита через `x/evidence` |
+| 11 | Oracle | Мультисиг 5/7, 66% порог, Tellor/Band альтернативы |
+| 12 | VRF | ECVRF Ed25519, Coordinator 5/7 |
+| 13 | PoP | Worldcoin + Gitcoin, ротация 12 мес |
+| 14 | MPC | FROST + GG20, порог 2/3, recovery 60 мин |
+| 15 | Multi-sig | Threshold signing, лимиты в EVM L2 |
+| 16 | CI/CD | 3/5 подписантов, HSM, reproducible builds |
+| 17 | Мониторинг | Prometheus + Grafana + алерты |
+| 18 | Документация | Quick start, SDK, примеры, API reference |
+
+Все критические и важные разделы закрыты. Документ готов к фазе прототипирования.
+
+
+# Ответы на все пробелы и противоречия
+
+---
+
+## 🔴 БЛОКЕРЫ ДЛЯ ТЕСТНЕТА
+
+### 1. Genesis & Bootstrap v0.1
+
+**Кто первые валидаторы Шарда 0:**
+
+- 7 foundation-валидаторов (команда + аудиторы + партнёры).
+- Каждый с уникальным cloud-аккаунтом, чтобы избежать Sybil с самого старта.
+- Минимальный стейк: 1000 P2F у каждого.
+- Все подписывают соглашение о неразглашении и правилах запуска.
+
+**Распределение первых токенов:**
+
+| Категория | Количество | Кому |
+|---|---|---|
+| Foundation | 150 000 000 P2F | 15% — фонд развития |
+| Первые валидаторы | 50 000 000 P2F | Запуск сети |
+| Bug bounty | 20 000 000 P2F | Аудиторы |
+| Публичный airdrop | 50 000 000 P2F | Ранние участники |
+| Резерв на bootstrap | 30 000 000 P2F | Непредвиденное |
+
+**Как запускается Control Chain:**
+
+1. Фонд разворачивает первый узел Control Chain.
+2. Генерируется genesis-блок с 7 валидаторами.
+3. Control Chain запускается в **restricted mode** — только регистрация, без пользовательских транзакций.
+4. Фонд регистрирует Шард 0 в Control Chain.
+5. Шард 0 стартует с 7 валидаторами.
+6. 30 дней restricted mode → переход в open mode.
+7. Только тогда разрешается Spawn Protocol.
+
+**Bootstrap-фаза (0–30 дней):**
+- Только foundation-валидаторы.
+- Только переводы и создание токенов.
+- Никаких приложений.
+- Никакого Spawn.
+- Цель: проверить стабильность.
+
+**Bootstrap-фаза (30–90 дней):**
+- Открытие whitelist для 10–20 операторов.
+- MVP-Spawn с ручным одобрением.
+- Первые Web2-приложения.
+- Цель: проверить экономику.
+
+**После 90 дней:**
+- Permissionless Spawn (Phase 6+).
+- Полная функциональность.
+
+---
+
+### 2. Fee Market v0.1
+
+**Модель:** EIP-1559-like с динамическим base fee.
+
+**Формула base fee:**
+```
+base_fee_next = base_fee * (1 + (gas_used - target_gas) / target_gas * 0.125)
+
+target_gas = max_gas / 2
+max_gas = 10 000 000 (на блок)
+```
+
+**Правила:**
+- Base fee сжигается на 100%.
+- Priority fee идёт валидаторам.
+- Если gas_used < target — base fee снижается.
+- Если gas_used > target — base fee растёт.
+- Максимум изменения за блок: ±12.5%.
+
+**Priority fee:**
+- Пользователь сам выбирает.
+- Типично: 0.001–0.01 P2F.
+- Идёт валидаторам и операторам.
+
+**Распределение комиссий:**
+
+| Компонент | Доля | Кому |
+|---|---|---|
+| Base fee | 100% | Сжигается |
+| Priority fee | 70% | Валидаторы шарда |
+| Priority fee | 20% | Операторы (по PFP) |
+| Priority fee | 5% | Резервный пул |
+| Priority fee | 5% | Фонд развития |
+
+**Защита от gas wars:**
+- Base fee растёт автоматически при перегрузке.
+- Max gas на блок ограничивает spam.
+- Мемпул приоритизирует по priority fee.
+- Emergency: при gas_used > 90% max_gas — только base fee, priority fee отключается.
+
+**Cross-shard комиссии:**
+- Пользователь платит на исходном шарде.
+- Целевой шард получает 20% от priority fee.
+- IBC relayer получает 10% от priority fee.
+
+---
+
+### 3. PFP Supply & Conversion v0.1
+
+**Supply PFP:**
+
+- **Ограничен:** 10 000 000 000 PFP (10 млрд).
+- **Эмиссия:** линейно убывающая. 
+  - Сезон 1: 500 000 000 PFP.
+  - Сезон 2: 400 000 000.
+  - Сезон 3: 300 000 000.
+  - Сезон 4+: 200 000 000.
+- **Максимум:** 10 млрд за 10 лет.
+
+**Почему ограничен:** если PFP бесконечны, конвертация в P2F обесценит P2F.
+
+**Инфляция PFP:** нет. Только фиксированная эмиссия.
+
+**Конвертация PFP → P2F:**
+
+**Модель:** динамический курс, governance определяет раз в сезон.
+
+```
+conversion_rate = P2F_pool_for_conversion / total_PFP_emitted
+
+P2F_pool_for_conversion = 100 000 000 P2F в год (из 40% community)
+```
+
+**Пример:**
+- Сезон 1: 500M PFP, 25M P2F → 1 PFP = 0.05 P2F.
+- Сезон 2: 400M PFP, 25M P2F → 1 PFP = 0.0625 P2F.
+- Курс может меняться только через governance.
+
+**Механика конвертации:**
+- Пользователь конвертирует PFP в P2F в любой момент.
+- PFP сжигаются.
+- P2F отправляются на кошелёк.
+- Курс фиксируется на момент конвертации.
+- Курс пересчитывается раз в сезон.
+
+**Защита от обесценивания:**
+- PFP ограничены (10 млрд).
+- P2F-пул ограничен (25M в год).
+- Курс только через governance.
+- Ранние участники получают больше.
+
+**Что если PFP накопились за год:**
+- Курс пересчитывается.
+- Ранние получают по курсу на момент конвертации.
+- Нет очереди — все конвертируют по текущему курсу.
+
+---
+
+### 4. Cross-shard MVP Scope v0.1
+
+**Что входит в MVP (Phase 1):**
+
+| Функция | Входит? | Комментарий |
+|---|---|---|
+| Same-shard transfer | ✅ | Базовый перевод |
+| Same-shard token | ✅ | Создание токена |
+| Same-shard AMM | ✅ | Swap внутри шарда |
+| Cross-shard transfer | ❌ | Phase 3 |
+| Cross-shard swap | ❌ | Phase 4 |
+| Cross-shard app | ❌ | Phase 5 |
+| Async cross-shard message | ❌ | Phase 3 |
+| IBC channel | ❌ | Phase 3 |
+
+**Что входит в Phase 3 (async cross-shard):**
+
+- Async transfer через IBC.
+- Асинхронные сообщения между шардами.
+- Таймаут 30 минут.
+- Fallback: возврат на исходный шард.
+- Защита от двойного расходования через `processed_messages` set.
+
+**Кто платит за failed cross-shard:**
+- Пользователь платит на исходном шарде.
+- При таймауте — 50% возвращается.
+- 50% идёт IBC relayer за попытку.
+
+**Что отложено:**
+- Atomic cross-shard swap → Phase 4.
+- Cross-shard app execution → Phase 5.
+- Validity proofs для крупных сумм → Phase 6.
+
+**MVP scope для тестнета:**
+- Один шард (Шард 0).
+- Нет cross-shard.
+- Нет IBC.
+- Только базовые функции.
+
+---
+
+## 🟠 БЛОКЕРЫ ДЛЯ MAINNET
+
+### 5. Legal & Compliance v0.1
+
+**Юрисдикция фонда:** Швейцария (кантон Цуг) или Сингапур.
+
+**Почему Швейцария:**
+- FINMA имеет четкие правила для блокчейн-проектов.
+- Есть fintech-лицензия.
+- Правовая определённость для DAO.
+- Крипто-дружественная юрисдикция.
+
+**Структура:**
+```
+P2F Foundation (Zug, Switzerland)
+  │
+  ├── Directors (3)
+  ├── DAO (governance)
+  └── Legal counsel
+```
+
+**KYC/AML для операторов:**
+
+| Уровень | Требования |
+|---|---|
+| 1 VPS | Email + PoP |
+| 3 VPS | KYC light (ID) |
+| 10+ VPS | KYC full (ID + address) |
+| 20+ VPS | KYC + source of funds |
+
+**Санкционные списки:**
+- OFAC, EU, UK, Swiss SECO.
+- Проверка через Chainalysis или TRM Labs.
+- Блокировка адресов из списков.
+- Апелляция через DAO.
+
+**PII:**
+- Не пишется в блокчейн.
+- Хранится у KYC-провайдера.
+- Удаляется через 5 лет.
+- GDPR-compliant.
+
+**Что при запросе регулятора:**
+- Фонд отвечает через юристов.
+- Раскрывает данные только по решению суда.
+- Публикует transparency report.
+- Апелляция через DAO.
+
+**Регуляторные риски:**
+- P2F может попасть под MiCA (ЕС).
+- Может попасть под Swiss DLT Act.
+- Может попасть под US securities law.
+- Митигация: не продавать токены в US, не обещать прибыль.
+
+---
+
+### 6. Team & Budget v0.1
+
+**Команда (минимальная для mainnet):**
+
+| Роль | Количество | Зарплата/год |
+|---|---|---|
+| CTO | 1 | $200k |
+| Go-разработчики | 4 | $150k |
+| Rust-разработчики | 2 | $150k |
+| DevOps | 1 | $130k |
+| Криптограф | 1 | $180k |
+| Аудитор (внутренний) | 1 | $150k |
+| Product manager | 1 | $140k |
+| Юрист (внешний) | 1 | $100k |
+| Community manager | 1 | $80k |
+| Designer | 1 | $100k |
+
+**Итого:** 14 человек, ~$2M/год.
+
+**Бюджет на 3 года:**
+
+| Категория | Сумма |
+|---|---|
+| Зарплаты | $6M |
+| Аудит (внешний) | $500k |
+| Инфраструктура | $300k |
+| Юридика | $300k |
+| Bug bounty | $500k |
+| Маркетинг | $500k |
+| Резерв | $400k |
+| **Итого** | **$8.5M** |
+
+**Финансирование:**
+- Seed round: $2M (2026).
+- Private round: $3M (2026).
+- Public round: $1M (2027).
+- Treasury: $2.5M из фонда.
+
+**Сроки:**
+- 2026 Q1: Foundation + team.
+- 2026 Q2: Phase 1 (Шард 0).
+- 2026 Q4: Testnet.
+- 2027 Q2: Mainnet.
+- 2028: 100 шардов.
+
+---
+
+### 7. Audit Plan v0.1
+
+**Что аудируется:**
+
+| Компонент | Аудитор | Срок | Стоимость |
+|---|---|---|---|
+| Consensus (CometBFT) | Informal Systems | 6 недель | $80k |
+| ABCI++ app | Zellic | 4 недели | $60k |
+| State machine | OtterSec | 4 недели | $50k |
+| Spawn Protocol | Trail of Bits | 6 недель | $80k |
+| MPC | Kudelski | 8 недель | $100k |
+| Gamification | Halborn | 3 недели | $40k |
+| Tokenomics | Gauntlet | 4 недели | $50k |
+| Legal | Swiss legal firm | 4 недели | $30k |
+
+**Итого:** ~$490k.
+
+**Когда:**
+- Phase 1: audit consensus + ABCI (2026 Q3).
+- Phase 2: audit Spawn (2026 Q4).
+- Phase 3: audit MPC + gamification (2027 Q1).
+- Phase 4: audit tokenomics + legal (2027 Q1).
+
+**Что делать с findings:**
+- Critical: фикс до mainnet.
+- High: фикс до mainnet или документирование.
+- Medium: фикс после mainnet.
+- Low: документирование.
+
+**Continuous audit:**
+- Bug bounty через Immunefi ($100k–$1M).
+- Quarterly re-audit.
+
+---
+
+### 8. Testnet & Mainnet Launch v0.1
+
+**Incentive Testnet (6 месяцев):**
+
+**Фаза 1 (месяцы 1–2):**
+- 100 валидаторов.
+- 10 шардов.
+- Только переводы.
+- Награды: PFP.
+
+**Фаза 2 (месяцы 3–4):**
+- 500 валидаторов.
+- 50 шардов.
+- AMM + токены.
+- Награды: PFP × 2.
+
+**Фаза 3 (месяцы 5–6):**
+- 1000 валидаторов.
+- 100 шардов.
+- Приложения.
+- Награды: PFP × 3 + airdrop.
+
+**Что тестируется:**
+- Стабильность.
+- Безопасность.
+- Экономика.
+- Cross-shard.
+- Spawn Protocol.
+- Governance.
+
+**Mainnet Launch (2027 Q2):**
+
+**Genesis:**
+- 7 foundation-валидаторов.
+- 1 шард.
+- 100M P2F в обращении.
+- Restricted mode 30 дней.
+
+**Airdrop:**
+- Участники тестнета: 30M P2F.
+- Ранние валидаторы: 20M P2F.
+- Bug bounty: 10M P2F.
+
+**Первые 100 дней:**
+- Открытие whitelist.
+- MVP-Spawn.
+- 10 шардов.
+- 100 валидаторов.
+
+**Первые 365 дней:**
+- Permissionless Spawn.
+- 100 шардов.
+- 1M TPS.
+- 100+ приложений.
+
+---
+
+### 9. Governance Attack Resistance v0.1
+
+**Возможные атаки:**
+
+| Атака | Защита |
+|---|---|
+| Накрутка репутации | Проверка через `x/evidence`, PoP |
+| Сговор 3 операторов | Quorum 33%, порог 50%+1, veto |
+| Покупка голосов | Репутация не покупается |
+| Sybil | PoP, депозит, лимиты |
+| Flash loan attack | Timelock 48h |
+| Governance takeover | Break-glass 5/7 |
+
+**Veto:**
+- 33% voting power могут наложить veto.
+- Veto отменяет предложение.
+- Veto не даёт награды.
+
+**Emergency governance:**
+- Только для критических ситуаций.
+- Break-glass 5/7.
+- Не может переводить средства.
+- Публичный журнал.
+
+**Защита от захвата:**
+- Voting power = `reputation^0.5 * uptime * log(service)`.
+- Логарифм снижает доминирование крупных.
+- Квадратный корень анти-плаутократия.
+- Максимум 5% voting power на одного оператора.
+
+**Что если 3 крупных сговорятся:**
+- Quorum 33% — нужно больше.
+- Veto 33% — можно заблокировать.
+- Break-glass 5/7 — можно остановить.
+- Community может форкнуть.
+
+---
+
+### 10. DA Cost Model v0.1
+
+**Кто платит за DA:**
+- Протокол платит Celestia/Avail.
+- Стоимость вычитается из комиссий.
+
+**Сколько стоит:**
+- Celestia: ~$0.01 за KB.
+- Avail: ~$0.005 за KB.
+- 1 блок = ~1 MB.
+- 100 шардов × 1 MB × 1440 блоков/день = 144 GB/день.
+- Стоимость: ~$720–$1440/день.
+- В год: ~$260k–$525k.
+
+**Как влияет на комиссии:**
+- 5% от priority fee идёт в DA-пул.
+- Если DA-пул < стоимости — комиссии растут.
+- Если DA-пул > стоимости — излишек в резерв.
+
+**Что если DA-провайдер поднимет цены:**
+- Протокол переключается на альтернативного провайдера.
+- Governance решает.
+- Emergency: временное снижение DA-частоты.
+
+**Альтернативы:**
+- Собственный DA-слой (Phase 7).
+- EigenDA (более дешёвый).
+- Avail (дешевле Celestia).
+
+**Стратегия:**
+- Мульти-DA: Celestia + Avail.
+- Автоматический выбор дешёвого.
+- Резерв на 6 месяцев.
+
+---
+
+## ⚖️ РАЗРЕШЕНИЕ ПРОТИВОРЕЧИЙ
+
+### 1. up2f denom
+
+**Решение:** `up2f` = 10^-6 P2F. Стандартная деноминация Cosmos.
+
+- 1 P2F = 1 000 000 up2f.
+- Все расчёты внутри — в up2f.
+- Отображение — в P2F.
+
+### 2. Whitelist vs Permissionless
+
+**Решение:** чёткая граница по фазам.
+
+| Фаза | Срок | Режим |
+|---|---|---|
+| Bootstrap | 0–30 дней | Foundation only |
+| Phase 1 | 1–6 месяцев | Whitelist 10–20 |
+| Phase 2 | 6–12 месяцев | Whitelist 50 |
+| Phase 3 | 12–24 месяца | Whitelist 100 |
+| Phase 4+ | 24+ месяцев | Permissionless |
+
+### 3. PFP Conversion vs P2F Supply
+
+**Решение:** 
+- PFP ограничены (10 млрд).
+- P2F-пул для конвертации: 25M в год из 40% community.
+- Курс динамический, пересчёт раз в сезон.
+- Ранние получают больше.
+- Нет обесценивания, потому что supply PFP ограничен.
+
+### 4. MPC Phase 4 vs B2C Phase 1
+
+**Решение:** 
+- Phase 1: B2C с обычными ключами (Ed25519).
+- Phase 4: переход на MPC.
+- До Phase 4 — B2C работает, но без MPC-фичи.
+- Это компромисс: быстрее запуск, но меньше фич.
+
+### 5. 100 шардов vs 1M TPS
+
+**Решение:**
+- Цель: 1M TPS.
+- 100 шардов × 10k TPS = 1M TPS.
+- Максимум шардов: не ограничен.
+- Если нужно 200 шардов — будут 200.
+- 100 — это **расчётный оптимум** для 1M TPS.
+
+### 6. Инфляция vs Награды
+
+**Решение:**
+- Инфляция 2% в год: 20M P2F.
+- Распределение:
+  - 60% валидаторам (12M).
+  - 20% операторам (4M).
+  - 10% DA-пул (2M).
+  - 10% резерв (2M).
+- Комиссии идут дополнительно.
+- PFP конвертируются из community-пула.
+
+---
+
+## 📋 ИТОГОВЫЙ ROADMAP
+
+| Фаза | Срок | Ключевые вехи |
+|---|---|---|
+| Bootstrap | 0–30 дней | Foundation, 1 шард |
+| Phase 1 | 1–6 мес | Шард 0, whitelist 10 |
+| Phase 2 | 6–12 мес | Control Chain, whitelist 50 |
+| Phase 3 | 12–18 мес | Cross-shard, DA, whitelist 100 |
+| Phase 4 | 18–24 мес | MPC, приложения, permissionless |
+| Phase 5 | 24–36 мес | 100 шардов, 1M TPS |
