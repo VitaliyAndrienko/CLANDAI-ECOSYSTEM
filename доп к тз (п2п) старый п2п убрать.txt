@@ -1,0 +1,967 @@
+Да. Тогда **Sybil-механику вообще не трогаем** и фиксируем твою модель: **1 аккаунт → 1 DAO-участник → 1 выделенный software/AI agent**, а перед допуском к арбитражу агент проходит challenge/integrity check. Код доступа к software не передаётся.
+
+Ниже ТЗ именно на **P2P-модуль**, без Guard, кошелька и других частей системы.
+
+# ТЗ — P2P Crypto-to-Fiat Module v1.0
+
+## 1. Назначение
+
+P2P-модуль позволяет пользователю продать поддерживаемый криптоактив проекту за fiat.
+
+Основной сценарий:
+
+```text
+Пользователь
+    ↓
+выбирает токен + количество
+    ↓
+атомарный swap → USDT
+    ↓
+USDT блокируется в P2P Escrow
+    ↓
+Backend проекта отправляет fiat пользователю
+    ↓
+пользователь подтверждает получение
+    ↓
+USDT → проект
+```
+
+При споре:
+
+```text
+USDT → LOCKED
+        ↓
+     DAO arbitration
+        ↓
+   ┌────┴────┐
+ USER WINS   PROJECT WINS
+    ↓             ↓
+USDT → USER    USDT → PROJECT
+```
+
+Если пользователь ничего не делает в течение 48 часов после отправки fiat:
+
+```text
+USDT → PROJECT
+```
+
+---
+
+# 2. Основные компоненты
+
+P2P состоит из:
+
+### On-chain
+
+1. `P2PEscrow`
+2. `P2PArbitration`
+3. `P2PDAO` / DAO-механизма голосования
+
+### Off-chain
+
+4. P2P Backend
+5. Fiat Payment Service
+6. P2P Indexer
+7. DAO Juror Software
+8. AI Arbitration Agent
+9. Integrity/Challenge Service
+
+---
+
+# 3. P2PEscrow
+
+`P2PEscrow` — единственный on-chain контракт, который хранит заблокированный USDT сделки.
+
+**Guard не хранит P2P USDT.**
+
+Guard только разрешает пользователю выполнить предусмотренную P2P операцию.
+
+---
+
+# 4. Создание P2P сделки
+
+Пользователь в UI выбирает:
+
+```text
+Token:
+ETH
+
+Amount:
+1.0 ETH
+```
+
+Система рассчитывает swap:
+
+```text
+1 ETH
+↓
+2,500 USDT
+```
+
+Пользователь видит:
+
+```text
+You sell:
+1 ETH
+
+You receive:
+2,500 USDT
+
+Fiat:
+$2,500
+
+Recipient:
+Your verified payment method
+```
+
+После подтверждения выполняется **атомарная операция**:
+
+```text
+User Wallet
+    ↓
+DEX swap
+    ↓
+USDT
+    ↓
+P2PEscrow
+```
+
+Если любая часть операции завершается ошибкой — вся транзакция откатывается.
+
+USDT не должны оставаться свободными на пользовательском кошельке после успешного создания сделки.
+
+---
+
+# 5. P2P Order
+
+Каждая сделка получает уникальный `orderId`.
+
+Пример:
+
+```solidity
+struct P2POrder {
+    uint256 orderId;
+
+    address user;
+    address project;
+
+    address inputToken;
+    uint256 inputAmount;
+
+    address settlementToken; // USDT
+    uint256 settlementAmount;
+
+    uint256 fiatAmount;
+    bytes32 fiatCurrency;
+
+    bytes32 paymentMethodHash;
+
+    uint64 createdAt;
+    uint64 paymentDeadline;
+
+    OrderStatus status;
+}
+```
+
+---
+
+# 6. Статусы
+
+```solidity
+enum OrderStatus {
+    NONE,
+    CREATED,
+    SWAPPED,
+    ESCROWED,
+    PAYMENT_PENDING,
+    PAYMENT_SENT,
+    WAITING_USER,
+    DISPUTED,
+    DAO_REVIEW,
+    USER_WON,
+    PROJECT_WON,
+    RELEASED_TO_USER,
+    RELEASED_TO_PROJECT,
+    REFUNDED,
+    EXPIRED,
+    CANCELLED
+}
+```
+
+Фактически основной lifecycle:
+
+```text
+CREATED
+   ↓
+SWAPPED
+   ↓
+ESCROWED
+   ↓
+PAYMENT_PENDING
+   ↓
+PAYMENT_SENT
+   ↓
+WAITING_USER
+```
+
+Дальше три варианта:
+
+```text
+WAITING_USER
+    │
+    ├── RECEIVED
+    │      ↓
+    │  RELEASED_TO_PROJECT
+    │
+    ├── NOT_RECEIVED
+    │      ↓
+    │   DISPUTED
+    │      ↓
+    │  DAO_REVIEW
+    │
+    └── 48h timeout
+           ↓
+       RELEASED_TO_PROJECT
+```
+
+---
+
+# 7. Fiat Payment
+
+После успешной блокировки USDT backend получает событие:
+
+```text
+P2POrderEscrowed(orderId)
+```
+
+Backend проверяет:
+
+* orderId;
+* пользователя;
+* сумму;
+* валюту;
+* payment method;
+* статус сделки.
+
+После этого backend отправляет fiat пользователю.
+
+Например:
+
+```text
+Order:
+#1521
+
+USDT locked:
+2,500
+
+Fiat:
+$2,500
+
+Payment:
+SENT
+```
+
+Backend записывает:
+
+```text
+paymentId
+amount
+currency
+recipient
+timestamp
+paymentProvider
+providerTransactionId
+```
+
+---
+
+# 8. Fiat payment не хранится в blockchain
+
+Банковская транзакция не должна записываться целиком on-chain.
+
+On-chain можно хранить:
+
+```text
+paymentStatus
+paymentReferenceHash
+paymentTimestamp
+```
+
+Полные данные:
+
+```text
+bank reference
+payment receipt
+provider response
+screenshots
+additional evidence
+```
+
+хранятся off-chain.
+
+При необходимости их hash фиксируется on-chain для доказательства неизменности.
+
+---
+
+# 9. Подтверждение пользователем
+
+После получения fiat пользователь видит:
+
+```text
+$2,500 payment sent
+
+Did you receive the money?
+
+[ YES, I RECEIVED ]
+[ NO, I DID NOT RECEIVE ]
+```
+
+### YES
+
+Пользователь подписывает подтверждение.
+
+Контракт проверяет:
+
+```text
+order.status == WAITING_USER
+msg.sender == order.user
+```
+
+После этого:
+
+```text
+USDT → project
+```
+
+Статус:
+
+```text
+RELEASED_TO_PROJECT
+```
+
+Сделка окончательно закрывается.
+
+---
+
+# 10. NOT RECEIVED
+
+Если пользователь нажимает:
+
+```text
+NO, I DID NOT RECEIVE
+```
+
+то:
+
+```text
+WAITING_USER
+      ↓
+DISPUTED
+      ↓
+DAO_REVIEW
+```
+
+USDT остаются заблокированными.
+
+**Никаких автоматических переводов во время dispute быть не должно.**
+
+---
+
+# 11. 48-hour timeout
+
+После `PAYMENT_SENT` начинается countdown:
+
+```text
+48 hours
+```
+
+Если пользователь:
+
+* не нажал `RECEIVED`;
+* не нажал `NOT RECEIVED`;
+
+то после 48 часов:
+
+```text
+WAITING_USER
+      ↓
+AUTO_RELEASE
+      ↓
+USDT → PROJECT
+```
+
+При этом timeout должен быть **автоматически исполнимым on-chain**.
+
+Не требуется, чтобы backend вручную нажимал кнопку.
+
+Любой разрешённый caller/keeper может вызвать:
+
+```solidity
+finalizeExpiredOrder(orderId)
+```
+
+после истечения deadline.
+
+---
+
+# 12. Если пользователь открыл dispute
+
+Если пользователь нажал:
+
+```text
+NOT RECEIVED
+```
+
+до окончания 48 часов:
+
+```text
+order.status = DISPUTED
+```
+
+48-hour auto-release больше **не применяется**.
+
+Сделка переходит в DAO arbitration.
+
+---
+
+# 13. DAO Arbitration
+
+Для каждого dispute создаётся:
+
+```text
+Dispute
+```
+
+связанный с конкретным:
+
+```text
+orderId
+```
+
+DAO выбирает случайную группу пользователей-арбитров.
+
+Например:
+
+```text
+Dispute #824
+
+Juror 1
+Juror 2
+Juror 3
+Juror 4
+Juror 5
+```
+
+---
+
+# 14. DAO participant
+
+В данной версии **не изменять существующую модель Sybil protection**.
+
+Зафиксированная модель:
+
+```text
+1 Account
+    ↓
+1 Software Instance
+    ↓
+1 AI Agent
+    ↓
+1 DAO Participant
+```
+
+Участник не получает право просто потому, что создал новый blockchain address.
+
+Перед участием в arbitration software проходит предусмотренную системой процедуру challenge/integrity verification.
+
+---
+
+# 15. Integrity Challenge
+
+Перед выдачей dispute конкретному DAO participant:
+
+```text
+DAO
+ ↓
+select participant
+ ↓
+Challenge
+ ↓
+Participant Software
+ ↓
+AI Agent
+ ↓
+response
+ ↓
+Integrity verification
+```
+
+Challenge должен позволять проверить, что используется тот же допустимый software instance и AI agent.
+
+При успешной проверке участник получает dispute.
+
+При неуспешной:
+
+```text
+participant rejected
+```
+
+и выбирается другой participant.
+
+---
+
+# 16. Ключ DAO участника
+
+Каждый DAO participant имеет отдельный ключ подписи:
+
+```text
+DAO Participant
+      │
+      └── DAO Signing Key
+```
+
+Ключ используется исключительно для DAO arbitration.
+
+Он не должен иметь:
+
+* права вывода пользовательских средств;
+* права изменения Guard;
+* права изменения P2P-контракта;
+* права управления кошельками;
+* права произвольного перевода средств.
+
+Его единственное назначение:
+
+```text
+vote / arbitration decision
+```
+
+---
+
+# 17. AI Agent арбитра
+
+AI получает доступ к материалам конкретного dispute.
+
+Например:
+
+```text
+Order data
+Payment data
+Blockchain transactions
+Payment timestamp
+Payment amount
+Payment recipient
+Provider confirmation
+User evidence
+Project evidence
+Previous state transitions
+```
+
+AI анализирует:
+
+```text
+Was payment sent?
+Was correct amount sent?
+Was correct recipient used?
+Was transaction successful?
+Is payment reference valid?
+Are timestamps consistent?
+Is there contradictory evidence?
+```
+
+AI формирует заключение:
+
+```text
+AI ANALYSIS
+
+Recommendation:
+PROJECT WINS
+
+Confidence:
+92%
+
+Evidence:
+...
+```
+
+**AI не получает право напрямую переводить USDT.**
+
+AI — аналитический слой.
+
+---
+
+# 18. Голос DAO
+
+DAO participant изучает:
+
+```text
+AI analysis
++
+available evidence
+```
+
+После этого его software подписывает решение.
+
+Например:
+
+```text
+VOTE: PROJECT_WINS
+```
+
+или:
+
+```text
+VOTE: USER_WINS
+```
+
+Подпись:
+
+```text
+EIP-712
+```
+
+Рекомендуемые данные подписи:
+
+```text
+chainId
+p2pContract
+disputeId
+orderId
+decision
+nonce
+deadline
+```
+
+Это предотвращает replay.
+
+---
+
+# 19. DAO Quorum
+
+Решение принимается только после достижения заранее установленного quorum.
+
+Например:
+
+```text
+5 jurors
+
+USER:
+2
+
+PROJECT:
+3
+
+Result:
+PROJECT_WINS
+```
+
+После достижения quorum контракт фиксирует результат.
+
+---
+
+# 20. USER WINS
+
+Если DAO определил:
+
+```text
+USER_WINS
+```
+
+контракт:
+
+```text
+P2PEscrow
+    ↓
+USDT
+    ↓
+USER
+```
+
+Статус:
+
+```text
+REFUNDED
+```
+
+Сделка закрывается.
+
+---
+
+# 21. PROJECT WINS
+
+Если DAO определил:
+
+```text
+PROJECT_WINS
+```
+
+контракт:
+
+```text
+P2PEscrow
+    ↓
+USDT
+    ↓
+PROJECT
+```
+
+Статус:
+
+```text
+RELEASED_TO_PROJECT
+```
+
+Сделка закрывается.
+
+---
+
+# 22. Невозможность двойного исполнения
+
+Для каждого orderId должна существовать только одна финальная state transition.
+
+Например:
+
+```text
+USER_WINS
+```
+
+после этого нельзя вызвать:
+
+```text
+releaseToProject()
+```
+
+И наоборот.
+
+Контракт должен иметь строгую проверку:
+
+```text
+order.status
+```
+
+перед каждой операцией.
+
+---
+
+# 23. Защита от повторного голосования
+
+Один juror не может проголосовать дважды:
+
+```solidity
+mapping(uint256 => mapping(address => bool)) public voted;
+```
+
+Перед голосованием:
+
+```text
+!voted[disputeId][juror]
+```
+
+После:
+
+```text
+voted[disputeId][juror] = true;
+```
+
+---
+
+# 24. Random selection
+
+DAO participant выбирается случайным образом из eligible participants.
+
+В randomness нельзя использовать простой:
+
+```solidity
+block.timestamp
+```
+
+или:
+
+```solidity
+block.prevrandao
+```
+
+как единственный механизм для экономически значимого выбора.
+
+Для production желательно использовать проверяемый randomness mechanism.
+
+При этом random selection должен происходить **до раскрытия полного dispute assignment**, чтобы нельзя было заранее подобрать удобных арбитров.
+
+---
+
+# 25. Evidence
+
+Каждый dispute имеет:
+
+```text
+orderId
+user
+project
+paymentId
+paymentReference
+payment timestamp
+payment amount
+currency
+blockchain tx
+AI analysis
+user evidence
+project evidence
+```
+
+Большие файлы не хранятся on-chain.
+
+Используется:
+
+```text
+off-chain storage
++
+content hash
+```
+
+Например:
+
+```text
+evidenceHash
+```
+
+чтобы после подачи доказательство нельзя было незаметно заменить.
+
+---
+
+# 26. Что происходит с Guard
+
+P2P не должен превращать Guard в огромный P2P-контракт.
+
+Guard отвечает за:
+
+```text
+PERM_P2P
+```
+
+и разрешение предусмотренных P2P операций.
+
+P2PEscrow отвечает за:
+
+```text
+lock
+release
+refund
+dispute
+timeout
+```
+
+DAO отвечает за:
+
+```text
+arbitration
+```
+
+Backend отвечает за:
+
+```text
+fiat payment
+evidence
+indexing
+notifications
+```
+
+AI отвечает за:
+
+```text
+evidence analysis
+```
+
+---
+
+# 27. Главный принцип безопасности
+
+**Backend никогда не получает возможность просто забрать заблокированный USDT.**
+
+Даже если backend полностью скомпрометирован:
+
+```text
+backend compromised
+      ↓
+может:
+- изменить UI
+- отправить неправильные данные
+- перестать работать
+- предоставить неправильное evidence
+
+но НЕ может:
+- напрямую вывести escrow USDT
+```
+
+Средства выходят только через предусмотренные state transitions:
+
+```text
+USER CONFIRMATION
+        OR
+48h TIMEOUT
+        OR
+DAO RESULT
+```
+
+---
+
+# 28. Финальная архитектура
+
+```text
+                    ┌─────────────────┐
+                    │   USER WALLET   │
+                    └────────┬────────┘
+                             │
+                         Guard
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │      DEX        │
+                    └────────┬────────┘
+                             │
+                            USDT
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │   P2P ESCROW    │
+                    │                 │
+                    │  USDT LOCKED    │
+                    └────────┬────────┘
+                             │
+                      Fiat payment
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │    BACKEND      │
+                    └────────┬────────┘
+                             │
+                       bank/card
+                             │
+                             ▼
+                         USER
+                             │
+                ┌────────────┴────────────┐
+                │                         │
+             RECEIVED                NOT RECEIVED
+                │                         │
+                ▼                         ▼
+             PROJECT                  DISPUTE
+                                          │
+                                          ▼
+                                     DAO SELECTOR
+                                          │
+                               ┌──────────┴──────────┐
+                               │                     │
+                         AI AGENTS              DAO VOTES
+                               │                     │
+                               └──────────┬──────────┘
+                                          │
+                                    FINAL RESULT
+                                    ┌─────┴─────┐
+                                    ▼           ▼
+                                  USER       PROJECT
+                                    │           │
+                                    ▼           ▼
+                                  REFUND      RELEASE
+```
+
+**Итого:** я бы именно эту версию зафиксировал как P2P v1.0. Она отделяет **escrow, Guard, fiat backend и DAO arbitration**, поэтому P2P не будет раздувать твой основной Guard.

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI SUBSCRIPTIONS</title>
+<style>
+:root{
+  --bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);
+  --neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--pink:#ff2bd6;
+  --text:#d8dee6;--muted:#5b6672;--danger:#ff3b6b;--radius:14px;--gold:#ffd400;
+  --t-basic:#5b6672;--t-standard:#00d9ff;--t-premium:#a855f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+.app{position:relative;z-index:1;max-width:440px;margin:0 auto;min-height:100vh;
+  padding:22px 18px 40px;display:flex;flex-direction:column;gap:16px}
+
+/* ============ HERO ============ */
+.hero{text-align:center;padding:32px 0 4px}
+.hero h1{font-size:19px;letter-spacing:4px;color:var(--neon);
+  text-shadow:0 0 20px var(--neon-dim);margin-bottom:10px}
+.hero p{color:var(--muted);font-size:12px;line-height:1.7}
+
+/* ============ TIER CARD ============ */
+.tier-list{display:flex;flex-direction:column;gap:14px}
+.tier-card{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  backdrop-filter:blur(18px);padding:16px;position:relative;overflow:hidden;
+  transition:border-color .2s,box-shadow .2s;
+  --tc:var(--t-basic);--tc-dim:rgba(91,102,114,.15);
+}
+.tier-card.basic{--tc:var(--t-basic);--tc-dim:rgba(91,102,114,.2);border-color:rgba(91,102,114,.45)}
+.tier-card.standard{--tc:var(--t-standard);--tc-dim:rgba(0,217,255,.18);border-color:rgba(0,217,255,.4)}
+.tier-card.premium{--tc:var(--t-premium);--tc-dim:rgba(168,85,247,.2);border-color:rgba(168,85,247,.5)}
+.tier-card.premium::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 100% at 100% 0%,rgba(168,85,247,.14),transparent 55%)}
+.tier-card.current{border-color:var(--tc);
+  box-shadow:0 0 0 1px var(--tc) inset,0 0 24px -6px var(--tc)}
+
+.tc-head{display:flex;align-items:center;gap:14px;position:relative;z-index:1}
+.tc-wallet{width:64px;height:64px;flex-shrink:0;position:relative;
+  color:var(--tc);transition:color .5s ease,filter .5s ease}
+.tc-wallet.basic{color:var(--t-basic)}
+.tc-wallet.standard{color:var(--t-standard);filter:drop-shadow(0 0 10px rgba(0,217,255,.5))}
+.tc-wallet.premium{color:var(--t-premium);filter:drop-shadow(0 0 14px rgba(168,85,247,.6))}
+.tc-wallet svg{width:100%;height:100%;display:block}
+
+.tc-info{flex:1;min-width:0}
+.tc-name{font-size:15px;letter-spacing:3px;font-weight:700;color:var(--tc);
+  text-shadow:0 0 14px var(--tc-dim);margin-bottom:4px}
+.tc-price{font-size:12px;color:var(--text);letter-spacing:.5px;font-weight:700}
+.tc-price small{color:var(--muted);font-weight:400;font-size:11px}
+.tc-badge{position:absolute;top:14px;right:14px;font-size:9px;letter-spacing:1.5px;
+  color:var(--tc);border:1px solid var(--tc);padding:2px 7px;border-radius:999px;
+  background:var(--tc-dim);text-shadow:0 0 8px var(--tc-dim);font-weight:700;z-index:2}
+
+.tc-features{list-style:none;margin-top:14px;font-size:11.5px;line-height:1.8;
+  color:var(--text);position:relative;z-index:1}
+.tc-features li{padding-left:16px;position:relative}
+.tc-features li::before{content:'▸';position:absolute;left:0;color:var(--tc);
+  text-shadow:0 0 8px var(--tc-dim)}
+
+.tc-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;position:relative;z-index:1}
+.tc-btn{padding:11px 8px;border-radius:10px;font-family:inherit;font-size:11px;
+  letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700;
+  transition:all .15s;border:1px solid;background:transparent}
+.tc-btn.details{border-color:var(--border);color:var(--muted)}
+.tc-btn.details:hover{color:var(--text);border-color:var(--muted)}
+.tc-btn.details.open{color:var(--tc);border-color:var(--tc)}
+.tc-btn.order{border-color:var(--tc);color:var(--tc);
+  background:linear-gradient(180deg,var(--tc-dim),transparent);
+  box-shadow:0 0 16px -6px var(--tc)}
+.tc-btn.order:hover{box-shadow:0 0 22px -3px var(--tc)}
+.tc-btn.order:active{transform:translateY(1px)}
+.tc-btn.order:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;
+  border-color:var(--border);color:var(--muted);background:transparent}
+
+.tc-details{max-height:0;overflow:hidden;margin-top:0;
+  transition:max-height .35s ease,margin-top .35s ease}
+.tc-details.open{max-height:1000px;margin-top:14px}
+.tc-details-inner{padding:12px 14px 20px;background:rgba(0,0,0,.35);
+  border:1px solid var(--border);border-radius:10px;font-size:11.5px;
+  line-height:1.75;color:var(--text)}
+.tc-details-inner .dl{color:var(--muted);text-transform:uppercase;
+  font-size:9.5px;letter-spacing:1.5px;display:block;margin-bottom:6px}
+.tc-details-inner .dt{color:var(--tc);margin-top:10px;padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.05)}
+.tc-details-inner .dt:first-child{margin-top:0;padding-top:0;border-top:none}
+
+/* ============ MODAL ============ */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:18px}
+.modal-bg.show{display:flex}
+.modal{background:#0e1014;border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px;max-width:400px;width:100%;box-shadow:0 0 40px var(--neon-dim);
+  max-height:90vh;overflow-y:auto;position:relative}
+.modal h3{font-size:13px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;
+  margin-bottom:14px;text-align:center}
+.modal p{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px;text-align:center}
+
+.btn-full{width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);
+  border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;
+  font-size:12px;letter-spacing:1.8px;text-transform:uppercase;cursor:pointer;
+  transition:all .15s;margin-top:6px;font-weight:700}
+.btn-full:hover{box-shadow:0 0 24px var(--neon-dim)}
+.btn-full:active{transform:translateY(1px)}
+.btn-full:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted);box-shadow:none}
+
+/* ============ CONFIRM MODAL ============ */
+.confirm-plan{text-align:center;padding:18px 0 6px}
+.confirm-plan .cp-name{font-size:22px;letter-spacing:5px;font-weight:700;
+  color:var(--cp,#00ffaa);text-shadow:0 0 20px var(--cp-dim,rgba(0,255,170,.4));
+  margin-bottom:8px}
+.confirm-plan .cp-price{font-size:15px;color:var(--text);font-weight:700;letter-spacing:1px}
+.confirm-plan .cp-price small{color:var(--muted);font-weight:400;font-size:12px}
+.confirm-plan .cp-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6}
+
+/* ============ ANIM MODAL ============ */
+.anim-modal{max-width:400px;text-align:center;overflow:hidden}
+.anim-stage{position:relative;display:flex;flex-direction:column;align-items:center;
+  padding:70px 0 30px;min-height:340px;justify-content:center}
+
+.dollar-sign{position:absolute;top:80px;left:50%;transform:translate(-50%,40px) scale(.4);
+  font-size:52px;font-weight:700;color:var(--danger);
+  text-shadow:0 0 30px rgba(255,59,107,.9),0 0 15px rgba(255,59,107,.7);
+  opacity:0;pointer-events:none;z-index:5;letter-spacing:-2px;white-space:nowrap}
+.dollar-sign.show{animation:dollarFloat 2.2s cubic-bezier(.2,.9,.3,1) forwards}
+@keyframes dollarFloat{
+  0%{transform:translate(-50%,40px) scale(.4);opacity:0}
+  18%{transform:translate(-50%,0) scale(1.2);opacity:1}
+  55%{transform:translate(-50%,-30px) scale(1);opacity:1}
+  100%{transform:translate(-50%,-110px) scale(.85);opacity:0}
+}
+
+.wallet-wrap{width:180px;height:180px;position:relative;z-index:2;
+  transition:color .9s cubic-bezier(.2,.8,.2,1),filter .9s ease;
+  color:var(--t-basic)}
+.wallet-wrap svg{width:100%;height:100%;display:block;overflow:visible}
+.wallet-wrap.tier-basic{color:var(--t-basic);filter:none}
+.wallet-wrap.tier-standard{color:var(--t-standard);
+  filter:drop-shadow(0 0 16px rgba(0,217,255,.55))}
+.wallet-wrap.tier-premium{color:var(--t-premium);
+  filter:drop-shadow(0 0 22px rgba(168,85,247,.7))}
+
+.wallet-wrap::after{content:'';position:absolute;inset:-15%;border-radius:50%;
+  border:2px solid currentColor;opacity:0;pointer-events:none;transform:scale(.5)}
+.wallet-wrap.burst::after{animation:ringBurst 1.3s ease-out forwards}
+@keyframes ringBurst{
+  0%{transform:scale(.5);opacity:.9}
+  100%{transform:scale(2);opacity:0}
+}
+
+.wallet-wrap.pulse svg{animation:wPulse .5s cubic-bezier(.3,1.4,.5,1)}
+@keyframes wPulse{
+  0%{transform:scale(1)}
+  45%{transform:scale(1.14)}
+  100%{transform:scale(1)}
+}
+
+/* SVG pieces */
+.wallet-svg{transition:color .9s ease}
+.wallet-svg .w-piece-card,
+.wallet-svg .w-piece-sparkles{
+  opacity:0;transition:opacity .8s cubic-bezier(.2,.8,.2,1)
+}
+.wallet-wrap.tier-standard .w-piece-card,
+.wallet-wrap.tier-premium .w-piece-card{opacity:1;transition-delay:.25s}
+.wallet-wrap.tier-premium .w-piece-sparkles{opacity:1;transition-delay:.45s}
+
+.anim-title{font-size:14px;letter-spacing:4px;font-weight:700;color:var(--neon);
+  text-transform:uppercase;margin-top:36px;opacity:0;transform:translateY(8px);
+  transition:opacity .5s ease,transform .5s ease;text-shadow:0 0 20px var(--neon-dim)}
+.anim-title.show{opacity:1;transform:translateY(0)}
+
+.anim-modal .btn-full{opacity:0;transform:translateY(10px);
+  transition:opacity .4s ease,transform .4s ease;pointer-events:none}
+.anim-modal .btn-full.show{opacity:1;transform:translateY(0);pointer-events:auto}
+
+/* ============ MISC ============ */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:8px}
+
+@media (max-width:640px){
+  .panel,.modal{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(18,20,24,.95)}
+  .modal{background:#0e1014}
+  body::after{display:none}
+  .app{padding:16px 14px 32px;gap:14px}
+  .tc-wallet{width:56px;height:56px}
+  .dollar-sign{font-size:44px}
+  .wallet-wrap{width:150px;height:150px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="hero">
+    <h1>ПОДПИСКИ</h1>
+    <p>Выберите формат кошелька · Оплата в крипте<br>Подписка хранится на смарт-контракте</p>
+  </div>
+
+  <div class="tier-list" id="tier-list"></div>
+
+</div>
+
+<!-- ============ CONFIRM MODAL ============ -->
+<div class="modal-bg" id="modal-confirm">
+  <div class="modal">
+    <h3>ПОДТВЕРЖДЕНИЕ</h3>
+    <div class="confirm-plan" id="confirm-plan"></div>
+    <button class="btn-full" id="confirm-go">Подтвердить</button>
+    <button class="btn-full btn-ghost" id="confirm-cancel">Отмена</button>
+  </div>
+</div>
+
+<!-- ============ ANIMATION MODAL ============ -->
+<div class="modal-bg" id="modal-anim">
+  <div class="modal anim-modal">
+    <div class="anim-stage">
+      <div class="dollar-sign" id="dollar-sign"></div>
+      <div class="wallet-wrap tier-basic" id="wallet-wrap">
+        <svg class="wallet-svg" viewBox="0 0 100 100" fill="none" stroke="currentColor"
+             stroke-linecap="round" stroke-linejoin="round">
+          <!-- Wallet body -->
+          <path class="w-body"
+            d="M18 32 Q18 24 26 24 L74 24 Q82 24 82 32 L82 74 Q82 82 74 82 L26 82 Q18 82 18 74 Z"
+            stroke-width="2.5"/>
+          <!-- Slot line -->
+          <line class="w-slot" x1="26" y1="40" x2="58" y2="40"
+            stroke-width="1.5" opacity="0.45"/>
+          <!-- Clasp -->
+          <path class="w-clasp" d="M65 50 L82 50" stroke-width="2.5"/>
+          <circle class="w-dot" cx="73" cy="50" r="2.5" fill="currentColor" stroke="none"/>
+          <!-- Standard: card peek -->
+          <g class="w-piece-card">
+            <rect x="26" y="56" width="22" height="14" rx="2" stroke-width="1.5"/>
+            <line x1="30" y1="61" x2="42" y2="61" stroke-width="1" opacity="0.7"/>
+            <line x1="30" y1="65" x2="38" y2="65" stroke-width="1" opacity="0.7"/>
+          </g>
+          <!-- Premium: sparkles -->
+          <g class="w-piece-sparkles">
+            <path d="M10 10 L12 15 L17 17 L12 19 L10 24 L8 19 L3 17 L8 15 Z"
+              fill="currentColor" stroke="none"/>
+            <path d="M90 8 L92 13 L97 15 L92 17 L90 22 L88 17 L83 15 L88 13 Z"
+              fill="currentColor" stroke="none"/>
+            <circle cx="94" cy="30" r="1.6" fill="currentColor" stroke="none"/>
+            <circle cx="6" cy="60" r="1.6" fill="currentColor" stroke="none"/>
+            <circle cx="50" cy="10" r="1.2" fill="currentColor" stroke="none"/>
+          </g>
+        </svg>
+      </div>
+      <div class="anim-title" id="anim-title"></div>
+    </div>
+    <button class="btn-full" id="anim-close" disabled>ЗАКРЫТЬ</button>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   CLANDAI SUBSCRIPTIONS
+   ================================================================ */
+
+const TIERS = [
+  {
+    key: 'basic',
+    name: 'BASIC',
+    color: '#5b6672',
+    priceLabel: 'Бесплатно',
+    priceShort: 'FREE',
+    priceValue: 0,
+    features: [
+      'Шифрование сид-фразы',
+      'Проверка подлинности приложения',
+      'Базовая защита от доступа'
+    ],
+    details: {
+      desc: 'Базовый уровень защиты для знакомства с миром крипты. Сид-фраза шифруется Argon2id и хранится только на вашем устройстве. Никаких сторонних серверов, никаких разрешений на смарт-контракты.',
+      specs: [
+        ['Шифр', 'Argon2id + AES-GCM'],
+        ['Хранение', 'Локально (браузер)'],
+        ['Формат', 'COLD (базовый)'],
+        ['Поддержка', 'E-mail']
+      ]
+    }
+  },
+  {
+    key: 'standard',
+    name: 'STANDARD',
+    color: '#00d9ff',
+    priceLabel: '$1 <small>/ месяц</small>',
+    priceShort: '-$1',
+    priceValue: 1,
+    features: [
+      'Всё из BASIC',
+      'Обмен токенов ↔ фиат (Swap)',
+      'AI-детектор официальных доменов',
+      'Защита от вредоносных контрактов'
+    ],
+    details: {
+      desc: 'Расширенный функционал для активного использования. Встроенный обмен, AI-детектор фишинговых домменов, защита от вредоносных смарт-контрактов. Идеально для повседневных операций.',
+      specs: [
+        ['Шифр', 'Argon2id + AES-GCM'],
+        ['Формат', 'COLD + WARM'],
+        ['Обмен', 'Swaps token ↔ fiat'],
+        ['AI', 'Детектор домменов'],
+        ['Поддержка', 'Приоритетная (24ч)']
+      ]
+    }
+  },
+  {
+    key: 'premium',
+    name: 'PREMIUM',
+    color: '#a855f7',
+    priceLabel: '$15 <small>/ месяц</small>',
+    priceShort: '-$15',
+    priceValue: 15,
+    features: [
+      'Всё из STANDARD',
+      'Личный VPS с частью сид-фразы',
+      'Мультисиг + отмена recovery',
+      'Персональный AI-ассистент 24/7'
+    ],
+    details: {
+      desc: 'Максимальная защита с мультисигом и персональным VPS. Сид-фраза хранится частями на вашем сервере. AI-ассистент 24/7, торговля и аналитика, помощь в web2 и web3. Для крупных держателей.',
+      specs: [
+        ['Шифр', 'Argon2id + AES-GCM'],
+        ['Формат', 'COLD + WARM + REZERV'],
+        ['Хранение', 'Личный VPS (shared seed)'],
+        ['Мультисиг', '2 из 3 + отмена recovery'],
+        ['AI', 'Персональный ассистент 24/7'],
+        ['Торговля', 'Анализ и рекомендации'],
+        ['Поддержка', 'VIP (мгновенно)']
+      ]
+    }
+  }
+];
+
+let currentTier = localStorage.getItem('clandai_tier') || 'basic';
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+/* ==================== RENDER ==================== */
+function tierSVG() {
+  return `<svg viewBox="0 0 100 100" fill="none" stroke="currentColor"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path class="w-body"
+      d="M18 32 Q18 24 26 24 L74 24 Q82 24 82 32 L82 74 Q82 82 74 82 L26 82 Q18 82 18 74 Z"
+      stroke-width="2.5"/>
+    <line class="w-slot" x1="26" y1="40" x2="58" y2="40" stroke-width="1.5" opacity="0.45"/>
+    <path class="w-clasp" d="M65 50 L82 50" stroke-width="2.5"/>
+    <circle class="w-dot" cx="73" cy="50" r="2.5" fill="currentColor" stroke="none"/>
+    <g class="w-piece-card">
+      <rect x="26" y="56" width="22" height="14" rx="2" stroke-width="1.5"/>
+      <line x1="30" y1="61" x2="42" y2="61" stroke-width="1" opacity="0.7"/>
+      <line x1="30" y1="65" x2="38" y2="65" stroke-width="1" opacity="0.7"/>
+    </g>
+    <g class="w-piece-sparkles">
+      <path d="M10 10 L12 15 L17 17 L12 19 L10 24 L8 19 L3 17 L8 15 Z" fill="currentColor" stroke="none"/>
+      <path d="M90 8 L92 13 L97 15 L92 17 L90 22 L88 17 L83 15 L88 13 Z" fill="currentColor" stroke="none"/>
+      <circle cx="94" cy="30" r="1.6" fill="currentColor" stroke="none"/>
+      <circle cx="6" cy="60" r="1.6" fill="currentColor" stroke="none"/>
+      <circle cx="50" cy="10" r="1.2" fill="currentColor" stroke="none"/>
+    </g>
+  </svg>`;
+}
+
+function renderTiers() {
+  const wrap = $('#tier-list');
+  wrap.innerHTML = '';
+  TIERS.forEach(tier => {
+    const isCurrent = tier.key === currentTier;
+    const card = document.createElement('div');
+    card.className = 'tier-card ' + tier.key + (isCurrent ? ' current' : '');
+    card.dataset.tier = tier.key;
+    card.innerHTML = `
+      ${isCurrent ? '<div class="tc-badge">АКТИВНА</div>' : ''}
+      <div class="tc-head">
+        <div class="tc-wallet ${tier.key} tier-${tier.key}">${tierSVG()}</div>
+        <div class="tc-info">
+          <div class="tc-name">${tier.name}</div>
+          <div class="tc-price">${tier.priceLabel}</div>
+        </div>
+      </div>
+      <ul class="tc-features">
+        ${tier.features.map(f => `<li>${f}</li>`).join('')}
+      </ul>
+      <div class="tc-actions">
+        <button class="tc-btn details" data-act="details" data-tier="${tier.key}">Подробнее</button>
+        <button class="tc-btn order" data-act="order" data-tier="${tier.key}"
+          ${isCurrent ? 'disabled' : ''}>${isCurrent ? 'Активна' : 'Оформить'}</button>
+      </div>
+      <div class="tc-details" id="details-${tier.key}">
+        <div class="tc-details-inner">
+          <span class="dl">Описание</span>
+          ${tier.details.desc}
+          ${tier.details.specs.map(s => `
+            <div class="dt"><span class="dl">${s[0]}</span>${s[1]}</div>
+          `).join('')}
+        </div>
+      </div>`;
+    wrap.appendChild(card);
+  });
+}
+
+/* ==================== DETAILS TOGGLE ==================== */
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-act="details"]');
+  if (!btn) return;
+  const key = btn.dataset.tier;
+  const box = document.getElementById('details-' + key);
+  const open = box.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.textContent = open ? 'Свернуть' : 'Подробнее';
+});
+
+/* ==================== ORDER ==================== */
+let pendingTier = null;
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-act="order"]');
+  if (!btn || btn.disabled) return;
+  const tier = TIERS.find(t => t.key === btn.dataset.tier);
+  if (!tier) return;
+  if (tier.key === currentTier) return;
+
+  pendingTier = tier;
+  const box = $('#confirm-plan');
+  box.style.setProperty('--cp', tier.color);
+  box.style.setProperty('--cp-dim', hexA(tier.color, .35));
+  box.innerHTML = `
+    <div class="cp-name">${tier.name}</div>
+    <div class="cp-price">${tier.priceLabel.replace('<small>', '<small style="color:var(--muted);font-weight:400">')}</div>
+    <div class="cp-note">Списание произойдёт с баланса вашего кошелька.<br>
+      Подписка активна до отмены.</div>`;
+  $('#modal-confirm').classList.add('show');
+});
+
+$('#confirm-cancel').onclick = () => {
+  $('#modal-confirm').classList.remove('show');
+  pendingTier = null;
+};
+
+$('#confirm-go').onclick = () => {
+  if (!pendingTier) return;
+  const tier = pendingTier;
+  $('#modal-confirm').classList.remove('show');
+  setTimeout(() => startUpgradeAnimation(tier), 220);
+};
+
+/* ==================== ANIMATION ==================== */
+function startUpgradeAnimation(tier) {
+  const modal = $('#modal-anim');
+  const wrap = $('#wallet-wrap');
+  const dollar = $('#dollar-sign');
+  const title = $('#anim-title');
+  const closeBtn = $('#anim-close');
+
+  // reset
+  wrap.className = 'wallet-wrap tier-' + currentTier;
+  wrap.classList.remove('burst', 'pulse');
+  dollar.classList.remove('show');
+  dollar.textContent = tier.priceShort;
+  title.classList.remove('show');
+  title.textContent = '';
+  closeBtn.classList.remove('show');
+  closeBtn.disabled = true;
+
+  modal.classList.add('show');
+
+  // PHASE 1 — dollar appears
+  setTimeout(() => {
+    if (tier.priceValue > 0) {
+      dollar.classList.add('show');
+    }
+  }, 280);
+
+  // PHASE 2 — wallet begins transforming
+  setTimeout(() => {
+    wrap.classList.add('pulse');
+    setTimeout(() => wrap.classList.remove('pulse'), 500);
+    wrap.classList.remove('tier-' + currentTier);
+    wrap.classList.add('tier-' + tier.key);
+  }, 950);
+
+  // PHASE 3 — burst ring
+  setTimeout(() => {
+    wrap.classList.add('burst');
+  }, 2000);
+
+  // PHASE 4 — title
+  setTimeout(() => {
+    title.textContent = tier.name + ' АКТИВИРОВАН';
+    title.classList.add('show');
+  }, 2300);
+
+  // PHASE 5 — close button
+  setTimeout(() => {
+    closeBtn.classList.add('show');
+    closeBtn.disabled = false;
+    currentTier = tier.key;
+    localStorage.setItem('clandai_tier', tier.key);
+  }, 2750);
+}
+
+$('#anim-close').onclick = () => {
+  if ($('#anim-close').disabled) return;
+  $('#modal-anim').classList.remove('show');
+  renderTiers();
+  pendingTier = null;
+};
+
+/* Close on backdrop click */
+$$('.modal-bg').forEach(m => m.addEventListener('click', e => {
+  if (e.target === m && m.id !== 'modal-anim') m.classList.remove('show');
+}));
+
+/* ==================== HELPERS ==================== */
+function hexA(hex, a) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substr(0, 2), 16);
+  const g = parseInt(h.substr(2, 2), 16);
+  const b = parseInt(h.substr(4, 2), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ==================== INIT ==================== */
+renderTiers();
+</script>
+</body>
+</html>

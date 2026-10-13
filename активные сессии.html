@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI · SESSIONS & DEVICE WHITELIST</title>
+<style>
+:root{
+  --bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);
+  --neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--cyan-dim:rgba(0,217,255,.45);
+  --pink:#ff2bd6;--pink-dim:rgba(255,43,214,.5);--text:#d8dee6;--muted:#5b6672;
+  --danger:#ff3b6b;--radius:14px;--gold:#ffd400;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+
+.app{position:relative;z-index:1;max-width:480px;margin:0 auto;min-height:100vh;
+  padding:22px 18px 40px;display:flex;flex-direction:column;gap:16px}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px}
+.logo{font-weight:700;letter-spacing:3px;font-size:14px;opacity:.78;white-space:nowrap}
+.logo b{color:var(--neon)}
+.topbar-actions{display:flex;gap:6px;align-items:center}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);
+  width:34px;height:34px;border-radius:9px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .15s,color .15s;flex-shrink:0}
+.icon-btn:hover{border-color:var(--neon);color:var(--neon)}
+.icon-btn:active{transform:scale(.94)}
+.icon-btn svg{width:15px;height:15px}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  backdrop-filter:blur(18px);padding:18px;position:relative}
+.section-title{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;
+  margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.section-title .count{color:var(--neon);font-weight:700;letter-spacing:1px;
+  padding:2px 9px;border-radius:999px;background:rgba(0,255,170,.08);
+  border:1px solid var(--border)}
+
+/* ================= SESSIONS ================= */
+.sessions-summary{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;margin-bottom:14px;
+  background:linear-gradient(90deg,rgba(0,255,170,.06),transparent);
+  border:1px solid var(--border);border-radius:10px;
+}
+.sessions-summary .pulse{
+  width:8px;height:8px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 10px var(--neon);flex-shrink:0;
+  animation:pulseLive 1.6s ease-in-out infinite;
+}
+@keyframes pulseLive{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.85)}}
+.sessions-summary .lbl{font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase}
+.sessions-summary .val{margin-left:auto;color:var(--neon);font-weight:800;font-size:13px;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 10px var(--neon-dim)}
+
+.session-list{display:flex;flex-direction:column;gap:8px}
+
+.session-item{
+  position:relative;
+  background:linear-gradient(135deg,rgba(0,255,170,.03),rgba(0,0,0,.3));
+  border:1px solid var(--border);border-radius:12px;
+  padding:12px 14px;
+  display:flex;flex-direction:column;gap:10px;
+  transition:border-color .22s ease,background .22s ease,
+             box-shadow .22s ease,transform .18s ease;
+  animation:slideIn .3s cubic-bezier(.2,.9,.3,1.1);
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.session-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--neon);box-shadow:0 0 12px var(--neon-dim);border-radius:12px 0 0 12px;
+  opacity:.35;transition:opacity .2s}
+.session-item.current::before{opacity:1;background:var(--neon);}
+.session-item:not(.current)::before{background:var(--cyan);box-shadow:0 0 12px var(--cyan-dim)}
+
+.session-item:hover{
+  border-color:rgba(0,255,170,.65);
+  box-shadow:
+    0 0 0 2px rgba(0,255,170,.22),
+    0 0 34px -8px var(--neon),
+    inset 0 0 26px -14px var(--neon-dim);
+  background:linear-gradient(135deg,rgba(0,255,170,.09),rgba(0,0,0,.32));
+  transform:translateY(-2px);
+}
+.session-item.current{border-color:rgba(0,255,170,.35);
+  background:linear-gradient(135deg,rgba(0,255,170,.06),rgba(0,0,0,.3))}
+.session-item.current:hover{
+  border-color:rgba(0,255,170,.8);
+  box-shadow:
+    0 0 0 2px rgba(0,255,170,.3),
+    0 0 40px -6px var(--neon),
+    inset 0 0 30px -12px var(--neon-dim);
+}
+.session-item.closing{
+  opacity:0;transform:translateX(-12px) scale(.98);
+  transition:opacity .35s,transform .35s;pointer-events:none;
+}
+
+.s-head{display:flex;align-items:flex-start;gap:12px}
+.s-icon{
+  width:42px;height:42px;border-radius:11px;flex-shrink:0;
+  display:grid;place-items:center;
+  background:radial-gradient(circle at 30% 30%,rgba(0,255,170,.15),rgba(0,0,0,.4));
+  border:1px solid var(--border);
+  color:var(--neon);
+  position:relative;overflow:hidden;
+}
+.s-icon svg{width:24px;height:24px;position:relative;z-index:1}
+.session-item:not(.current) .s-icon{
+  color:var(--cyan);
+  background:radial-gradient(circle at 30% 30%,rgba(0,217,255,.15),rgba(0,0,0,.4));
+  border-color:rgba(0,217,255,.3);
+}
+.s-icon::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(120deg,transparent 40%,rgba(255,255,255,.08) 50%,transparent 60%);
+  pointer-events:none;
+}
+
+.s-info{flex:1;min-width:0}
+.s-name{font-size:12px;color:var(--text);font-weight:700;letter-spacing:.4px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.s-badge{
+  font-size:9px;letter-spacing:1px;padding:2px 7px;border-radius:999px;
+  background:rgba(0,255,170,.12);border:1px solid var(--neon-dim);color:var(--neon);
+  font-weight:700;text-transform:uppercase;
+}
+.s-badge.live{animation:pulseBadge 1.8s ease-in-out infinite}
+@keyframes pulseBadge{0%,100%{opacity:1}50%{opacity:.55}}
+.s-meta{font-size:10.5px;color:var(--muted);margin-top:4px;letter-spacing:.4px;line-height:1.5}
+.s-meta b{color:var(--text);font-weight:700}
+.s-meta .sep{opacity:.4;margin:0 5px}
+
+.s-tag{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:9px;letter-spacing:1px;color:var(--muted);
+  padding:2px 7px;border-radius:6px;background:rgba(0,0,0,.35);
+  border:1px solid var(--border);text-transform:uppercase;font-weight:700;
+}
+
+/* Close button always visible */
+.s-actions{
+  display:flex;align-items:center;justify-content:flex-end;
+  margin-top:2px;padding-top:8px;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+.session-item.current .s-actions{display:none}
+
+.s-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 14px;border-radius:9px;
+  font-family:inherit;font-size:10px;letter-spacing:1.2px;
+  text-transform:uppercase;cursor:pointer;font-weight:700;
+  background:transparent;border:1px solid var(--border);color:var(--muted);
+  transition:all .18s;
+}
+.s-btn svg{width:12px;height:12px}
+.s-btn.danger:hover{
+  border-color:var(--danger);color:var(--danger);
+  background:linear-gradient(180deg,rgba(255,59,107,.14),transparent);
+  box-shadow:0 0 18px -4px var(--danger);
+}
+
+.empty{color:var(--muted);font-size:12px;text-align:center;
+  padding:26px 0;letter-spacing:1px}
+
+/* ================= MODE BUTTONS ================= */
+.mode-buttons{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  margin-bottom:12px;
+}
+.mode-btn{
+  padding:14px 6px 12px;
+  background:rgba(0,0,0,.4);
+  border:1px solid var(--border);
+  border-radius:12px;
+  color:var(--text);
+  font-family:inherit;font-size:9.5px;letter-spacing:1px;
+  text-transform:uppercase;cursor:pointer;font-weight:700;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  transition:all .2s;
+  line-height:1.25;text-align:center;
+}
+.mode-btn svg{width:20px;height:20px;color:var(--neon);transition:color .2s}
+.mode-btn:hover{
+  border-color:var(--neon);color:var(--neon);
+  box-shadow:0 0 20px -6px var(--neon);
+}
+.mode-btn.active{
+  border-color:var(--neon);
+  background:linear-gradient(180deg,var(--neon-dim),transparent);
+  color:var(--neon);
+  box-shadow:0 0 22px -4px var(--neon);
+}
+.mode-btn.pink svg{color:var(--pink)}
+.mode-btn.pink:hover{
+  border-color:var(--pink);color:var(--pink);
+  box-shadow:0 0 22px -6px var(--pink);
+}
+.mode-btn.pink.active{
+  border-color:var(--pink);
+  background:linear-gradient(180deg,rgba(255,43,214,.15),transparent);
+  color:var(--pink);
+  box-shadow:0 0 22px -4px var(--pink);
+}
+
+/* ================= SUBPANELS ================= */
+.subpanel{
+  display:none;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:14px;
+  margin-bottom:12px;
+  background:rgba(0,0,0,.25);
+  animation:panelIn .3s cubic-bezier(.2,.9,.3,1.1);
+}
+.subpanel.show{display:block}
+@keyframes panelIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+
+.subpanel-title{
+  font-size:10px;letter-spacing:2px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:12px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.subpanel-title .dot-live{
+  width:6px;height:6px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 8px var(--neon);animation:pulseLive 1.6s infinite;
+}
+
+/* ================= FORM FIELDS ================= */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:8px}
+input[type="text"]{
+  width:100%;padding:12px 14px;background:rgba(0,0,0,.45);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);
+  font-family:inherit;font-size:13px;outline:none;
+  transition:border-color .15s,box-shadow .15s}
+input[type="text"]:focus{border-color:var(--neon);
+  box-shadow:0 0 0 3px var(--neon-dim)}
+input::placeholder{color:var(--muted)}
+
+.btn-full{width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);
+  border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;
+  font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;
+  transition:box-shadow .15s,transform .1s;margin-top:6px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn-full svg{width:16px;height:16px}
+.btn-full:hover{box-shadow:0 0 24px var(--neon-dim)}
+.btn-full:active{transform:translateY(1px)}
+.btn-full:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.btn-full.pink{
+  border-color:var(--pink);color:var(--pink);
+  background:linear-gradient(180deg,rgba(255,43,214,.2),transparent);
+}
+.btn-full.pink:hover{box-shadow:0 0 24px rgba(255,43,214,.35)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);
+  margin-top:8px}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted);box-shadow:none}
+
+/* ================= QR CODE ================= */
+.qr-wrap{
+  display:flex;flex-direction:column;align-items:center;
+  padding:8px 0 4px;
+}
+.qr-container{
+  position:relative;
+  width:250px;height:250px;
+  padding:14px;
+  background:#05060a;
+  border:2px solid var(--pink);
+  border-radius:16px;
+  box-shadow:
+    0 0 32px -6px var(--pink),
+    0 0 60px -20px var(--pink),
+    inset 0 0 30px rgba(255,43,214,.08);
+  overflow:hidden;
+}
+.qr-container::before{
+  content:'';position:absolute;inset:-2px;
+  border-radius:16px;
+  background:conic-gradient(from 0deg,
+    var(--pink),
+    var(--neon) 25%,
+    transparent 45%,
+    var(--pink) 70%,
+    var(--neon) 90%,
+    var(--pink));
+  opacity:.35;
+  filter:blur(14px);
+  z-index:-1;
+  animation:qrSpin 6s linear infinite;
+}
+@keyframes qrSpin{to{transform:rotate(360deg)}}
+
+.qr-container .corner{
+  position:absolute;width:22px;height:22px;
+  border:3px solid var(--neon);z-index:3;
+  filter:drop-shadow(0 0 6px var(--neon));
+}
+.qr-container .corner.tl{top:-3px;left:-3px;border-right:0;border-bottom:0;border-radius:14px 0 0 0}
+.qr-container .corner.tr{top:-3px;right:-3px;border-left:0;border-bottom:0;border-radius:0 14px 0 0}
+.qr-container .corner.bl{bottom:-3px;left:-3px;border-right:0;border-top:0;border-radius:0 0 0 14px}
+.qr-container .corner.br{bottom:-3px;right:-3px;border-left:0;border-top:0;border-radius:0 0 14px 0}
+
+.qr-scanline{
+  position:absolute;left:6px;right:6px;height:2px;
+  background:linear-gradient(90deg,transparent,var(--neon),transparent);
+  box-shadow:0 0 12px var(--neon);
+  top:14px;
+  animation:scanMove 2.4s ease-in-out infinite;
+  z-index:4;pointer-events:none;border-radius:2px;
+}
+@keyframes scanMove{
+  0%,100%{top:14px;opacity:.4}
+  50%{top:calc(100% - 16px);opacity:1}
+}
+
+.qr-grid{
+  display:grid;
+  width:100%;height:100%;
+  gap:1px;
+  position:relative;
+}
+.qr-cell{
+  width:100%;aspect-ratio:1;
+  border-radius:2px;
+  opacity:0;
+  transform:translate(var(--dx,0),var(--dy,0)) rotate(var(--rot,0)) scale(0);
+  animation:qrAssemble .6s cubic-bezier(.2,.9,.3,1.2) forwards;
+  animation-delay:var(--delay,0s);
+}
+.qr-cell.on{
+  background:var(--pink);
+  box-shadow:0 0 5px rgba(255,43,214,.55);
+}
+.qr-cell.on.accent{
+  background:var(--neon);
+  box-shadow:0 0 6px rgba(0,255,170,.7);
+}
+.qr-cell.on.accent2{
+  background:#8affd4;
+  box-shadow:0 0 5px rgba(138,255,212,.55);
+}
+@keyframes qrAssemble{
+  0%{
+    opacity:0;
+    transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(0);
+  }
+  60%{opacity:1}
+  100%{
+    opacity:1;
+    transform:translate(0,0) rotate(0) scale(1);
+  }
+}
+
+.qr-hint{
+  margin-top:12px;
+  font-size:10.5px;
+  letter-spacing:1.2px;
+  color:var(--muted);
+  text-align:center;
+  text-transform:uppercase;
+  line-height:1.6;
+}
+.qr-hint b{color:var(--neon);font-weight:700}
+
+/* ================= CODE EXCHANGE ================= */
+.generated-code{
+  margin-top:12px;
+  padding:14px;
+  border:1px solid rgba(255,43,214,.4);
+  border-radius:12px;
+  background:linear-gradient(135deg,rgba(255,43,214,.08),rgba(0,0,0,.35));
+  text-align:center;
+  animation:panelIn .3s ease;
+}
+.code-label{
+  font-size:9.5px;letter-spacing:2px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:10px;
+}
+.code-display{
+  display:flex;align-items:center;justify-content:center;
+  gap:10px;
+}
+#code-value{
+  font-size:22px;
+  font-weight:800;
+  letter-spacing:4px;
+  color:var(--pink);
+  text-shadow:0 0 16px var(--pink-dim),0 0 4px #fff inset;
+  font-variant-numeric:tabular-nums;
+  user-select:all;
+}
+.copy-btn{
+  background:transparent;
+  border:1px solid rgba(255,43,214,.4);
+  color:var(--pink);
+  width:32px;height:32px;border-radius:8px;
+  cursor:pointer;display:grid;place-items:center;
+  transition:all .15s;flex-shrink:0;
+}
+.copy-btn:hover{
+  border-color:var(--pink);
+  background:rgba(255,43,214,.12);
+  box-shadow:0 0 16px -4px var(--pink);
+}
+.copy-btn svg{width:14px;height:14px}
+.code-hint{
+  margin-top:10px;font-size:10px;letter-spacing:1px;
+  color:var(--muted);text-transform:uppercase;
+}
+
+.code-input-wrap{
+  display:flex;gap:6px;align-items:stretch;
+}
+.code-input-wrap input{
+  font-size:16px;letter-spacing:5px;text-align:center;
+  font-weight:700;
+}
+
+/* ================= CONFIRM ANIMATION ================= */
+.confirm-stage{
+  display:flex;flex-direction:column;align-items:center;
+  padding:8px 0 4px;position:relative;
+}
+.confirm-stage::before{content:'';position:absolute;top:0;left:50%;
+  transform:translateX(-50%);width:70%;height:1px;
+  background:linear-gradient(90deg,transparent,var(--neon-dim),transparent);
+  opacity:.6}
+
+.confirm-title{font-size:11px;letter-spacing:3px;color:var(--muted);
+  text-transform:uppercase;margin:8px 0 6px;text-align:center}
+.confirm-title.done{color:var(--neon);text-shadow:0 0 12px var(--neon-dim)}
+
+.transfer-stage{
+  position:relative;width:100%;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:26px 0 22px;gap:12px;
+}
+.tf-node{
+  width:54px;height:54px;border-radius:14px;flex-shrink:0;
+  display:grid;place-items:center;position:relative;
+  border:2px solid var(--neon-dim);
+  background:radial-gradient(circle at 30% 30%,rgba(0,255,170,.12),rgba(0,0,0,.5));
+  color:var(--neon);
+  box-shadow:0 0 22px -8px var(--neon),inset 0 0 16px -8px var(--neon-dim);
+  transition:box-shadow .3s;
+}
+.tf-node svg{width:26px;height:26px}
+.tf-node.wallet.armed{
+  box-shadow:0 0 30px -4px var(--neon),inset 0 0 22px -8px var(--neon);
+  animation:nodePulse 1.4s ease-in-out infinite;
+}
+.tf-node.server{
+  border-color:var(--cyan-dim);
+  color:var(--cyan);
+  background:radial-gradient(circle at 30% 30%,rgba(0,217,255,.12),rgba(0,0,0,.5));
+  box-shadow:0 0 22px -8px var(--cyan),inset 0 0 16px -8px var(--cyan-dim);
+}
+.tf-node.server.armed{
+  box-shadow:0 0 32px -4px var(--cyan),inset 0 0 22px -8px var(--cyan);
+}
+@keyframes nodePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+
+.tf-rail{
+  flex:1;height:2px;position:relative;
+  background:rgba(0,255,170,.12);
+  border-radius:2px;overflow:visible;
+}
+.tf-line{
+  position:absolute;inset:0;
+  background:linear-gradient(90deg,var(--neon),var(--cyan));
+  transform-origin:left center;
+  transform:scaleX(0);
+  border-radius:2px;
+  box-shadow:0 0 14px var(--neon-dim);
+}
+.tf-line.animating{animation:drawLine 1.55s cubic-bezier(.55,.05,.4,1) forwards}
+@keyframes drawLine{to{transform:scaleX(1)}}
+
+.tf-packet{
+  position:absolute;top:50%;left:0;
+  width:10px;height:10px;border-radius:50%;
+  background:var(--neon);
+  box-shadow:0 0 14px var(--neon),0 0 4px #fff inset;
+  transform:translate(-50%,-50%);
+  opacity:0;pointer-events:none;
+}
+.tf-packet.animating{
+  animation:packetMove 1.55s cubic-bezier(.55,.05,.4,1) forwards;
+  opacity:1;
+}
+@keyframes packetMove{
+  0%{left:0;opacity:1}
+  92%{left:100%;opacity:1}
+  100%{left:100%;opacity:0}
+}
+
+.stamp-on-line{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%) rotate(-8deg) scale(0);
+  pointer-events:none;
+  padding:8px 22px;
+  border:3px solid var(--neon);border-radius:8px;
+  color:var(--neon);font-size:18px;font-weight:800;letter-spacing:5px;
+  text-shadow:0 0 12px var(--neon),0 0 26px var(--neon-dim);
+  box-shadow:0 0 24px var(--neon-dim),inset 0 0 22px rgba(0,255,170,.14);
+  background:rgba(8,9,11,.92);
+  opacity:0;z-index:3;
+}
+.stamp-on-line::before{content:'';position:absolute;inset:3px;
+  border:1px solid var(--neon);border-radius:5px;opacity:.5}
+.stamp-on-line.show{
+  animation:stampSlam .55s cubic-bezier(.2,.9,.3,1.5) forwards,
+            stampGlow 2.4s ease-in-out infinite .6s;
+}
+@keyframes stampSlam{
+  0%{opacity:0;transform:translate(-50%,-50%) rotate(-40deg) scale(2.6)}
+  55%{opacity:1;transform:translate(-50%,-50%) rotate(-8deg) scale(.94)}
+  75%{transform:translate(-50%,-50%) rotate(-8deg) scale(1.03)}
+  100%{opacity:1;transform:translate(-50%,-50%) rotate(-8deg) scale(1)}
+}
+@keyframes stampGlow{
+  0%,100%{box-shadow:0 0 24px var(--neon-dim),inset 0 0 22px rgba(0,255,170,.14)}
+  50%{box-shadow:0 0 42px var(--neon),inset 0 0 32px rgba(0,255,170,.24)}
+}
+
+.typing-field{
+  width:100%;background:rgba(0,0,0,.5);
+  border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;position:relative;min-height:52px;
+  display:flex;align-items:center;
+  transition:border-color .2s,box-shadow .2s;
+  overflow:hidden;margin-top:8px;
+}
+.typing-field.done{border-color:var(--neon)}
+.typing-field::before{content:'';position:absolute;left:0;right:0;bottom:0;
+  height:1px;background:linear-gradient(90deg,transparent,var(--neon-dim),transparent);
+  opacity:.4}
+.typing-device{
+  font-family:inherit;font-size:13px;
+  color:var(--neon);letter-spacing:.6px;
+  word-break:break-all;line-height:1.4;
+  text-shadow:0 0 10px var(--neon-dim);
+  position:relative;
+}
+.typing-device::after{
+  content:'▋';display:inline-block;color:var(--neon);margin-left:2px;
+  animation:caretBlink .8s steps(2,start) infinite;
+}
+.typing-device.done::after{display:none}
+@keyframes caretBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+.confirm-details{
+  width:100%;display:flex;flex-direction:column;gap:8px;
+  margin-top:16px;opacity:0;transform:translateY(8px);
+  transition:opacity .4s,transform .4s;
+}
+.confirm-details.show{opacity:1;transform:translateY(0)}
+.confirm-row{display:flex;justify-content:space-between;font-size:11px;gap:12px;
+  padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.confirm-row:last-of-type{border-bottom:none}
+.confirm-row .lbl{color:var(--muted);flex-shrink:0;letter-spacing:1px;
+  text-transform:uppercase;font-size:10px}
+.confirm-row .val{color:var(--text);text-align:right;word-break:break-all;
+  font-weight:700;font-size:12px}
+.confirm-row .val.good{color:var(--neon);text-shadow:0 0 10px var(--neon-dim)}
+
+/* ================= WHITELIST ENTRIES ================= */
+.wl-list{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.wl-empty{color:var(--muted);font-size:12px;text-align:center;
+  padding:28px 0;letter-spacing:1px}
+
+.wl-item{
+  position:relative;
+  background:linear-gradient(135deg,rgba(0,255,170,.03),rgba(0,0,0,.3));
+  border:1px solid var(--border);border-radius:12px;
+  padding:14px 14px 14px 16px;
+  display:flex;flex-direction:column;gap:10px;overflow:hidden;
+  transition:border-color .25s,background .25s,
+             box-shadow .22s,transform .18s;
+  animation:slideIn .35s cubic-bezier(.2,.9,.3,1.1);
+}
+.wl-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--neon);box-shadow:0 0 12px var(--neon-dim)}
+.wl-item:hover{
+  border-color:rgba(0,255,170,.6);
+  box-shadow:0 0 0 2px rgba(0,255,170,.2),0 0 30px -10px var(--neon);
+  transform:translateY(-1px);
+}
+
+.wl-head{display:flex;align-items:flex-start;gap:12px}
+.wl-icon{
+  width:42px;height:42px;border-radius:11px;flex-shrink:0;
+  display:grid;place-items:center;
+  background:radial-gradient(circle at 30% 30%,rgba(0,255,170,.15),rgba(0,0,0,.4));
+  border:1px solid var(--border);
+  color:var(--neon);
+  position:relative;overflow:hidden;
+}
+.wl-icon svg{width:24px;height:24px;position:relative;z-index:1}
+.wl-icon::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(120deg,transparent 40%,rgba(255,255,255,.08) 50%,transparent 60%);
+  pointer-events:none;
+}
+
+.wl-info{flex:1;min-width:0}
+.wl-name{font-size:13px;color:var(--neon);font-weight:700;letter-spacing:.5px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wl-fp{font-size:10.5px;color:var(--muted);letter-spacing:.5px;margin-top:3px;
+  word-break:break-all;line-height:1.4}
+.wl-fp b{color:var(--text);font-weight:700}
+.wl-note{font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.4}
+
+.wl-time{font-size:10px;color:var(--muted);letter-spacing:1px;white-space:nowrap;
+  padding:4px 9px;border-radius:999px;background:rgba(0,217,255,.08);
+  border:1px solid rgba(0,217,255,.3);color:var(--cyan);font-weight:700;
+  font-variant-numeric:tabular-nums;flex-shrink:0}
+
+.wl-actions{display:flex;justify-content:flex-end;gap:8px}
+.wl-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 12px;background:transparent;border:1px solid var(--border);
+  border-radius:9px;color:var(--muted);font-family:inherit;font-size:10px;
+  letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;
+  transition:all .2s;font-weight:700}
+.wl-btn svg{width:12px;height:12px}
+.wl-btn:hover{border-color:var(--danger);color:var(--danger);
+  box-shadow:0 0 18px -4px var(--danger)}
+
+/* ================= TOAST ================= */
+.toast{position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(100px);
+  background:#0e1014;border:1px solid var(--neon);color:var(--neon);
+  padding:12px 20px;border-radius:999px;font-size:12px;letter-spacing:1px;
+  z-index:200;opacity:0;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;
+  box-shadow:0 0 24px var(--neon-dim);max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--danger);color:var(--danger);
+  box-shadow:0 0 24px rgba(255,59,107,.25)}
+.toast.pink{border-color:var(--pink);color:var(--pink);
+  box-shadow:0 0 24px rgba(255,43,214,.3)}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:8px}
+
+@media (max-width:640px){
+  .panel{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(18,20,24,.95)}
+  body::after{display:none}
+  .app{padding:16px 14px 32px;gap:14px}
+  .panel{padding:16px}
+  .tf-node{width:48px;height:48px}
+  .tf-node svg{width:22px;height:22px}
+  .stamp-on-line{font-size:16px;letter-spacing:4px;padding:7px 18px}
+  .s-icon,.wl-icon{width:38px;height:38px}
+  .s-icon svg,.wl-icon svg{width:22px;height:22px}
+  .qr-container{width:220px;height:220px}
+  #code-value{font-size:19px;letter-spacing:3px}
+  .mode-btn{font-size:9px;padding:12px 4px 10px}
+  .mode-btn svg{width:18px;height:18px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">CLAN<b>DAI</b> · ACCESS</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btn-info" title="Info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============== SESSIONS ============== -->
+  <div class="panel" id="sessions-panel">
+    <div class="section-title">
+      <span>АКТИВНЫЕ СЕССИИ</span>
+      <span class="count" id="sessions-count">0</span>
+    </div>
+
+    <div class="sessions-summary">
+      <span class="pulse"></span>
+      <span class="lbl">Кошелёк активен</span>
+      <span class="val" id="sessions-summary-val">0 устройств</span>
+    </div>
+
+    <div class="session-list" id="session-list"></div>
+  </div>
+
+  <!-- ============== WHITELIST FORM ============== -->
+  <div class="panel" id="form-panel">
+    <div class="section-title">
+      <span>ДОБАВИТЬ УСТРОЙСТВО</span>
+    </div>
+
+    <div class="mode-buttons">
+      <button class="mode-btn pink" id="btn-show-qr">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <path d="M14 14h3v3h-3z"/>
+          <path d="M20 14v2"/>
+          <path d="M20 19v2"/>
+          <path d="M14 20h3"/>
+        </svg>
+        <span>ПОКАЗАТЬ<br>QR КОД</span>
+      </button>
+
+      <button class="mode-btn" id="btn-send-code">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v16"/>
+          <path d="M6 8l6-6 6 6"/>
+          <path d="M4 22h16"/>
+        </svg>
+        <span>ВЫСЛАТЬ<br>КОД</span>
+      </button>
+
+      <button class="mode-btn" id="btn-manual">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+        <span>ВВЕСТИ<br>ВРУЧНУЮ</span>
+      </button>
+    </div>
+
+    <!-- ====== QR CODE SECTION ====== -->
+    <div class="subpanel" id="qr-section">
+      <div class="subpanel-title">
+        <span>QR ДЛЯ СОПРЯЖЕНИЯ</span>
+        <span class="dot-live"></span>
+      </div>
+      <div class="qr-wrap">
+        <div class="qr-container">
+          <span class="corner tl"></span>
+          <span class="corner tr"></span>
+          <span class="corner bl"></span>
+          <span class="corner br"></span>
+          <div class="qr-scanline"></div>
+          <div class="qr-grid" id="qr-grid"></div>
+        </div>
+        <div class="qr-hint">
+          Отсканируйте этот QR на <b>новом устройстве</b><br>
+          чтобы передать марку и параметры сопряжения
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== CODE EXCHANGE SECTION ====== -->
+    <div class="subpanel" id="code-section">
+      <div class="subpanel-title">
+        <span>ОБМЕН КОДОМ</span>
+        <span class="dot-live"></span>
+      </div>
+
+      <button class="btn-full pink" id="btn-generate-code">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v16"/>
+          <path d="M6 8l6-6 6 6"/>
+          <path d="M4 22h16"/>
+        </svg>
+        ВЫСЛАТЬ КОД НА НОВОЕ УСТРОЙСТВО
+      </button>
+
+      <div class="generated-code" id="generated-code" style="display:none">
+        <div class="code-label">КОД С ДОВЕРЕННОГО УСТРОЙСТВА</div>
+        <div class="code-display">
+          <span id="code-value">— — —</span>
+          <button class="copy-btn" id="btn-copy-code" title="Скопировать">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <div class="code-hint">Введите этот код на новом устройстве</div>
+      </div>
+
+      <div class="field" style="margin-top:16px">
+        <label>ВВЕДИТЕ КОД С ДОВЕРЕННОГО УСТРОЙСТВА</label>
+        <div class="code-input-wrap">
+          <input type="text" id="code-input" placeholder="XXX-XXX-XXX" maxlength="11"
+            autocomplete="off" spellcheck="false" inputmode="text" style="flex:1"/>
+        </div>
+      </div>
+
+      <button class="btn-full" id="btn-confirm-code">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="7.5" cy="15.5" r="4.5"/>
+          <path d="M10.5 12.5L21 2M15 6l3 3M18 4l2 2"/>
+        </svg>
+        ПОДТВЕРДИТЬ ПРИВАТНЫМ КЛЮЧОМ
+      </button>
+    </div>
+
+    <!-- ====== MANUAL SECTION ====== -->
+    <div class="subpanel" id="manual-section">
+      <div class="subpanel-title">
+        <span>РУЧНОЙ ВВОД</span>
+      </div>
+
+      <div class="field">
+        <label>НАЗВАНИЕ УСТРОЙСТВА</label>
+        <input type="text" id="device-input" placeholder="Например: iPhone 15 Pro"
+          maxlength="60" autocomplete="off" spellcheck="false"/>
+      </div>
+
+      <div class="field">
+        <label>DEVICE FINGERPRINT (HWID)</label>
+        <input type="text" id="fp-input"
+          placeholder="fp_9a4b...c72e или MAC / IMEI" maxlength="120"
+          autocomplete="off" spellcheck="false"/>
+      </div>
+
+      <div class="field">
+        <label>ЗАМЕТКА (необязательно)</label>
+        <input type="text" id="note-input" placeholder="Например: мой основной телефон"
+          maxlength="60" autocomplete="off"/>
+      </div>
+
+      <button class="btn-full" id="btn-confirm">
+        РАЗРЕШИТЬ УСТРОЙСТВО
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ============== CONFIRM ANIMATION ============== -->
+  <div class="panel" id="confirm-panel" style="display:none">
+    <div class="section-title">
+      <span>ПОДТВЕРЖДЕНИЕ</span>
+    </div>
+
+    <div class="confirm-stage">
+      <div class="confirm-title" id="confirm-title">РЕГИСТРИРУЕМ УСТРОЙСТВО НА СЕРВЕРЕ...</div>
+
+      <div class="transfer-stage">
+        <div class="tf-node wallet armed" id="tf-wallet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="8" width="13" height="11" rx="2"/>
+            <path d="M2 12h13"/>
+            <circle cx="12" cy="15.5" r="1" fill="currentColor" stroke="none"/>
+            <path d="M17 9 Q18 8 17 7"/>
+            <path d="M19 10 Q21.5 7.5 19 5"/>
+            <path d="M21 11 Q24.5 7 21 3.5"/>
+          </svg>
+        </div>
+
+        <div class="tf-rail">
+          <div class="tf-line" id="tf-line"></div>
+          <div class="tf-packet" id="tf-packet"></div>
+        </div>
+
+        <div class="tf-node server" id="tf-server">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="7" rx="2"/>
+            <rect x="3" y="13" width="18" height="7" rx="2"/>
+            <line x1="7" y1="7.5" x2="7.01" y2="7.5"/>
+            <line x1="7" y1="16.5" x2="7.01" y2="16.5"/>
+            <line x1="11" y1="7.5" x2="17" y2="7.5" opacity=".6"/>
+            <line x1="11" y1="16.5" x2="17" y2="16.5" opacity=".6"/>
+          </svg>
+        </div>
+
+        <div class="stamp-on-line" id="stamp">WHITELIST</div>
+      </div>
+
+      <div class="typing-field" id="typing-field" style="display:none">
+        <div class="typing-device" id="typing-device"></div>
+      </div>
+
+      <div class="confirm-details" id="confirm-details">
+        <div class="confirm-row">
+          <span class="lbl">Устройство</span>
+          <span class="val good" id="c-device">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="lbl">Fingerprint</span>
+          <span class="val" id="c-fp">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="lbl">Статус</span>
+          <span class="val good" id="c-status">—</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-full" id="btn-done" style="margin-top:22px" disabled>
+      ГОТОВО
+    </button>
+  </div>
+
+  <!-- ============== DEVICE WHITELIST ENTRIES ============== -->
+  <div class="panel" id="wl-panel">
+    <div class="section-title">
+      <span>ДОВЕРЕННЫЕ УСТРОЙСТВА</span>
+      <span class="count" id="wl-count">0</span>
+    </div>
+    <div class="wl-list" id="wl-list"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ========================================================
+   CLANDAI ACCESS · DEVICE WHITELIST v2
+   ======================================================== */
+const STORAGE_KEY  = 'clandai_devices_v2';
+const SESSIONS_KEY = 'clandai_sessions_v2';
+
+const state = {
+  sessions: [],
+  entries: [],
+  pending: null,
+  typingTimer: null,
+  activePanel: null,   // 'qr' | 'code' | 'manual' | null
+};
+
+const $  = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+/* ---------- UTIL ---------- */
+function toast(msg, err=false, pink=false){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '') + (pink ? ' pink' : '');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => el.className = 'toast', 2400);
+}
+function vibrate(ms=6){ if (navigator.vibrate) navigator.vibrate(ms); }
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function shortFp(a, n=10){
+  if (!a) return '';
+  if (a.length <= n*2+3) return a;
+  return a.slice(0, n) + '…' + a.slice(-4);
+}
+function isValidDevice(name){
+  const s = String(name || '').trim();
+  return s.length >= 2 && s.length <= 60;
+}
+function isValidFp(fp){
+  const s = String(fp || '').trim();
+  if (s.length < 6) return false;
+  return /^[a-zA-Z0-9_\-\.\:]{6,120}$/.test(s);
+}
+function fmtTime(ts){
+  const now = Date.now();
+  const diff = Math.floor((now - ts) / 60000);
+  if (diff < 1) return 'только что';
+  if (diff < 60) return diff + ' мин назад';
+  if (diff < 60*24) return Math.floor(diff/60) + ' ч назад';
+  const d = new Date(ts);
+  return d.toLocaleString('ru-RU', {day:'2-digit', month:'2-digit',
+    hour:'2-digit', minute:'2-digit'});
+}
+function genCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const parts = [];
+  for (let p = 0; p < 3; p++){
+    let s = '';
+    for (let i = 0; i < 3; i++){
+      s += chars[Math.floor(Math.random() * chars.length)];
+    }
+    parts.push(s);
+  }
+  return parts.join('-');
+}
+function genFingerprint(){
+  const rnd = crypto.getRandomValues(new Uint8Array(8));
+  const hex = [...rnd].map(b => b.toString(16).padStart(2,'0')).join('');
+  return 'fp_' + hex;
+}
+
+/* ---------- STORAGE ---------- */
+function loadAll(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) state.entries = a; }
+  } catch { state.entries = []; }
+  try {
+    const raw = localStorage.getItem(SESSIONS_KEY);
+    if (raw) { const s = JSON.parse(raw); if (Array.isArray(s) && s.length) state.sessions = s; }
+  } catch {}
+  if (!state.sessions.length){
+    state.sessions = [
+      { id:'s1', name:'iPhone 15 Pro', ua:'iOS 17 · Safari · Chrome', ip:'192.168.1.42',
+        loc:'Москва, RU', ts: Date.now()-45*1000, current:true },
+      { id:'s2', name:'MacBook Pro', ua:'macOS Sonoma · Chrome 121', ip:'88.142.10.17',
+        loc:'Амстердам, NL', ts: Date.now()-3*60*1000, current:false },
+      { id:'s3', name:'Android · Galaxy S24', ua:'Android 14 · WalletConnect', ip:'5.16.42.88',
+        loc:'Дубай, AE', ts: Date.now()-42*60*1000, current:false },
+      { id:'s4', name:'Chrome Extension', ua:'Windows 11 · MetaMask Bridge', ip:'78.31.9.204',
+        loc:'Берлин, DE', ts: Date.now()-6*3600*1000, current:false },
+    ];
+    saveSessions();
+  }
+  if (!state.entries.length){
+    state.entries = [
+      { id:'d1', name:'Мой iPhone 15 Pro', fp:'fp_9a4b7c12e5f08d3a',
+        note:'Основной телефон', createdAt: Date.now()-2*24*3600*1000 },
+      { id:'d2', name:'MacBook Pro 16"', fp:'fp_1f8c3e6b2a9d4705',
+        note:'Рабочий ноутбук', createdAt: Date.now()-5*24*3600*1000 },
+    ];
+    saveEntries();
+  }
+}
+function saveSessions(){
+  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(state.sessions)); } catch {}
+}
+function saveEntries(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries)); } catch {}
+}
+
+/* ================= DEVICE ICON ================= */
+function deviceIconSvg(){
+  return `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="8" width="13" height="11" rx="2"/>
+      <path d="M2 12h13"/>
+      <circle cx="12" cy="15.5" r="1" fill="currentColor" stroke="none"/>
+      <path d="M17 9 Q18 8 17 7" opacity=".55"/>
+      <path d="M19 10 Q21.5 7.5 19 5" opacity=".8"/>
+      <path d="M21 11 Q24.5 7 21 3.5"/>
+    </svg>
+  `;
+}
+
+/* ================= SESSIONS RENDER ================= */
+function renderSessions(){
+  const wrap = $('#session-list');
+  const n = state.sessions.length;
+  $('#sessions-count').textContent = n;
+  $('#sessions-summary-val').textContent =
+    n + ' ' + plural(n, ['устройство','устройства','устройств']);
+
+  if (!n){
+    wrap.innerHTML = '<div class="empty">Нет активных сессий</div>';
+    return;
+  }
+
+  wrap.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  state.sessions.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'session-item' + (s.current ? ' current' : '');
+    el.dataset.id = s.id;
+
+    const badge = s.current
+      ? '<span class="s-badge live">ТЕКУЩАЯ</span>'
+      : '<span class="s-tag">активна</span>';
+
+    el.innerHTML = `
+      <div class="s-head">
+        <div class="s-icon">${deviceIconSvg()}</div>
+        <div class="s-info">
+          <div class="s-name">
+            <span>${escapeHtml(s.name)}</span>
+            ${badge}
+          </div>
+          <div class="s-meta">
+            <b>${escapeHtml(s.ip)}</b>
+            <span class="sep">·</span>${escapeHtml(s.loc)}
+          </div>
+          <div class="s-meta" style="margin-top:3px">
+            ${escapeHtml(s.ua)}
+          </div>
+          <div class="s-meta" style="margin-top:3px">
+            <span style="color:var(--cyan)">${fmtTime(s.ts)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="s-actions">
+        <button class="s-btn danger" data-act="close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          Закрыть сессию
+        </button>
+      </div>
+    `;
+
+    const closeBtn = el.querySelector('[data-act="close"]');
+    if (closeBtn){
+      closeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        closeSession(s.id);
+      });
+    }
+
+    frag.appendChild(el);
+  });
+  wrap.appendChild(frag);
+}
+
+function plural(n, forms){
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return forms[0];
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return forms[1];
+  return forms[2];
+}
+
+function closeSession(id){
+  const idx = state.sessions.findIndex(s => s.id === id);
+  if (idx < 0) return;
+  const s = state.sessions[idx];
+  if (s.current) { toast('Нельзя закрыть текущую сессию', true); return; }
+
+  const el = document.querySelector(`.session-item[data-id="${id}"]`);
+  if (el){
+    el.classList.add('closing');
+    vibrate([12, 30, 12]);
+  }
+  setTimeout(() => {
+    state.sessions.splice(idx, 1);
+    saveSessions();
+    renderSessions();
+    toast('Сессия закрыта');
+  }, 340);
+}
+
+/* ================= MODE TOGGLES ================= */
+function setActivePanel(name){
+  if (state.activePanel === name){
+    // toggle off
+    state.activePanel = null;
+    $$('.subpanel').forEach(p => p.classList.remove('show'));
+    $$('.mode-btn').forEach(b => b.classList.remove('active'));
+    return;
+  }
+  state.activePanel = name;
+  $$('.subpanel').forEach(p => p.classList.remove('show'));
+  $$('.mode-btn').forEach(b => b.classList.remove('active'));
+
+  if (name === 'qr'){
+    $('#qr-section').classList.add('show');
+    $('#btn-show-qr').classList.add('active');
+    // re-render QR each time for fresh puzzle animation
+    renderQR();
+  } else if (name === 'code'){
+    $('#code-section').classList.add('show');
+    $('#btn-send-code').classList.add('active');
+  } else if (name === 'manual'){
+    $('#manual-section').classList.add('show');
+    $('#btn-manual').classList.add('active');
+    setTimeout(() => $('#device-input').focus(), 150);
+  }
+}
+
+$('#btn-show-qr').addEventListener('click', () => setActivePanel('qr'));
+$('#btn-send-code').addEventListener('click', () => setActivePanel('code'));
+$('#btn-manual').addEventListener('click', () => setActivePanel('manual'));
+
+/* ================= QR CODE ================= */
+function generateQRMatrix(size){
+  const m = Array.from({ length: size }, () => Array(size).fill(0));
+
+  function inFinderZone(r, c){
+    return (r < 9 && c < 9) || (r < 9 && c >= size - 9) || (r >= size - 9 && c < 9);
+  }
+  function drawFinder(r0, c0){
+    for (let r = 0; r < 7; r++){
+      for (let c = 0; c < 7; c++){
+        const border = (r === 0 || r === 6 || c === 0 || c === 6);
+        const inner  = (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+        m[r0+r][c0+c] = (border || inner) ? 1 : 0;
+      }
+    }
+  }
+  drawFinder(0, 0);
+  drawFinder(0, size-7);
+  drawFinder(size-7, 0);
+
+  // timing pattern
+  for (let i = 8; i < size - 8; i++){
+    if (!inFinderZone(6, i)) m[6][i] = i % 2 === 0 ? 1 : 0;
+    if (!inFinderZone(i, 6)) m[i][6] = i % 2 === 0 ? 1 : 0;
+  }
+
+  // data
+  for (let r = 0; r < size; r++){
+    for (let c = 0; c < size; c++){
+      if (inFinderZone(r, c)) continue;
+      m[r][c] = Math.random() > 0.5 ? 1 : 0;
+    }
+  }
+  return m;
+}
+
+function renderQR(){
+  const SIZE = 25;
+  const matrix = generateQRMatrix(SIZE);
+  const grid = $('#qr-grid');
+  grid.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+  grid.style.gridTemplateRows    = `repeat(${SIZE}, 1fr)`;
+  grid.innerHTML = '';
+
+  const frag = document.createDocumentFragment();
+  for (let r = 0; r < SIZE; r++){
+    for (let c = 0; c < SIZE; c++){
+      const cell = document.createElement('div');
+      cell.className = 'qr-cell';
+      if (matrix[r][c]){
+        cell.classList.add('on');
+        const rnd = Math.random();
+        if (rnd < 0.12)      cell.classList.add('accent');   // neon
+        else if (rnd < 0.2)  cell.classList.add('accent2');  // light-green
+      }
+      // puzzle animation params
+      const dx = (Math.random() - 0.5) * 220;
+      const dy = (Math.random() - 0.5) * 220;
+      const rot = (Math.random() - 0.5) * 720;
+      const delay = Math.random() * 0.4;
+      cell.style.setProperty('--dx', dx + 'px');
+      cell.style.setProperty('--dy', dy + 'px');
+      cell.style.setProperty('--rot', rot + 'deg');
+      cell.style.setProperty('--delay', delay + 's');
+      frag.appendChild(cell);
+    }
+  }
+  grid.appendChild(frag);
+  vibrate(10);
+}
+
+/* ================= CODE GENERATION ================= */
+$('#btn-generate-code').addEventListener('click', () => {
+  const code = genCode();
+  $('#code-value').textContent = code;
+  $('#generated-code').style.display = 'block';
+  vibrate([10, 26, 10]);
+  toast('Код выслан на новое устройство', false, true);
+});
+
+$('#btn-copy-code').addEventListener('click', async () => {
+  const txt = $('#code-value').textContent.trim();
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast('Скопировано', false, true);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('Скопировано', false, true); } catch {}
+    ta.remove();
+  }
+});
+
+/* code input mask: XXX-XXX-XXX */
+$('#code-input').addEventListener('input', e => {
+  let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 9);
+  v = v.replace(/(.{3})/g, '$1-').replace(/-$/, '');
+  e.target.value = v;
+
+  if (!v){ e.target.style.borderColor = ''; return; }
+  const ok = /^[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(v);
+  e.target.style.borderColor = ok ? 'var(--neon)' : 'var(--danger)';
+});
+
+$('#btn-confirm-code').addEventListener('click', () => {
+  const code = $('#code-input').value.trim();
+  const ok = /^[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(code);
+  if (!ok){ toast('Введите корректный код', true); $('#code-input').focus(); return; }
+
+  // simulate device info resolved from code
+  const brands = ['iPhone 15 Pro','Samsung Galaxy S24','MacBook Air M3','Google Pixel 9',
+                  'Xiaomi 14 Ultra','OnePlus 12','iPad Pro 11"','Huawei Mate 60'];
+  const uas = ['iOS 17 · Safari','Android 14 · Chrome','macOS Sonoma · Chrome',
+               'Android 14 · WalletConnect','iPadOS 17 · Safari','Windows 11 · Edge'];
+
+  const name = brands[Math.floor(Math.random() * brands.length)] + ' · ' +
+               uas[Math.floor(Math.random() * uas.length)];
+  const fp = genFingerprint();
+
+  state.pending = {
+    name,
+    fp,
+    note: 'Подтверждено кодом ' + code,
+    createdAt: Date.now(),
+  };
+
+  runConfirmAnimation(state.pending);
+});
+
+/* ================= MANUAL FORM ================= */
+$('#device-input').addEventListener('input', e => {
+  const v = e.target.value.trim();
+  if (!v){ e.target.style.borderColor = ''; return; }
+  e.target.style.borderColor = isValidDevice(v) ? 'var(--neon)' : 'var(--danger)';
+});
+$('#fp-input').addEventListener('input', e => {
+  const v = e.target.value.trim();
+  if (!v){ e.target.style.borderColor = ''; return; }
+  e.target.style.borderColor = isValidFp(v) ? 'var(--neon)' : 'var(--danger)';
+});
+
+$('#btn-confirm').addEventListener('click', () => {
+  const name = $('#device-input').value.trim();
+  const fp   = $('#fp-input').value.trim();
+  const note = $('#note-input').value.trim();
+
+  if (!isValidDevice(name)){
+    toast('Введите название устройства', true);
+    $('#device-input').focus();
+    return;
+  }
+  if (!isValidFp(fp)){
+    toast('Введите корректный fingerprint', true);
+    $('#fp-input').focus();
+    return;
+  }
+  const dup = state.entries.find(e => e.fp.toLowerCase() === fp.toLowerCase());
+  if (dup){
+    toast('Это устройство уже в whitelist', true);
+    return;
+  }
+  state.pending = { name, fp, note, createdAt: Date.now() };
+  runConfirmAnimation(state.pending);
+});
+
+/* ================= CONFIRM ANIMATION ================= */
+function runConfirmAnimation(p){
+  $('#form-panel').style.display = 'none';
+  const panel = $('#confirm-panel');
+  panel.style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  const line    = $('#tf-line');
+  const packet  = $('#tf-packet');
+  const stamp   = $('#stamp');
+  const title   = $('#confirm-title');
+  const details = $('#confirm-details');
+  const doneBtn = $('#btn-done');
+  const field   = $('#typing-field');
+  const typing  = $('#typing-device');
+
+  line.classList.remove('animating');
+  packet.classList.remove('animating');
+  stamp.classList.remove('show');
+  details.classList.remove('show');
+  doneBtn.disabled = true;
+  doneBtn.textContent = 'ГОТОВО';
+
+  $('#tf-wallet').classList.add('armed');
+  $('#tf-server').classList.remove('armed');
+
+  line.style.transform = 'scaleX(0)';
+  stamp.style.transform = 'translate(-50%,-50%) rotate(-8deg) scale(0)';
+  stamp.style.opacity = '0';
+
+  title.className = 'confirm-title';
+  title.textContent = 'РЕГИСТРИРУЕМ УСТРОЙСТВО НА СЕРВЕРЕ...';
+
+  field.style.display = 'flex';
+  typing.className = 'typing-device';
+  typing.textContent = '';
+
+  $('#c-device').textContent = p.name;
+  $('#c-fp').textContent = shortFp(p.fp, 10);
+  $('#c-status').textContent = '—';
+
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      line.classList.add('animating');
+      packet.classList.add('animating');
+      vibrate(8);
+    }, 120);
+  });
+
+  // typing animation
+  let i = 0;
+  const chars = p.name.split('');
+  const speed = Math.max(18, Math.min(40, 900 / Math.max(chars.length, 1)));
+  clearInterval(state.typingTimer);
+  state.typingTimer = setInterval(() => {
+    if (i >= chars.length){
+      clearInterval(state.typingTimer);
+      typing.classList.add('done');
+      return;
+    }
+    typing.textContent += chars[i];
+    if (i % 4 === 0) vibrate(2);
+    i++;
+  }, speed);
+
+  setTimeout(() => {
+    packet.style.opacity = '0';
+    stamp.classList.add('show');
+    $('#tf-server').classList.add('armed');
+    vibrate([20, 40, 20]);
+    title.textContent = '✓ УСТРОЙСТВО ДОБАВЛЕНО В WHITELIST';
+    title.classList.add('done');
+  }, 1700);
+
+  setTimeout(() => {
+    $('#c-status').textContent = 'Разрешено сервером';
+    details.classList.add('show');
+    doneBtn.disabled = false;
+    commitPending();
+  }, 2350);
+}
+
+function commitPending(){
+  if (!state.pending) return;
+  const p = state.pending;
+  state.entries.unshift({
+    id: 'dev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    name: p.name,
+    fp: p.fp,
+    note: p.note,
+    createdAt: p.createdAt,
+  });
+  saveEntries();
+  renderEntries();
+  state.pending = null;
+}
+
+$('#btn-done').addEventListener('click', () => {
+  $('#confirm-panel').style.display = 'none';
+  $('#form-panel').style.display = 'block';
+
+  // reset all inputs
+  $('#device-input').value = '';
+  $('#fp-input').value = '';
+  $('#note-input').value = '';
+  $('#code-input').value = '';
+  $('#device-input').style.borderColor = '';
+  $('#fp-input').style.borderColor = '';
+  $('#code-input').style.borderColor = '';
+  $('#generated-code').style.display = 'none';
+
+  // reset animation
+  $('#tf-line').classList.remove('animating');
+  $('#tf-packet').classList.remove('animating');
+  $('#stamp').classList.remove('show');
+  $('#typing-field').style.display = 'none';
+
+  // close all subpanels
+  state.activePanel = null;
+  $$('.subpanel').forEach(p => p.classList.remove('show'));
+  $$('.mode-btn').forEach(b => b.classList.remove('active'));
+
+  toast('✓ Устройство в whitelist');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+/* ================= DEVICE WHITELIST ENTRIES ================= */
+function renderEntries(){
+  const w = $('#wl-list');
+  $('#wl-count').textContent = state.entries.length;
+
+  if (!state.entries.length){
+    w.innerHTML = '<div class="wl-empty">Пока пусто. Добавьте первое доверенное устройство выше.</div>';
+    return;
+  }
+
+  w.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  state.entries.forEach(e => {
+    const el = document.createElement('div');
+    el.className = 'wl-item';
+    el.dataset.id = e.id;
+    el.innerHTML = `
+      <div class="wl-head">
+        <div class="wl-icon">${deviceIconSvg()}</div>
+        <div class="wl-info">
+          <div class="wl-name">${escapeHtml(e.name)}</div>
+          <div class="wl-fp">FP: <b>${escapeHtml(e.fp)}</b></div>
+          ${e.note ? `<div class="wl-note">${escapeHtml(e.note)}</div>` : ''}
+        </div>
+        <div class="wl-time">${fmtTime(e.createdAt)}</div>
+      </div>
+      <div class="wl-actions">
+        <button class="wl-btn del">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+          </svg>
+          Отозвать доступ
+        </button>
+      </div>
+    `;
+    el.querySelector('.wl-btn.del').addEventListener('click', () => {
+      state.entries = state.entries.filter(x => x.id !== e.id);
+      saveEntries();
+      renderEntries();
+      vibrate([10, 26, 10]);
+      toast('Устройство удалено из whitelist');
+    });
+    frag.appendChild(el);
+  });
+  w.appendChild(frag);
+}
+
+/* ================= MISC ================= */
+$('#btn-info').addEventListener('click', () => {
+  toast('Устройства из whitelist могут подключаться к кошельку', false, true);
+});
+
+/* ================= INIT ================= */
+(function init(){
+  loadAll();
+  renderSessions();
+  renderEntries();
+})();
+</script>
+</body>
+</html>

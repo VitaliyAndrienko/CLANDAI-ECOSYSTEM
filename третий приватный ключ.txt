@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>CLANDAI — Третий приватный ключ</title>
+<style>
+  :root {
+    --bg: #08090b;
+    --panel: rgba(20,22,26,.55);
+    --border: rgba(0,255,170,.18);
+    --neon: #00ffaa;
+    --neon-dim: #00ffaa55;
+    --cyan: #00d9ff;
+    --pink: #ff2bd6;
+    --pink-dim: #ff2bd655;
+    --text: #d8dee6;
+    --muted: #5b6672;
+    --danger: #ff3b6b;
+    --danger-dim: #ff3b6b55;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace;
+    font-size: 14px; -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(1000px 500px at 15% 0%, var(--neon-dim), transparent 60%),
+      radial-gradient(700px 400px at 100% 100%, rgba(255,43,214,.06), transparent 60%);
+    pointer-events: none; z-index: 0; opacity: .18;
+  }
+  body::after {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(var(--neon-dim) 1px, transparent 1px),
+      linear-gradient(90deg, var(--neon-dim) 1px, transparent 1px);
+    background-size: 42px 42px; pointer-events: none; z-index: 0; opacity: .06;
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, black, transparent 85%);
+    mask-image: radial-gradient(circle at 50% 40%, black, transparent 85%);
+  }
+  .app { position: relative; z-index: 1; max-width: 460px; margin: 0 auto; min-height: 100vh; padding: 22px 18px 40px; display: flex; flex-direction: column; gap: 16px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 0; gap: 8px; }
+  .logo { font-weight: 700; letter-spacing: 3px; font-size: 14px; opacity: .78; white-space: nowrap; }
+  .logo b { color: var(--neon); text-shadow: 0 0 12px var(--neon-dim); }
+  .icon-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
+    display: grid; place-items: center; transition: border-color .15s, color .15s; flex-shrink: 0;
+  }
+  .icon-btn:hover { border-color: var(--neon); color: var(--neon); }
+  .icon-btn:active { transform: scale(.94); }
+  .icon-btn svg { width: 15px; height: 15px; }
+
+  .hero { text-align: center; padding: 22px 0 6px; }
+  .hero h1 { font-size: 17px; letter-spacing: 4px; color: var(--neon); text-shadow: 0 0 22px var(--neon-dim); margin-bottom: 10px; }
+  .hero p { color: var(--muted); font-size: 11px; line-height: 1.7; letter-spacing: .5px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); backdrop-filter: blur(18px); padding: 18px; position: relative; }
+  .section-title { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .section-title .accent { color: var(--neon); }
+
+  .view { display: none; flex-direction: column; gap: 16px; }
+  .view.active { display: flex; }
+
+  /* ============ BIG FIELDS ============ */
+  .big-field {
+    position: relative; overflow: hidden; width: 100%;
+    padding: 26px 22px; border-radius: 18px;
+    background: linear-gradient(150deg, rgba(16,18,22,.96), rgba(8,9,11,.98));
+    border: 1px solid var(--border);
+    font-family: inherit; color: var(--text); cursor: pointer;
+    text-align: left; display: flex; flex-direction: column; gap: 10px;
+    transition: border-color .2s, box-shadow .25s, transform .12s;
+  }
+  .big-field:hover { transform: translateY(-2px); }
+  .big-field:active { transform: translateY(0) scale(.99); }
+  .big-field::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.05) 50%, transparent 60%);
+  }
+  .bf-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; }
+  .bf-icon svg { width: 24px; height: 24px; }
+  .bf-title { font-size: 15px; letter-spacing: 3px; font-weight: 700; text-transform: uppercase; }
+  .bf-sub { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+
+  .big-field.remote {
+    border-color: rgba(0,255,170,.4);
+    box-shadow: 0 0 0 1px rgba(0,255,170,.05), 0 0 34px -14px var(--neon);
+  }
+  .big-field.remote:hover { border-color: var(--neon); box-shadow: 0 0 34px -8px var(--neon); }
+  .big-field.remote .bf-icon { background: rgba(0,255,170,.08); border: 1px solid rgba(0,255,170,.35); color: var(--neon); box-shadow: 0 0 18px -8px var(--neon); }
+  .big-field.remote .bf-title { color: var(--neon); text-shadow: 0 0 14px var(--neon-dim); }
+
+  .big-field.local {
+    border-color: rgba(255,59,107,.4);
+    box-shadow: 0 0 0 1px rgba(255,59,107,.05), 0 0 34px -14px var(--danger);
+  }
+  .big-field.local:hover { border-color: var(--danger); box-shadow: 0 0 34px -8px var(--danger); }
+  .big-field.local .bf-icon { background: rgba(255,59,107,.08); border: 1px solid rgba(255,59,107,.35); color: var(--danger); box-shadow: 0 0 18px -8px var(--danger); }
+  .big-field.local .bf-title { color: var(--danger); text-shadow: 0 0 14px var(--danger-dim); }
+
+  /* ============ FIELDS / INPUTS ============ */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 7px; }
+  input[type="text"], input[type="password"], textarea {
+    width: 100%; padding: 12px 14px; background: rgba(0,0,0,.4);
+    border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+    font-family: inherit; font-size: 13px; outline: none;
+    transition: border-color .15s, box-shadow .15s; resize: none;
+  }
+  input:focus, textarea:focus { border-color: var(--neon); box-shadow: 0 0 0 3px var(--neon-dim); }
+  input::placeholder { color: var(--muted); }
+
+  .btn-full {
+    width: 100%; padding: 14px; background: linear-gradient(180deg, var(--neon-dim), transparent);
+    border: 1px solid var(--neon); border-radius: 10px; color: var(--neon);
+    font-family: inherit; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; transition: box-shadow .15s, transform .1s; margin-top: 8px; font-weight: 700;
+  }
+  .btn-full:hover { box-shadow: 0 0 24px var(--neon-dim); }
+  .btn-full:active { transform: translateY(1px); }
+  .btn-full:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); box-shadow: none; }
+
+  /* ============ PATTERN LOCK ============ */
+  .pattern-wrap { position: relative; width: 240px; height: 240px; margin: 12px auto; user-select: none; touch-action: none; }
+  .pattern-svg { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .pattern-grid { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr); gap: 14px; z-index: 2; }
+  .pattern-dot {
+    border-radius: 50%; background: rgba(0,0,0,.35);
+    border: 2px solid var(--border); display: grid; place-items: center;
+    cursor: pointer; transition: border-color .12s, box-shadow .12s; position: relative;
+  }
+  .pattern-dot::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); transition: background .12s; }
+  .pattern-dot.active { border-color: var(--neon); box-shadow: 0 0 18px var(--neon-dim); }
+  .pattern-dot.active::after { background: var(--neon); }
+
+  /* ============ PIN KEYPAD ============ */
+  .pin-display { display: flex; gap: 8px; justify-content: center; margin: 14px 0 18px; flex-wrap: wrap; }
+  .pin-slot {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: rgba(0,0,0,.4); border: 1px solid var(--border); transition: all .12s;
+  }
+  .pin-slot.filled { background: var(--neon); border-color: var(--neon); box-shadow: 0 0 12px var(--neon); }
+  .pin-slot.err { background: var(--danger); border-color: var(--danger); box-shadow: 0 0 12px var(--danger); }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 280px; margin: 0 auto; }
+  .keypad button {
+    aspect-ratio: 1; background: rgba(0,0,0,.4); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text); font-family: inherit; font-size: 17px;
+    cursor: pointer; transition: background .1s, border-color .12s, color .12s;
+  }
+  .keypad button:hover { border-color: var(--neon); color: var(--neon); }
+  .keypad button:active { transform: scale(.95); background: var(--neon-dim); }
+  .keypad button.del { color: var(--pink); font-size: 13px; }
+  .keypad button.ok { color: var(--neon); font-size: 13px; }
+
+  /* ============ TIMER ============ */
+  .timer-wrap {
+    background: rgba(0,0,0,.4); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px 16px; margin-top: 6px;
+    position: relative; overflow: hidden;
+  }
+  .timer-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; text-align: center; margin-bottom: 8px; }
+  .timer-value {
+    font-size: 44px; font-weight: 700; text-align: center; letter-spacing: 2px;
+    font-variant-numeric: tabular-nums; color: var(--neon);
+    text-shadow: 0 0 26px var(--neon-dim), 0 0 60px var(--neon-dim);
+    line-height: 1;
+  }
+  .timer-value.warn { color: var(--pink); text-shadow: 0 0 26px var(--pink-dim), 0 0 60px var(--pink-dim); }
+  .timer-value.danger { color: var(--danger); text-shadow: 0 0 26px var(--danger-dim), 0 0 60px var(--danger-dim); animation: pulseT 1s infinite; }
+  @keyframes pulseT { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+  .timer-value small { font-size: 13px; letter-spacing: 3px; color: var(--muted); display: block; margin-top: 8px; text-shadow: none; font-weight: 400; }
+  .timer-bar-wrap { height: 5px; background: rgba(0,0,0,.6); border-radius: 3px; margin-top: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,.04); }
+  .timer-bar { height: 100%; width: 100%; background: linear-gradient(90deg, var(--neon-dim), var(--neon)); box-shadow: 0 0 14px var(--neon-dim); transform-origin: left center; transition: transform .1s linear; }
+  .timer-bar.warn { background: linear-gradient(90deg, var(--pink-dim), var(--pink)); box-shadow: 0 0 14px var(--pink-dim); }
+  .timer-bar.danger { background: linear-gradient(90deg, var(--danger-dim), var(--danger)); box-shadow: 0 0 14px var(--danger-dim); }
+
+  /* ============ REQ BOX ============ */
+  .req-box {
+    background: linear-gradient(135deg, rgba(0,255,170,.06), rgba(0,0,0,.4));
+    border: 1px solid rgba(0,255,170,.35); border-radius: 14px;
+    padding: 22px 18px; text-align: center;
+    box-shadow: 0 0 26px -14px var(--neon);
+    margin-bottom: 12px;
+  }
+  .req-icon {
+    width: 58px; height: 58px; margin: 0 auto 14px;
+    border-radius: 50%; display: grid; place-items: center;
+    background: rgba(0,255,170,.08); border: 1px solid rgba(0,255,170,.4);
+    color: var(--neon); box-shadow: 0 0 24px -8px var(--neon);
+  }
+  .req-icon svg { width: 30px; height: 30px; }
+  .req-title {
+    font-size: 13px; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--neon); text-shadow: 0 0 14px var(--neon-dim);
+    font-weight: 700; margin-bottom: 6px;
+  }
+  .req-sub { font-size: 11px; color: var(--muted); line-height: 1.6; letter-spacing: .5px; }
+
+  /* ============ PENDING OPERATIONS ============ */
+  .ops-label {
+    font-size: 10px; letter-spacing: 2px; color: var(--muted);
+    text-transform: uppercase; margin: 14px 0 8px; text-align: center;
+  }
+  .pending-ops { display: flex; flex-direction: column; gap: 10px; }
+
+  .op-item {
+    position: relative; overflow: hidden;
+    background: rgba(0,0,0,.45);
+    border: 1px solid rgba(0,255,170,.28);
+    border-radius: 12px;
+    transition: border-color .2s, background .35s, opacity .5s, transform .5s;
+    animation: opIn .35s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes opIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .op-item::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--neon); box-shadow: 0 0 12px var(--neon-dim); z-index: 2;
+  }
+  .op-item.removing {
+    border-color: rgba(255,59,107,.5);
+    background: rgba(255,59,107,.05);
+  }
+  .op-item.removing::before { background: var(--danger); box-shadow: 0 0 12px var(--danger-dim); }
+  .op-item.removed {
+    opacity: 0; transform: translateX(28px);
+  }
+
+  .op-body {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 14px 13px 17px;
+  }
+  .op-icon {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    display: grid; place-items: center;
+    background: rgba(0,255,170,.08); border: 1px solid rgba(0,255,170,.35);
+    color: var(--neon);
+  }
+  .op-icon svg { width: 18px; height: 18px; }
+  .op-info { flex: 1; min-width: 0; }
+  .op-title { font-size: 12px; color: var(--text); font-weight: 700; letter-spacing: .4px; }
+  .op-desc { font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing: .5px; line-height: 1.4; }
+  .op-delete {
+    padding: 7px 11px; border-radius: 8px; flex-shrink: 0;
+    background: transparent; border: 1px solid rgba(255,59,107,.35);
+    color: var(--danger); font-family: inherit; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+    transition: all .18s; font-weight: 700;
+  }
+  .op-delete:hover {
+    border-color: var(--danger); color: #fff; background: rgba(255,59,107,.18);
+    box-shadow: 0 0 16px -4px var(--danger);
+  }
+  .op-delete:active { transform: scale(.96); }
+
+  .op-countdown {
+    position: relative;
+    border-top: 1px solid rgba(255,59,107,.3);
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    overflow: hidden;
+    animation: cdIn .3s ease;
+  }
+  @keyframes cdIn { from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; } to { opacity: 1; max-height: 60px; } }
+  .op-countdown-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 100%;
+    background: linear-gradient(90deg, rgba(255,59,107,.35), rgba(255,59,107,.1));
+    box-shadow: inset -2px 0 8px rgba(255,59,107,.6);
+    transition: width .1s linear;
+    pointer-events: none; z-index: 0;
+  }
+  .op-countdown-content {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; gap: 10px; width: 100%;
+  }
+  .op-countdown-icon {
+    width: 16px; height: 16px; color: var(--danger); flex-shrink: 0;
+    animation: cdPulse 1s ease-in-out infinite;
+  }
+  @keyframes cdPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.12); } }
+  .op-countdown-text {
+    flex: 1; min-width: 0;
+    font-size: 9.5px; letter-spacing: 1.3px; text-transform: uppercase;
+    color: var(--danger); font-weight: 700;
+    text-shadow: 0 0 8px rgba(255,59,107,.5);
+  }
+  .op-countdown-text b {
+    color: #fff; font-size: 13px; font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 10px var(--danger);
+    display: inline-block; min-width: 20px; text-align: center;
+  }
+  .op-cancel {
+    padding: 6px 10px; border-radius: 7px; flex-shrink: 0;
+    background: rgba(0,255,170,.1); border: 1px solid #00ffaa;
+    color: #00ffaa; font-family: inherit; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase; font-weight: 700;
+    cursor: pointer; transition: all .18s;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .op-cancel svg { width: 11px; height: 11px; }
+  .op-cancel:hover { background: #00ffaa; color: #08090b; box-shadow: 0 0 14px #00ffaa; }
+
+  /* ============ PULSE CONFIRM ============ */
+  .btn-confirm-pulse {
+    position: relative; width: 100%; padding: 18px;
+    border-radius: 14px; font-family: inherit;
+    font-size: 14px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    color: #08090b; cursor: pointer; border: none;
+    background: linear-gradient(180deg, var(--neon), #00cc88);
+    box-shadow: 0 0 26px var(--neon), 0 0 60px var(--neon-dim);
+    animation: pulseConfirm 1.6s ease-in-out infinite;
+    margin-top: 14px;
+  }
+  .btn-confirm-pulse:hover { transform: translateY(-1px); }
+  .btn-confirm-pulse:active { transform: translateY(0) scale(.99); }
+  @keyframes pulseConfirm {
+    0%,100% { box-shadow: 0 0 22px var(--neon), 0 0 44px var(--neon-dim); transform: scale(1); }
+    50% { box-shadow: 0 0 34px var(--neon), 0 0 76px var(--neon-dim); transform: scale(1.015); }
+  }
+
+  /* ============ MATRIX OVERLAY (bounded window) ============ */
+  .overlay {
+    position: fixed; inset: 0; z-index: 500; display: none;
+    background: rgba(5,6,8,.85);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .overlay.show { display: flex; }
+
+  .matrix-modal {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    height: min(560px, 82vh);
+    background: #050608;
+    border: 1px solid rgba(0,255,170,.4);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(0,255,170,.1),
+      0 0 60px -20px var(--neon),
+      0 0 120px -40px var(--neon-dim);
+    animation: modalIn .35s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes modalIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
+
+  #matrix-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    transition: filter .7s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1);
+  }
+
+  .matrix-modal.focused #matrix-canvas {
+    filter: blur(9px) brightness(.55) saturate(1.15);
+    transform: scale(1.04);
+  }
+
+  .matrix-modal-content {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%;
+    padding: 26px 22px;
+    gap: 6px;
+  }
+
+  .matrix-square-wrap {
+    position: relative;
+    width: 200px; height: 200px;
+    margin: 0 0 18px;
+    transition: transform .7s cubic-bezier(.2,.8,.2,1), filter .7s cubic-bezier(.2,.8,.2,1);
+  }
+  .matrix-square-wrap svg {
+    width: 100%; height: 100%;
+    overflow: visible;
+  }
+
+  .sq-line {
+    filter: drop-shadow(0 0 5px #00ffaa) drop-shadow(0 0 14px rgba(0,255,170,.85)) drop-shadow(0 0 28px rgba(0,255,170,.45));
+  }
+  .stripe {
+    filter: drop-shadow(0 0 4px #ff2bd6) drop-shadow(0 0 12px rgba(255,43,214,.85)) drop-shadow(0 0 24px rgba(255,43,214,.4));
+  }
+  #check-path {
+    filter: drop-shadow(0 0 6px #00ffaa) drop-shadow(0 0 16px rgba(0,255,170,.9)) drop-shadow(0 0 32px rgba(0,255,170,.5));
+  }
+
+  .matrix-status {
+    font-size: 14px; letter-spacing: 6px; text-transform: uppercase;
+    color: var(--neon); text-shadow: 0 0 18px var(--neon-dim), 0 0 40px var(--neon-dim);
+    font-weight: 700; text-align: center;
+    opacity: 0; transition: opacity .5s;
+    padding-left: 6px;
+  }
+  .matrix-status.show { opacity: 1; }
+  .matrix-status .sub {
+    display: block; font-size: 9px; letter-spacing: 3px;
+    color: var(--muted); margin-top: 10px; font-weight: 400; text-shadow: none;
+  }
+
+  .btn-close-big {
+    width: 100%; padding: 16px; margin-top: 22px;
+    background: linear-gradient(180deg, var(--neon), #00cc88);
+    border: none; border-radius: 12px;
+    color: #08090b; font-family: inherit;
+    font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    cursor: pointer; box-shadow: 0 0 26px var(--neon), 0 0 60px var(--neon-dim);
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .5s, transform .5s;
+  }
+  .btn-close-big.show { opacity: 1; transform: translateY(0); }
+  .btn-close-big:hover { box-shadow: 0 0 34px var(--neon), 0 0 80px var(--neon-dim); }
+  .btn-close-big:active { transform: scale(.98); }
+
+  /* ============ LOCAL LOCK ============ */
+  .lock-stage {
+    position: relative; min-height: 520px;
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 10px;
+  }
+
+  .lock-wrap {
+    position: relative;
+    width: 100%;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 340px;
+  }
+
+  .lock-svg-wrap {
+    position: relative;
+    width: 210px; height: 260px;
+    transition: transform .6s cubic-bezier(.2,.8,.2,1);
+  }
+  .lock-svg-wrap svg { width: 100%; height: 100%; overflow: visible; }
+  .lock-shackle { transform-origin: 100px 90px; transition: transform .7s cubic-bezier(.2,.8,.2,1); }
+  .lock-svg-wrap.open .lock-shackle { transform: rotate(-42deg) translate(-16px,-12px); }
+  .lock-body-glow { filter: drop-shadow(0 0 22px var(--danger)) drop-shadow(0 0 44px var(--danger-dim)); }
+  .lock-svg-wrap.open .lock-body-glow {
+    filter: drop-shadow(0 0 22px var(--danger)) drop-shadow(0 0 44px var(--danger-dim)) drop-shadow(0 0 80px rgba(0,255,170,.3));
+  }
+
+  .lock-file-inner {
+    transition: opacity .3s, transform .3s;
+    transform-origin: 100px 190px;
+  }
+  .lock-svg-wrap.open .lock-file-inner {
+    opacity: 0;
+    transform: translate(0, 40px) scale(.6);
+  }
+
+  .falling-file {
+    position: absolute;
+    width: 60px; height: 76px;
+    left: 50%; top: 158px;
+    margin-left: -30px;
+    opacity: 0; pointer-events: none;
+    z-index: 8;
+    transform: translateY(0) rotate(0deg);
+    transition: none;
+  }
+  .falling-file svg {
+    width: 100%; height: 100%;
+    filter: drop-shadow(0 0 14px var(--neon)) drop-shadow(0 0 30px var(--neon-dim));
+  }
+  .falling-file.go {
+    opacity: 1;
+    transition:
+      top 1.1s cubic-bezier(.55,-0.05,.6,1.15),
+      transform 1.1s cubic-bezier(.55,-0.05,.6,1.15);
+    top: 430px;
+    transform: translateY(0) rotate(22deg);
+  }
+
+  #local-input-block {
+    width: 100%;
+    margin-top: 6px;
+    transition: opacity .35s, transform .35s;
+  }
+
+  .file-result {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(0,255,170,.08), rgba(0,0,0,.4));
+    border: 1px solid rgba(0,255,170,.35);
+    box-shadow: 0 0 26px -10px var(--neon);
+    width: 100%; margin-top: 10px;
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .5s, transform .5s;
+  }
+  .file-result.show { opacity: 1; transform: translateY(0); }
+  .file-result .fr-ico {
+    width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
+    display: grid; place-items: center;
+    background: rgba(0,255,170,.1); border: 1px solid rgba(0,255,170,.4);
+    color: var(--neon);
+  }
+  .file-result .fr-ico svg { width: 22px; height: 22px; }
+  .file-result .fr-body { flex: 1; min-width: 0; }
+  .file-result .fr-name { font-size: 12px; color: var(--text); word-break: break-all; }
+  .file-result .fr-meta { font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing: 1px; text-transform: uppercase; }
+  .file-result .fr-dl {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    display: grid; place-items: center;
+    background: rgba(0,255,170,.12); border: 1px solid rgba(0,255,170,.4);
+    color: var(--neon); cursor: pointer; transition: all .15s;
+  }
+  .file-result .fr-dl:hover { background: var(--neon); color: #08090b; box-shadow: 0 0 20px var(--neon); }
+  .file-result .fr-dl svg { width: 18px; height: 18px; }
+
+  .hidden { display: none !important; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+    background: #0e1014; border: 1px solid var(--neon); color: var(--neon);
+    padding: 12px 20px; border-radius: 999px; font-size: 12px; letter-spacing: 1px;
+    z-index: 200; opacity: 0; transition: transform .25s cubic-bezier(.2,.8,.2,1), opacity .25s;
+    box-shadow: 0 0 24px var(--neon-dim); max-width: 90vw; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.err { border-color: var(--danger); color: var(--danger); box-shadow: 0 0 24px var(--danger-dim); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--neon-dim); border-radius: 8px; }
+
+  @media (max-width: 640px) {
+    .panel { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(18,20,24,.95); }
+    body::after { display: none; }
+    .app { padding: 16px 14px 32px; gap: 14px; }
+    .panel { padding: 16px; }
+    .timer-value { font-size: 38px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ MAIN VIEW ============ -->
+  <div class="view active" id="view-main">
+    <div class="topbar">
+      <div class="logo">CLAN<b>DAI</b></div>
+      <button class="icon-btn" id="btn-info" title="Info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="hero">
+      <h1>ТРЕТИЙ ПРИВАТНЫЙ КЛЮЧ</h1>
+      <p>Мультиподпись для критических операций<br>Выберите способ подтверждения</p>
+    </div>
+
+    <button class="big-field remote" id="btn-open-remote">
+      <div class="bf-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v6"/><path d="M12 22v-6"/>
+          <path d="M4.93 4.93l4.24 4.24"/><path d="M14.83 14.83l4.24 4.24"/>
+          <path d="M2 12h6"/><path d="M22 12h-6"/>
+          <circle cx="12" cy="12" r="3.5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="bf-title">ПОДПИСАТЬ УДАЛЕННО</div>
+        <div class="bf-sub" style="margin-top:6px;">3 фактора · таймер подписи 5 мин</div>
+      </div>
+    </button>
+
+    <button class="big-field local" id="btn-open-local">
+      <div class="bf-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="10" width="16" height="11" rx="2.5"/>
+          <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+          <circle cx="12" cy="15.5" r="1.4" fill="currentColor" stroke="none"/>
+          <line x1="12" y1="16.5" x2="12" y2="19"/>
+        </svg>
+      </div>
+      <div>
+        <div class="bf-title">ПОДПИСАТЬ САМОСТОЯТЕЛЬНО</div>
+        <div class="bf-sub" style="margin-top:6px;">Закрытое хранилище · 9-значный код</div>
+      </div>
+    </button>
+  </div>
+
+  <!-- ============ REMOTE VIEW ============ -->
+  <div class="view" id="view-remote">
+    <div class="topbar">
+      <button class="icon-btn" id="btn-remote-back" title="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+      <div class="logo">УДАЛЁННАЯ <b>ПОДПИСЬ</b></div>
+      <div style="width:34px;"></div>
+    </div>
+
+    <div id="remote-stage-form">
+      <div class="panel">
+        <div class="section-title"><span>ИДЕНТИФИКАЦИЯ · 3 ФАКТОРА</span><span class="accent">01 / 02</span></div>
+
+        <div class="field">
+          <label>ВОПРОС 1 · ГОРОД РОЖДЕНИЯ</label>
+          <input type="text" id="q1" autocomplete="off" placeholder="Ответ" />
+        </div>
+        <div class="field">
+          <label>ВОПРОС 2 · ДЕВИЧЬЯ ФАМИЛИЯ МАТЕРИ</label>
+          <input type="text" id="q2" autocomplete="off" placeholder="Ответ" />
+        </div>
+        <div class="field" style="margin-bottom:6px;">
+          <label>ВОПРОС 3 · ИМЯ ПЕРВОГО ПИТОМЦА</label>
+          <input type="text" id="q3" autocomplete="off" placeholder="Ответ" />
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="section-title"><span>ГРАФИЧЕСКИЙ ПАРОЛЬ</span><span class="accent" id="pat-count">0 ТОЧЕК</span></div>
+        <div class="pattern-wrap" id="pattern-remote">
+          <svg class="pattern-svg"></svg>
+          <div class="pattern-grid">
+            <div class="pattern-dot" data-i="0"></div><div class="pattern-dot" data-i="1"></div><div class="pattern-dot" data-i="2"></div>
+            <div class="pattern-dot" data-i="3"></div><div class="pattern-dot" data-i="4"></div><div class="pattern-dot" data-i="5"></div>
+            <div class="pattern-dot" data-i="6"></div><div class="pattern-dot" data-i="7"></div><div class="pattern-dot" data-i="8"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="section-title"><span>ЧИСЛОВОЙ ПАРОЛЬ · 9 ЗНАКОВ</span><span class="accent">SECURE</span></div>
+        <div class="pin-display" id="pin-display"></div>
+        <div class="keypad" id="pin-keypad">
+          <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+          <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+          <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+          <button data-k="del" class="del">⌫</button><button data-k="0">0</button><button data-k="ok" class="ok">→</button>
+        </div>
+        <button class="btn-full" id="btn-remote-submit" style="margin-top:18px;">ОТПРАВИТЬ</button>
+      </div>
+    </div>
+
+    <div id="remote-stage-confirm" class="hidden">
+      <div class="panel">
+        <div class="section-title"><span>ЗАПРОС НА ПОДПИСЬ</span><span class="accent">02 / 02</span></div>
+
+        <div class="req-box">
+          <div class="req-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2l-2 2"/>
+              <path d="M3 12a9 9 0 1 1 18 0v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z" transform="translate(0 2)"/>
+              <circle cx="12" cy="13" r="1.6" fill="currentColor" stroke="none"/>
+              <line x1="12" y1="14.5" x2="12" y2="18"/>
+            </svg>
+          </div>
+          <div class="req-title">ОПЕРАЦИИ ТРЕБУЮЩИЕ ПОДПИСИ</div>
+          <div class="req-sub">подтвердите актуальные для вас операции</div>
+        </div>
+
+        <div class="ops-label">ОПЕРАЦИИ В ОЧЕРЕДИ</div>
+        <div class="pending-ops" id="pending-ops"></div>
+
+        <button class="btn-confirm-pulse" id="btn-confirm-sign">ПОДТВЕРДИТЬ</button>
+      </div>
+
+      <div class="panel">
+        <div class="timer-wrap" id="remote-timer-wrap">
+          <div class="timer-label">ПОДПИСЬ ПЕРЕСТАНЕТ БЫТЬ АКТИВНА ЧЕРЕЗ</div>
+          <div class="timer-value" id="remote-timer-value">05:00</div>
+          <div class="timer-bar-wrap"><div class="timer-bar" id="remote-timer-bar"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ LOCAL VIEW ============ -->
+  <div class="view" id="view-local">
+    <div class="topbar">
+      <button class="icon-btn" id="btn-local-back" title="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+      <div class="logo">ЛОКАЛЬНАЯ <b>ПОДПИСЬ</b></div>
+      <div style="width:34px;"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title"><span>ЗАКРЫТОЕ ХРАНИЛИЩЕ</span><span class="accent" id="local-state">LOCKED</span></div>
+
+      <div class="lock-stage">
+        <div class="lock-wrap">
+          <div class="lock-svg-wrap" id="lock-svg-wrap">
+            <svg viewBox="0 0 200 260" class="lock-body-glow">
+              <g class="lock-shackle">
+                <path d="M55 95 V70 a45 45 0 0 1 90 0 V95"
+                      fill="none" stroke="#ff3b6b" stroke-width="10" stroke-linecap="round"/>
+              </g>
+              <rect x="30" y="95" width="140" height="130" rx="14"
+                    fill="rgba(255,59,107,.06)"
+                    stroke="#ff3b6b" stroke-width="3.5"/>
+              <rect x="36" y="101" width="128" height="118" rx="10"
+                    fill="none" stroke="rgba(255,59,107,.35)" stroke-width="1"/>
+              <circle cx="100" cy="145" r="9" fill="rgba(255,59,107,.9)"/>
+              <rect x="95" y="151" width="10" height="26" rx="3" fill="rgba(255,59,107,.9)"/>
+              <g class="lock-file-inner">
+                <rect x="70" y="185" width="60" height="34" rx="5"
+                      fill="rgba(0,0,0,.7)" stroke="#00ffaa" stroke-width="2"/>
+                <path d="M112 185 L130 203 L112 203 Z" fill="rgba(0,255,170,.3)" stroke="#00ffaa" stroke-width="1.5" stroke-linejoin="round"/>
+                <line x1="80" y1="200" x2="112" y2="200" stroke="#00ffaa" stroke-width="1.5"/>
+                <line x1="80" y1="208" x2="104" y2="208" stroke="#00ffaa" stroke-width="1.5"/>
+              </g>
+            </svg>
+          </div>
+
+          <div class="falling-file" id="falling-file">
+            <svg viewBox="0 0 60 76" fill="none">
+              <rect x="3" y="2" width="54" height="72" rx="7"
+                    fill="rgba(0,255,170,.12)" stroke="#00ffaa" stroke-width="2.5"/>
+              <path d="M40 2 L57 19 L40 19 Z" fill="rgba(0,255,170,.35)" stroke="#00ffaa" stroke-width="2" stroke-linejoin="round"/>
+              <line x1="11" y1="34" x2="49" y2="34" stroke="#00ffaa" stroke-width="2"/>
+              <line x1="11" y1="44" x2="49" y2="44" stroke="#00ffaa" stroke-width="2"/>
+              <line x1="11" y1="54" x2="36" y2="54" stroke="#00ffaa" stroke-width="2"/>
+            </svg>
+          </div>
+        </div>
+
+        <div id="local-input-block">
+          <div class="field" style="margin-top:14px;">
+            <label>ВВЕДИТЕ 9-ЗНАЧНЫЙ КОД</label>
+            <input type="password" id="local-code" inputmode="numeric" maxlength="9" placeholder="•••••••••"
+                   style="text-align:center; letter-spacing:10px; font-size:18px; padding:14px;" />
+          </div>
+          <button class="btn-full" id="btn-local-unlock" style="border-color: var(--danger); background: linear-gradient(180deg, var(--danger-dim), transparent); color: var(--danger);">
+            РАЗБЛОКИРОВАТЬ
+          </button>
+        </div>
+
+        <div class="file-result" id="file-result">
+          <div class="fr-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </div>
+          <div class="fr-body">
+            <div class="fr-name" id="fr-name">clandai-signature.key</div>
+            <div class="fr-meta">PRIVATE KEY · 4.2 KB · TXT</div>
+          </div>
+          <button class="fr-dl" id="fr-dl" title="Скачать файл">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="timer-wrap hidden" id="local-timer-wrap" style="margin-top:14px;">
+          <div class="timer-label">ФАЙЛ СПРЯЧЕТСЯ ЧЕРЕЗ</div>
+          <div class="timer-value" id="local-timer-value">00:30</div>
+          <div class="timer-bar-wrap"><div class="timer-bar" id="local-timer-bar"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ MATRIX OVERLAY ============ -->
+<div class="overlay" id="overlay-matrix">
+  <div class="matrix-modal" id="matrix-modal">
+    <canvas id="matrix-canvas"></canvas>
+    <div class="matrix-modal-content">
+      <div class="matrix-square-wrap">
+        <svg viewBox="0 0 220 220" id="matrix-svg">
+          <line class="sq-line" id="side-top"    x1="20" y1="20"  x2="200" y2="20"  stroke="#00ffaa" stroke-width="6" stroke-linecap="round" stroke-dasharray="180" stroke-dashoffset="180"/>
+          <line class="sq-line" id="side-right"  x1="200" y1="20" x2="200" y2="200" stroke="#00ffaa" stroke-width="6" stroke-linecap="round" stroke-dasharray="180" stroke-dashoffset="180"/>
+          <line class="sq-line" id="side-bottom" x1="200" y1="200" x2="20" y2="200" stroke="#00ffaa" stroke-width="6" stroke-linecap="round" stroke-dasharray="180" stroke-dashoffset="180"/>
+          <line class="sq-line" id="side-left"   x1="20" y1="200" x2="20" y2="20"  stroke="#00ffaa" stroke-width="6" stroke-linecap="round" stroke-dasharray="180" stroke-dashoffset="180"/>
+
+          <line class="stripe" x1="36" y1="52"  x2="184" y2="52"  stroke="#ff2bd6" stroke-width="5" stroke-linecap="round" stroke-dasharray="148" stroke-dashoffset="148"/>
+          <line class="stripe" x1="36" y1="80"  x2="184" y2="80"  stroke="#ff2bd6" stroke-width="5" stroke-linecap="round" stroke-dasharray="148" stroke-dashoffset="148"/>
+          <line class="stripe" x1="36" y1="108" x2="184" y2="108" stroke="#ff2bd6" stroke-width="5" stroke-linecap="round" stroke-dasharray="148" stroke-dashoffset="148"/>
+          <line class="stripe" x1="36" y1="136" x2="184" y2="136" stroke="#ff2bd6" stroke-width="5" stroke-linecap="round" stroke-dasharray="148" stroke-dashoffset="148"/>
+          <line class="stripe" x1="36" y1="164" x2="184" y2="164" stroke="#ff2bd6" stroke-width="5" stroke-linecap="round" stroke-dasharray="148" stroke-dashoffset="148"/>
+
+          <path id="check-path" d="M78 172 L100 190 L156 122"
+                fill="none" stroke="#00ffaa" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"
+                stroke-dasharray="200" stroke-dashoffset="200"/>
+        </svg>
+      </div>
+
+      <div class="matrix-status" id="matrix-status">
+        УСПЕШНО
+        <span class="sub">ТРЕТИЙ КЛЮЧ ПОДПИСАЛ ОПЕРАЦИЮ</span>
+      </div>
+
+      <button class="btn-close-big" id="btn-matrix-close">ЗАКРЫТЬ</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CLANDAI — THIRD PRIVATE KEY
+   ============================================================ */
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+const state = {
+  pattern: [],
+  pin: '',
+  remoteSeconds: 300,
+  remoteTimerHandle: null,
+  localSeconds: 30,
+  localTimerHandle: null,
+  matrixRunning: false,
+  matrixRAF: null,
+  ops: [],
+  opTimers: new Map(),
+};
+
+/* ============ UTIL ============ */
+function toast(msg, err = false) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => el.className = 'toast', 2400);
+}
+function vibrate(ms = 8) { if (navigator.vibrate) navigator.vibrate(ms); }
+function show(viewId) {
+  $$('.view').forEach(v => v.classList.remove('active'));
+  $('#' + viewId).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function fmtTime(totalSec) {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+/* ============ PATTERN LOCK ============ */
+function initPatternLock(wrap, onChange, onLive) {
+  const svg = wrap.querySelector('.pattern-svg');
+  const dots = [...wrap.querySelectorAll('.pattern-dot')];
+  const seq = [];
+  let drawing = false;
+
+  function drawLines() {
+    svg.innerHTML = '';
+    if (seq.length < 2) return;
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--neon').trim() || '#00ffaa';
+    const wr = wrap.getBoundingClientRect();
+    const cs = seq.map(i => {
+      const r = dots[i].getBoundingClientRect();
+      return { x: r.left + r.width / 2 - wr.left, y: r.top + r.height / 2 - wr.top };
+    });
+    for (let i = 1; i < cs.length; i++) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', cs[i - 1].x);
+      line.setAttribute('y1', cs[i - 1].y);
+      line.setAttribute('x2', cs[i].x);
+      line.setAttribute('y2', cs[i].y);
+      line.setAttribute('stroke', accent);
+      line.setAttribute('stroke-width', '3');
+      line.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(line);
+    }
+  }
+  function findDot(x, y) {
+    for (const d of dots) {
+      const r = d.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      if (Math.hypot(x - cx, y - cy) < r.width * 0.7) return d;
+    }
+    return null;
+  }
+  function addDot(d) {
+    const i = +d.dataset.i;
+    if (seq.includes(i)) return;
+    seq.push(i);
+    d.classList.add('active');
+    drawLines();
+    if (onLive) onLive([...seq]);
+    if (navigator.vibrate) navigator.vibrate(6);
+  }
+  function reset() {
+    seq.length = 0;
+    dots.forEach(d => d.classList.remove('active'));
+    svg.innerHTML = '';
+    if (onLive) onLive([]);
+  }
+  wrap.addEventListener('pointerdown', e => {
+    if (!wrap.contains(e.target)) return;
+    const d = findDot(e.clientX, e.clientY);
+    if (d) { drawing = true; addDot(d); wrap.setPointerCapture(e.pointerId); }
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const d = findDot(e.clientX, e.clientY);
+    if (d) addDot(d);
+  });
+  wrap.addEventListener('pointerup', () => {
+    if (!drawing) return;
+    drawing = false;
+    if (seq.length >= 4 && onChange) onChange([...seq]);
+  });
+  wrap.addEventListener('pointercancel', () => { drawing = false; });
+  return { reset };
+}
+
+/* ============ PIN KEYPAD ============ */
+function initPinKeypad(keypadEl, displayEl, length, onComplete) {
+  displayEl.innerHTML = '';
+  const slots = [];
+  for (let i = 0; i < length; i++) {
+    const s = document.createElement('div');
+    s.className = 'pin-slot';
+    displayEl.appendChild(s);
+    slots.push(s);
+  }
+  let v = '';
+  function render(err = false) {
+    slots.forEach((s, i) => {
+      s.classList.toggle('filled', i < v.length);
+      s.classList.toggle('err', err);
+    });
+  }
+  function press(k) {
+    if (k === 'del') { v = v.slice(0, -1); render(); return; }
+    if (k === 'ok') { if (v.length === length) onComplete(v); return; }
+    if (v.length >= length) return;
+    v += k; render(); vibrate(5);
+    if (v.length === length) setTimeout(() => onComplete(v), 140);
+  }
+  keypadEl.querySelectorAll('button').forEach(b => {
+    b.onclick = () => press(b.dataset.k);
+  });
+  return {
+    reset() { v = ''; render(); },
+    setError() { render(true); setTimeout(() => { v = ''; render(false); }, 420); },
+    get value() { return v; }
+  };
+}
+
+/* ============ PENDING OPERATIONS ============ */
+function renderOps() {
+  const wrap = $('#pending-ops');
+  wrap.innerHTML = '';
+  if (!state.ops.length) {
+    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:11px;padding:14px 0;letter-spacing:1px;">НЕТ АКТИВНЫХ ОПЕРАЦИЙ</div>';
+    return;
+  }
+  state.ops.forEach(op => {
+    const item = document.createElement('div');
+    item.className = 'op-item' + (op.deleting ? ' removing' : '');
+    item.dataset.id = op.id;
+
+    const iconSvg = op.type === 'transfer'
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10h14M17 6l4 4-4 4M17 14H3M7 18l-4-4 4-4"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/><polyline points="9 12 11.5 14.5 16 10"/></svg>';
+
+    const bodyHTML = `
+      <div class="op-body">
+        <div class="op-icon">${iconSvg}</div>
+        <div class="op-info">
+          <div class="op-title">${op.title}</div>
+          <div class="op-desc">${op.desc}</div>
+        </div>
+        ${op.deleting ? '' : `<button class="op-delete" data-act="del">УДАЛИТЬ</button>`}
+      </div>
+    `;
+    item.innerHTML = bodyHTML;
+
+    if (op.deleting) {
+      const cd = document.createElement('div');
+      cd.className = 'op-countdown';
+      cd.innerHTML = `
+        <div class="op-countdown-fill" style="width: 100%"></div>
+        <div class="op-countdown-content">
+          <svg class="op-countdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+          </svg>
+          <span class="op-countdown-text">УДАЛЕНИЕ ЧЕРЕЗ <b class="op-seconds">60</b>с</span>
+          <button class="op-cancel" data-act="cancel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/>
+              <polyline points="3 3 3 8 8 8"/>
+            </svg>
+            ОТМЕНИТЬ
+          </button>
+        </div>
+      `;
+      item.appendChild(cd);
+    }
+
+    wrap.appendChild(item);
+
+    const delBtn = item.querySelector('[data-act="del"]');
+    if (delBtn) delBtn.onclick = () => startOpDelete(op.id);
+
+    const cancelBtn = item.querySelector('[data-act="cancel"]');
+    if (cancelBtn) cancelBtn.onclick = () => cancelOpDelete(op.id);
+
+    if (op.deleting && op.deletedAt) {
+      const elapsed = Date.now() - op.deletedAt;
+      const remaining = Math.max(0, 60000 - elapsed);
+      if (remaining > 0) {
+        startOpCountdown(op.id, remaining);
+      } else {
+        finalizeOpDelete(op.id);
+      }
+    }
+  });
+}
+
+function startOpDelete(id) {
+  const op = state.ops.find(o => o.id === id);
+  if (!op || op.deleting) return;
+  op.deleting = true;
+  op.deletedAt = Date.now();
+  vibrate([10, 30, 10]);
+  renderOps();
+  toast('Удаление через 60 секунд · можно отменить');
+}
+
+function cancelOpDelete(id) {
+  const op = state.ops.find(o => o.id === id);
+  if (!op) return;
+  if (state.opTimers.has(id)) {
+    clearInterval(state.opTimers.get(id));
+    state.opTimers.delete(id);
+  }
+  op.deleting = false;
+  delete op.deletedAt;
+  renderOps();
+  toast('✓ Удаление отменено');
+}
+
+function startOpCountdown(id, totalMs) {
+  if (state.opTimers.has(id)) {
+    clearInterval(state.opTimers.get(id));
+    state.opTimers.delete(id);
+  }
+  const item = document.querySelector(`.op-item[data-id="${id}"]`);
+  if (!item) return;
+  const fillEl = item.querySelector('.op-countdown-fill');
+  const secEl = item.querySelector('.op-seconds');
+  if (!fillEl || !secEl) return;
+
+  const startTime = Date.now();
+  const tick = () => {
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, totalMs - elapsed);
+    const pct = remaining / totalMs;
+    fillEl.style.width = (pct * 100) + '%';
+    secEl.textContent = Math.ceil(remaining / 1000);
+    if (remaining <= 0) {
+      const handle = state.opTimers.get(id);
+      if (handle) { clearInterval(handle); state.opTimers.delete(id); }
+      finalizeOpDelete(id);
+    }
+  };
+  tick();
+  const handle = setInterval(tick, 100);
+  state.opTimers.set(id, handle);
+}
+
+function finalizeOpDelete(id) {
+  const item = document.querySelector(`.op-item[data-id="${id}"]`);
+  if (item) item.classList.add('removed');
+  setTimeout(() => {
+    state.ops = state.ops.filter(o => o.id !== id);
+    renderOps();
+    if (!state.ops.length) toast('Операции не осталось', true);
+  }, 450);
+}
+
+function resetOps() {
+  state.ops = [
+    {
+      id: 'op_' + Date.now() + '_1',
+      type: 'transfer',
+      title: 'Перевод 1000 USDT',
+      desc: 'Холодный кошелёк → Тёплый кошелёк',
+    },
+    {
+      id: 'op_' + Date.now() + '_2',
+      type: 'whitelist',
+      title: 'Добавить адрес в whitelist',
+      desc: '0x742d…9e4b · Binance Hot Wallet',
+    },
+  ];
+  state.opTimers.forEach(h => clearInterval(h));
+  state.opTimers.clear();
+  renderOps();
+}
+
+/* ============ REMOTE TIMER ============ */
+function startRemoteTimer() {
+  stopRemoteTimer();
+  state.remoteSeconds = 300;
+  const valueEl = $('#remote-timer-value');
+  const barEl = $('#remote-timer-bar');
+  const total = 300;
+
+  function update() {
+    valueEl.textContent = fmtTime(state.remoteSeconds);
+    const pct = state.remoteSeconds / total;
+    barEl.style.transform = 'scaleX(' + pct + ')';
+    valueEl.classList.remove('warn', 'danger');
+    barEl.classList.remove('warn', 'danger');
+    if (state.remoteSeconds <= 60) { valueEl.classList.add('warn'); barEl.classList.add('warn'); }
+    if (state.remoteSeconds <= 20) { valueEl.classList.add('danger'); barEl.classList.add('danger'); }
+    if (state.remoteSeconds <= 0) {
+      stopRemoteTimer();
+      toast('⏱ Время подписи истекло', true);
+      $('#btn-confirm-sign').disabled = true;
+      $('#btn-confirm-sign').style.opacity = '.4';
+      $('#btn-confirm-sign').style.animation = 'none';
+    }
+  }
+  update();
+  state.remoteTimerHandle = setInterval(() => {
+    state.remoteSeconds--;
+    update();
+  }, 1000);
+}
+function stopRemoteTimer() {
+  if (state.remoteTimerHandle) {
+    clearInterval(state.remoteTimerHandle);
+    state.remoteTimerHandle = null;
+  }
+}
+
+/* ============ LOCAL TIMER ============ */
+function startLocalTimer() {
+  stopLocalTimer();
+  state.localSeconds = 30;
+  const valueEl = $('#local-timer-value');
+  const barEl = $('#local-timer-bar');
+  const total = 30;
+
+  function update() {
+    valueEl.textContent = fmtTime(state.localSeconds);
+    const pct = state.localSeconds / total;
+    barEl.style.transform = 'scaleX(' + pct + ')';
+    valueEl.classList.remove('warn', 'danger');
+    barEl.classList.remove('warn', 'danger');
+    if (state.localSeconds <= 15) { valueEl.classList.add('warn'); barEl.classList.add('warn'); }
+    if (state.localSeconds <= 6) { valueEl.classList.add('danger'); barEl.classList.add('danger'); }
+    if (state.localSeconds <= 0) {
+      stopLocalTimer();
+      $('#file-result').classList.remove('show');
+      const f = $('#falling-file');
+      f.classList.remove('go');
+      f.style.opacity = '0';
+      $('#local-timer-wrap').classList.add('hidden');
+      $('#local-input-block').classList.remove('hidden');
+      $('#local-code').value = '';
+      $('#lock-svg-wrap').classList.remove('open');
+      $('#local-state').textContent = 'LOCKED';
+      toast('⏱ Файл скрыт', true);
+    }
+  }
+  update();
+  state.localTimerHandle = setInterval(() => {
+    state.localSeconds--;
+    update();
+  }, 1000);
+}
+function stopLocalTimer() {
+  if (state.localTimerHandle) {
+    clearInterval(state.localTimerHandle);
+    state.localTimerHandle = null;
+  }
+}
+
+/* ============ MATRIX ANIMATION ============ */
+function startMatrixAnimation() {
+  if (state.matrixRunning) return;
+  state.matrixRunning = true;
+
+  ['side-top', 'side-right', 'side-bottom', 'side-left'].forEach(id => {
+    const el = document.getElementById(id);
+    el.style.transition = 'none';
+    el.style.strokeDashoffset = '180';
+    void el.getBoundingClientRect();
+  });
+  document.querySelectorAll('.stripe').forEach(s => {
+    s.style.transition = 'none';
+    s.style.strokeDashoffset = '148';
+    void s.getBoundingClientRect();
+  });
+  const check = document.getElementById('check-path');
+  check.style.transition = 'none';
+  check.style.strokeDashoffset = '200';
+  void check.getBoundingClientRect();
+
+  $('#matrix-status').classList.remove('show');
+  $('#btn-matrix-close').classList.remove('show');
+  $('#overlay-matrix').classList.add('show');
+
+  const modalEl = $('#matrix-modal');
+  modalEl.classList.remove('focused');
+
+  startCanvasMatrix();
+
+  // Blur everything behind the square (including matrix) when square begins drawing
+  setTimeout(() => {
+    modalEl.classList.add('focused');
+  }, 380);
+
+  const sideIds = ['side-top', 'side-right', 'side-bottom', 'side-left'];
+  sideIds.forEach((id, i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      el.style.transition = 'stroke-dashoffset .35s linear';
+      el.style.strokeDashoffset = '0';
+      vibrate(6);
+    }, 400 + i * 340);
+  });
+
+  const stripes = document.querySelectorAll('.stripe');
+  stripes.forEach((s, i) => {
+    setTimeout(() => {
+      s.style.transition = 'stroke-dashoffset .38s linear';
+      s.style.strokeDashoffset = '0';
+      vibrate(4);
+    }, 400 + 4 * 340 + 200 + i * 240);
+  });
+
+  const checkDelay = 400 + 4 * 340 + 200 + stripes.length * 240 + 200;
+  setTimeout(() => {
+    check.style.transition = 'stroke-dashoffset .55s ease-out';
+    check.style.strokeDashoffset = '0';
+    vibrate([10, 30, 10]);
+  }, checkDelay);
+
+  setTimeout(() => {
+    $('#matrix-status').classList.add('show');
+    $('#btn-matrix-close').classList.add('show');
+    vibrate([12, 40, 12]);
+  }, checkDelay + 700);
+}
+
+function stopMatrixAnimation() {
+  state.matrixRunning = false;
+  if (state.matrixRAF) {
+    cancelAnimationFrame(state.matrixRAF);
+    state.matrixRAF = null;
+  }
+  $('#overlay-matrix').classList.remove('show');
+  $('#matrix-modal').classList.remove('focused');
+}
+
+/* ============================================================
+   MATRIX CANVAS  —  FIXED SIZE
+   Используем clientWidth/clientHeight (не зависят от transform),
+   чтобы canvas всегда заполнял модалку полностью.
+   ============================================================ */
+let matrixCtx = null;
+let matrixDrops = [];
+const matrixChars = '0123456789ABCDEF';
+const matrixFontSize = 14;
+let matrixCanvas = null;
+let matrixResizeHandler = null;
+
+function startCanvasMatrix() {
+  matrixCanvas = document.getElementById('matrix-canvas');
+  matrixCtx = matrixCanvas.getContext('2d');
+
+  function resize() {
+    // clientWidth / clientHeight игнорируют CSS-трансформы (scale)
+    // и всегда возвращают реальный layout-размер элемента.
+    const w = matrixCanvas.clientWidth || matrixCanvas.parentElement.clientWidth;
+    const h = matrixCanvas.clientHeight || matrixCanvas.parentElement.clientHeight;
+    if (!w || !h) return false;
+
+    const dpr = window.devicePixelRatio || 1;
+    matrixCanvas.width  = Math.floor(w * dpr);
+    matrixCanvas.height = Math.floor(h * dpr);
+
+    // Не трогаем inline style.width / style.height —
+    // CSS уже задаёт width:100% / height:100% через #matrix-canvas.
+
+    matrixCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const cols = Math.ceil(w / matrixFontSize);
+    if (matrixDrops.length !== cols) {
+      matrixDrops = new Array(cols).fill(1);
+    }
+    return true;
+  }
+
+  // Первый ресайз — с ретраем, если layout ещё не готов
+  requestAnimationFrame(() => {
+    if (!resize()) requestAnimationFrame(() => { resize(); });
+  });
+
+  // Повторный ресайз после завершения входной анимации модалки
+  setTimeout(() => { if (state.matrixRunning) resize(); }, 420);
+
+  // Реакция на изменение окна
+  if (matrixResizeHandler) window.removeEventListener('resize', matrixResizeHandler);
+  matrixResizeHandler = () => { if (state.matrixRunning) resize(); };
+  window.addEventListener('resize', matrixResizeHandler);
+
+  const chars = matrixChars.split('');
+  const ctx = matrixCtx;
+
+  function draw() {
+    if (!state.matrixRunning) return;
+
+    // Используем реальный layout-размер, а не внутренний размер буфера
+    const w = matrixCanvas.clientWidth || matrixCanvas.width;
+    const h = matrixCanvas.clientHeight || matrixCanvas.height;
+
+    ctx.fillStyle = 'rgba(5,6,8,0.09)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.font = matrixFontSize + 'px "JetBrains Mono", monospace';
+    ctx.textBaseline = 'top';
+
+    for (let i = 0; i < matrixDrops.length; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      const x = i * matrixFontSize;
+      const y = matrixDrops[i] * matrixFontSize;
+
+      const isPink = Math.random() > 0.55;
+      if (isPink) {
+        ctx.fillStyle = 'rgba(255,43,214,' + (0.5 + Math.random() * 0.5) + ')';
+        ctx.shadowColor = '#ff2bd6';
+      } else {
+        ctx.fillStyle = 'rgba(0,255,170,' + (0.6 + Math.random() * 0.4) + ')';
+        ctx.shadowColor = '#00ffaa';
+      }
+      ctx.shadowBlur = 7;
+      ctx.fillText(ch, x, y);
+      ctx.shadowBlur = 0;
+
+      if (y > h && Math.random() > 0.975) {
+        matrixDrops[i] = 0;
+      }
+      matrixDrops[i]++;
+    }
+    state.matrixRAF = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+/* ============ LOCAL UNLOCK ============ */
+function unlockLocal() {
+  const code = $('#local-code').value.trim();
+  if (code.length !== 9) { toast('Введите 9-значный код', true); return; }
+
+  $('#lock-svg-wrap').classList.add('open');
+  $('#local-state').textContent = 'UNLOCKED';
+  vibrate([15, 40, 15]);
+
+  $('#local-input-block').style.opacity = '0';
+  $('#local-input-block').style.transform = 'translateY(10px)';
+
+  setTimeout(() => {
+    const f = $('#falling-file');
+    f.style.opacity = '1';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        f.classList.add('go');
+      });
+    });
+  }, 500);
+
+  setTimeout(() => {
+    $('#local-input-block').classList.add('hidden');
+    $('#local-input-block').style.opacity = '';
+    $('#local-input-block').style.transform = '';
+
+    const f = $('#falling-file');
+    f.style.opacity = '0';
+
+    $('#file-result').classList.add('show');
+    $('#local-timer-wrap').classList.remove('hidden');
+    startLocalTimer();
+    toast('✓ Хранилище разблокировано');
+  }, 1900);
+}
+
+/* ============ EVENTS ============ */
+let patternCtrl = null;
+function initRemotePattern() {
+  patternCtrl = initPatternLock(
+    $('#pattern-remote'),
+    (seq) => { state.pattern = seq; },
+    (seq) => {
+      const c = $('#pat-count');
+      if (c) c.textContent = seq.length + ' ТОЧЕК';
+    }
+  );
+}
+
+let pinCtrl = null;
+function initRemotePin() {
+  pinCtrl = initPinKeypad($('#pin-keypad'), $('#pin-display'), 9, (pin) => {
+    state.pin = pin;
+    toast('PIN принят');
+  });
+}
+
+$('#btn-open-remote').onclick = () => {
+  state.pattern = []; state.pin = '';
+  $('#q1').value = ''; $('#q2').value = ''; $('#q3').value = '';
+  if (patternCtrl) patternCtrl.reset();
+  if (pinCtrl) pinCtrl.reset();
+  $('#remote-stage-form').classList.remove('hidden');
+  $('#remote-stage-confirm').classList.add('hidden');
+  $('#btn-confirm-sign').disabled = false;
+  $('#btn-confirm-sign').style.opacity = '1';
+  $('#btn-confirm-sign').style.animation = '';
+  stopRemoteTimer();
+  resetOps();
+  show('view-remote');
+};
+
+$('#btn-open-local').onclick = () => {
+  $('#local-code').value = '';
+  $('#lock-svg-wrap').classList.remove('open');
+  $('#local-state').textContent = 'LOCKED';
+  $('#file-result').classList.remove('show');
+  const f = $('#falling-file');
+  f.classList.remove('go');
+  f.style.opacity = '0';
+  $('#local-timer-wrap').classList.add('hidden');
+  const ib = $('#local-input-block');
+  ib.classList.remove('hidden');
+  ib.style.opacity = '';
+  ib.style.transform = '';
+  stopLocalTimer();
+  show('view-local');
+};
+
+$('#btn-remote-back').onclick = () => { stopRemoteTimer(); show('view-main'); };
+$('#btn-local-back').onclick = () => { stopLocalTimer(); show('view-main'); };
+
+$('#btn-remote-submit').onclick = () => {
+  const q1 = $('#q1').value.trim();
+  const q2 = $('#q2').value.trim();
+  const q3 = $('#q3').value.trim();
+  if (!q1 || !q2 || !q3) { toast('Заполните все 3 вопроса', true); return; }
+  if (state.pattern.length < 4) { toast('Нарисуйте графический пароль', true); return; }
+  if (state.pin.length !== 9) { toast('Введите 9-значный PIN', true); return; }
+
+  $('#remote-stage-form').classList.add('hidden');
+  $('#remote-stage-confirm').classList.remove('hidden');
+  startRemoteTimer();
+  toast('✓ Идентификация пройдена');
+};
+
+$('#btn-confirm-sign').onclick = () => {
+  if ($('#btn-confirm-sign').disabled) return;
+  startMatrixAnimation();
+};
+
+$('#btn-matrix-close').onclick = () => {
+  stopMatrixAnimation();
+  stopRemoteTimer();
+  show('view-main');
+};
+
+$('#btn-local-unlock').onclick = unlockLocal;
+$('#local-code').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); unlockLocal(); }
+});
+$('#local-code').addEventListener('input', e => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 9);
+});
+
+$('#fr-dl').onclick = () => {
+  const content =
+    'CLANDAI — THIRD PRIVATE KEY\n' +
+    '================================\n' +
+    'Generated: ' + new Date().toISOString() + '\n' +
+    'Type: signing key (demo)\n' +
+    '================================\n' +
+    '0x' + Array.from({length: 64}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join('') + '\n';
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'clandai-signature-' + Date.now() + '.key';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('✓ Файл скачан');
+};
+
+$('#btn-info').onclick = () => {
+  toast('Третий ключ — фактор мультиподписи для критических операций');
+};
+
+/* ============ INIT ============ */
+(function init() {
+  initRemotePattern();
+  initRemotePin();
+  const remoteBar = $('#remote-timer-bar');
+  if (remoteBar) remoteBar.style.transform = 'scaleX(1)';
+  const localBar = $('#local-timer-bar');
+  if (localBar) localBar.style.transform = 'scaleX(1)';
+})();
+</script>
+</body>
+</html>

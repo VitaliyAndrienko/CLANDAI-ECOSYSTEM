@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI · UI KIT v2</title>
+<style>
+:root{
+  --bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);
+  --neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--cyan-dim:#00d9ff55;
+  --pink:#ff2bd6;--pink-dim:#ff2bd655;--text:#d8dee6;--muted:#5b6672;
+  --danger:#ff3b6b;--danger-dim:#ff3b6b55;--gold:#ffd400;--purple:#a855f7;
+  --radius:14px;
+  --icon-color:#00ffaa;
+  --icon-color-dim:rgba(0,255,170,.3);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:13px;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+
+.app{position:relative;z-index:1;max-width:1180px;margin:0 auto;
+  padding:22px 18px 60px;display:flex;flex-direction:column;gap:14px}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px;flex-wrap:wrap}
+.logo{font-weight:700;letter-spacing:3px;font-size:16px;opacity:.9}
+.logo b{color:var(--neon);text-shadow:0 0 14px var(--neon-dim)}
+.topbar-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);
+  width:34px;height:34px;border-radius:9px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .15s,color .15s;flex-shrink:0;padding:0}
+.icon-btn:hover{border-color:var(--neon);color:var(--neon)}
+.icon-btn svg{width:15px;height:15px}
+
+.color-control{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;
+  background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:9px;
+  transition:border-color .15s}
+.color-control:hover{border-color:var(--neon)}
+.color-control label{font-size:9px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;cursor:pointer}
+#global-color{width:34px;height:34px;padding:0;border:none;background:transparent;
+  cursor:pointer;border-radius:7px;overflow:hidden}
+#global-color::-webkit-color-swatch-wrapper{padding:0}
+#global-color::-webkit-color-swatch{border:1px solid var(--border);border-radius:6px}
+
+.hero{text-align:center;padding:6px 0 2px}
+.hero h1{font-size:18px;letter-spacing:4px;color:var(--neon);
+  text-shadow:0 0 20px var(--neon-dim);margin-bottom:8px}
+.hero p{color:var(--muted);font-size:11.5px;line-height:1.7;letter-spacing:.5px}
+
+.main-tabs{display:flex;gap:4px;background:rgba(0,0,0,.4);padding:4px;
+  border:1px solid var(--border);border-radius:12px;max-width:640px;
+  margin:6px auto 0;width:100%;flex-wrap:wrap}
+.main-tab{flex:1;min-width:70px;padding:11px 6px;background:transparent;border:none;
+  color:var(--muted);font-family:inherit;font-size:10.5px;letter-spacing:1.5px;
+  text-transform:uppercase;cursor:pointer;border-radius:8px;
+  transition:all .18s;font-weight:700}
+.main-tab:hover{color:var(--text)}
+.main-tab.active{background:var(--icon-color-dim);color:var(--icon-color);
+  box-shadow:inset 0 0 14px -4px var(--icon-color),0 0 14px -4px var(--icon-color-dim)}
+
+.color-presets{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:2px 0 6px}
+.preset-swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;
+  border:2px solid transparent;position:relative;transition:all .15s;flex-shrink:0}
+.preset-swatch:hover{transform:scale(1.12)}
+.preset-swatch.active{border-color:#fff;box-shadow:0 0 14px currentColor}
+.preset-swatch::after{content:'';position:absolute;inset:-3px;border-radius:50%;
+  border:1px dashed rgba(255,255,255,.15);pointer-events:none}
+
+.search-box{position:relative;max-width:520px;margin:0 auto;width:100%}
+.search-box input{width:100%;padding:12px 16px 12px 42px;
+  background:rgba(20,22,26,.7);border:2px solid var(--neon-dim);
+  border-radius:30px;color:var(--text);font-family:inherit;font-size:12px;
+  letter-spacing:1px;outline:none;backdrop-filter:blur(14px);
+  transition:all .3s ease;box-shadow:0 0 15px -5px var(--neon-dim)}
+.search-box input:focus{border-color:var(--neon);
+  box-shadow:0 0 25px var(--neon-dim),inset 0 0 10px var(--neon-dim)}
+.search-box input::placeholder{color:var(--muted);text-transform:uppercase;
+  letter-spacing:2px;font-size:10px}
+.search-box svg{position:absolute;left:16px;top:50%;transform:translateY(-50%);
+  width:16px;height:16px;color:var(--neon);pointer-events:none;
+  filter:drop-shadow(0 0 6px var(--neon))}
+
+.cats{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:4px 0 8px}
+.cat-btn{padding:6px 12px;border-radius:999px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);color:var(--muted);font-family:inherit;
+  font-size:10px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;
+  transition:all .15s;font-weight:700;white-space:nowrap}
+.cat-btn:hover{border-color:var(--neon);color:var(--neon)}
+.cat-btn.active{background:var(--icon-color-dim);border-color:var(--icon-color);
+  color:var(--icon-color);box-shadow:0 0 14px -4px var(--icon-color)}
+
+.stats-row{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;
+  font-size:10px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;padding:4px 0}
+.stats-row b{color:var(--icon-color);font-weight:700;font-variant-numeric:tabular-nums}
+
+.section{margin-top:10px}
+.section-head{display:flex;align-items:center;gap:12px;margin-bottom:12px;
+  padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.05)}
+.section-head h2{font-size:11px;letter-spacing:3px;color:var(--icon-color);
+  text-transform:uppercase;text-shadow:0 0 12px var(--icon-color-dim);font-weight:700}
+.section-head .badge{font-size:9px;letter-spacing:1.5px;color:var(--muted);
+  padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);font-weight:700}
+.section-head .line{flex:1;height:1px;
+  background:linear-gradient(90deg,var(--icon-color-dim),transparent)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.grid-wide{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.grid-recipe{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+
+.icon-card{position:relative;
+  background:linear-gradient(135deg,rgba(0,255,170,.03),rgba(0,0,0,.3));
+  border:1px solid var(--border);border-radius:12px;padding:12px;cursor:pointer;
+  display:flex;flex-direction:column;gap:10px;
+  transition:border-color .2s,background .25s,transform .15s,box-shadow .2s;
+  overflow:hidden}
+.icon-card:hover{border-color:var(--icon-color);
+  background:linear-gradient(135deg,rgba(0,255,170,.08),rgba(0,0,0,.35));
+  transform:translateY(-2px);box-shadow:0 0 26px -10px var(--icon-color)}
+.icon-card:active{transform:translateY(0) scale(.99)}
+.icon-card.copied{border-color:var(--cyan);
+  background:linear-gradient(135deg,rgba(0,217,255,.1),rgba(0,0,0,.35));
+  box-shadow:0 0 22px -8px var(--cyan)}
+
+.ic-top{display:flex;align-items:center;gap:12px}
+.ic-preview{width:46px;height:46px;flex-shrink:0;border-radius:11px;
+  display:grid;place-items:center;
+  background:radial-gradient(circle at 30% 30%,var(--icon-color-dim),rgba(0,0,0,.45));
+  border:1px solid var(--icon-color-dim);color:var(--icon-color);
+  position:relative;overflow:hidden;
+  transition:color .25s,background .25s,border-color .25s}
+.ic-preview::after{content:'';position:absolute;inset:0;border-radius:11px;
+  background:linear-gradient(120deg,transparent 40%,rgba(255,255,255,.08) 50%,transparent 60%);
+  pointer-events:none}
+.ic-preview svg{width:24px;height:24px;position:relative;z-index:1}
+
+.ic-info{flex:1;min-width:0}
+.ic-name{font-size:11px;color:var(--text);font-weight:700;letter-spacing:.5px;
+  text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic-key{font-size:9px;color:var(--icon-color);letter-spacing:1px;margin-top:3px;
+  font-family:inherit;opacity:.85;transition:color .25s}
+.ic-desc{font-size:10px;color:var(--muted);line-height:1.5;letter-spacing:.3px}
+
+.ic-tag{position:absolute;top:8px;right:8px;font-size:8px;letter-spacing:1px;
+  font-weight:700;padding:2px 6px;border-radius:5px;
+  background:rgba(0,0,0,.5);border:1px solid var(--border);color:var(--muted);
+  text-transform:uppercase;opacity:0;transition:opacity .2s}
+.icon-card:hover .ic-tag{opacity:1}
+.ic-tag.tag-new{color:var(--cyan);border-color:rgba(0,217,255,.4);
+  background:rgba(0,217,255,.08)}
+.ic-tag.tag-used{color:var(--icon-color);border-color:var(--icon-color-dim);
+  background:rgba(0,255,170,.08)}
+.ic-tag.tag-recipe{color:var(--gold);border-color:rgba(255,212,0,.4);
+  background:rgba(255,212,0,.08);opacity:1}
+
+.comp-card{position:relative;
+  background:linear-gradient(135deg,rgba(0,255,170,.03),rgba(0,0,0,.3));
+  border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;
+  display:flex;flex-direction:column;gap:12px;overflow:hidden;
+  transition:border-color .2s,background .25s,transform .15s,box-shadow .2s}
+.comp-card:hover{border-color:var(--icon-color);
+  background:linear-gradient(135deg,rgba(0,255,170,.06),rgba(0,0,0,.32));
+  transform:translateY(-2px);box-shadow:0 0 26px -10px var(--icon-color)}
+.comp-card.copied{border-color:var(--cyan);
+  background:linear-gradient(135deg,rgba(0,217,255,.1),rgba(0,0,0,.35))}
+
+.comp-preview{
+  background:rgba(0,0,0,.4);border:1px dashed rgba(255,255,255,.06);
+  border-radius:10px;padding:16px;min-height:70px;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;position:relative;flex-wrap:wrap;gap:8px}
+.comp-preview.dark{background:#05060a;border-style:solid;border-color:var(--border)}
+.comp-preview.modal-preview{padding:12px;background:#05060a;border-style:solid}
+.comp-preview.recipe-preview{
+  background:transparent;border:none;padding:0;
+  align-items:stretch;justify-content:stretch;flex-direction:column}
+
+.comp-info{display:flex;flex-direction:column;gap:4px;min-width:0}
+.comp-name{font-size:11px;color:var(--text);font-weight:700;letter-spacing:.5px;
+  text-transform:uppercase}
+.comp-key{font-size:9px;color:var(--icon-color);letter-spacing:1px;
+  font-family:inherit;opacity:.85}
+.comp-desc{font-size:10px;color:var(--muted);line-height:1.5;letter-spacing:.3px}
+
+.empty{text-align:center;padding:40px 20px;color:var(--muted);
+  font-size:12px;letter-spacing:1px}
+
+.toast{position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(100px);
+  background:#0e1014;border:1px solid var(--icon-color);color:var(--icon-color);
+  padding:12px 20px;border-radius:999px;font-size:12px;letter-spacing:1px;
+  z-index:200;opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),
+  opacity .25s,color .25s,border-color .25s;
+  box-shadow:0 0 24px var(--icon-color-dim);max-width:90vw;text-align:center;
+  font-family:inherit}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--danger);color:var(--danger)}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--icon-color-dim);border-radius:8px}
+
+@media (max-width:640px){
+  body::after{display:none}
+  .app{padding:16px 12px 40px;gap:10px}
+  .grid,.grid-wide,.grid-recipe{grid-template-columns:1fr;gap:8px}
+  .ic-preview{width:38px;height:38px;border-radius:9px}
+  .ic-preview svg{width:20px;height:20px}
+  .ic-name{font-size:10px}
+  .ic-desc{font-size:9px}
+  .hero h1{font-size:15px;letter-spacing:3px}
+  .color-control label{display:none}
+  .main-tab{font-size:9px;padding:8px 4px;letter-spacing:1px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">CLAN<b>DAI</b> · UI KIT</div>
+    <div class="topbar-actions">
+      <div class="color-control">
+        <label for="global-color">COLOR</label>
+        <input type="color" id="global-color" value="#00ffaa"/>
+      </div>
+      <button class="icon-btn" id="btn-copy-all" title="Скопировать всё">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <h1>UI KIT · v2</h1>
+    <p>Иконки · Кнопки · Поля · Окна · Рецепты (комбо-блоки)<br>
+       Клик = копировать · цвет пикера меняет ВСЁ</p>
+  </div>
+
+  <div class="main-tabs">
+    <button class="main-tab active" data-tab="icons">ИКОНКИ</button>
+    <button class="main-tab" data-tab="buttons">КНОПКИ</button>
+    <button class="main-tab" data-tab="fields">ПОЛЯ</button>
+    <button class="main-tab" data-tab="modals">ОКНА</button>
+    <button class="main-tab" data-tab="recipes">РЕЦЕПТЫ</button>
+  </div>
+
+  <div class="color-presets" id="color-presets"></div>
+
+  <div class="search-box">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+    </svg>
+    <input id="search-input" type="text" placeholder="Поиск по названию, описанию или ключу..." autocomplete="off"/>
+  </div>
+
+  <div class="stats-row">
+    <span>ВСЕГО: <b id="stat-total">0</b></span>
+    <span>·</span>
+    <span>ПОКАЗАНО: <b id="stat-show">0</b></span>
+  </div>
+
+  <div class="cats" id="cats"></div>
+
+  <div id="sections"></div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CLANDAI · UI KIT v2
+   ============================================================ */
+
+/* ================= ICONS ================= */
+const ICON_DATA = [
+{ cat:'ТРАНЗАКЦИИ', icons:[
+  { key:'send', name:'Send', desc:'Отправить', tag:'used', path:`<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>` },
+  { key:'receive', name:'Receive', desc:'Получить', tag:'used', path:`<path d="M12 5v14M5 12l7 7 7-7"/>` },
+  { key:'swap', name:'Swap', desc:'Обмен', tag:'used', path:`<path d="M4 12a8 8 0 0 1 8-8h6"/><polyline points="15 1 18 4 15 7"/><path d="M20 12a8 8 0 0 1-8 8H6"/><polyline points="9 23 6 20 9 17"/>` },
+  { key:'flip', name:'Flip', desc:'Поменять местами', tag:'used', path:`<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>` },
+  { key:'transfer', name:'Transfer', desc:'Перевод', tag:'new', path:`<path d="M7 10h14M17 6l4 4-4 4M17 14H3M7 18l-4-4 4-4"/>` },
+  { key:'withdraw', name:'Withdraw', desc:'Вывод', tag:'new', path:`<path d="M12 3v14"/><polyline points="5 10 12 3 19 10"/><line x1="3" y1="21" x2="21" y2="21"/>` },
+  { key:'deposit', name:'Deposit', desc:'Пополнение', tag:'new', path:`<path d="M12 21V7"/><polyline points="5 14 12 21 19 14"/><line x1="3" y1="3" x2="21" y2="3"/>` },
+  { key:'burn', name:'Burn', desc:'Сжигание', tag:'new', path:`<path d="M12 2c2 4 6 6 6 11a6 6 0 0 1-12 0c0-2 1-4 2-5 0 2 1 3 2 3 0-3 1-6 2-9z"/>` },
+  { key:'mint', name:'Mint', desc:'Минт', tag:'new', path:`<circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/>` },
+  { key:'approve', name:'Approve', desc:'Одобрение', tag:'new', path:`<circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/>` },
+  { key:'pending', name:'Pending', desc:'Ожидание', tag:'new', path:`<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>` },
+  { key:'confirmed', name:'Confirmed', desc:'Подтверждено', tag:'new', path:`<circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/>` },
+  { key:'failed', name:'Failed', desc:'Отклонено', tag:'new', path:`<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>` },
+]},
+{ cat:'ТИПЫ ТРАНЗАКЦИЙ', icons:[
+  { key:'cold2warm', name:'Cold→Warm', desc:'Холодный → тёплый', tag:'new', path:`<path d="M2 12h8M6 8l-4 4 4 4"/><path d="M13 12h9M19 8l3 4-3 4"/>` },
+  { key:'warm2cold', name:'Warm→Cold', desc:'Тёплый → холодный', tag:'new', path:`<path d="M2 12h8M6 8l-4 4 4 4"/><path d="M13 12h9M19 8l3 4-3 4"/>` },
+  { key:'wallet2wallet', name:'Wallet→Wallet', desc:'Кошелёк в кошелёк', tag:'new', path:`<rect x="2" y="8" width="9" height="8" rx="1.5"/><rect x="13" y="8" width="9" height="8" rx="1.5"/><line x1="11" y1="12" x2="13" y2="12"/>` },
+  { key:'bridge', name:'Bridge', desc:'Мост', tag:'new', path:`<path d="M3 20V10a9 9 0 0 1 18 0v10"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="8" y1="14" x2="8" y2="20"/><line x1="16" y1="14" x2="16" y2="20"/>` },
+  { key:'swap-h', name:'Swap H', desc:'Горизонтальный', tag:'new', path:`<path d="M3 9h14l-4-4M21 15H7l4 4"/>` },
+  { key:'swap-v', name:'Swap V', desc:'Вертикальный', tag:'new', path:`<path d="M9 3v14l-4-4M15 21V7l4 4"/>` },
+  { key:'batch', name:'Batch', desc:'Пакетная', tag:'new', path:`<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>` },
+  { key:'multisend', name:'Multi Send', desc:'Мультиотправка', tag:'new', path:`<circle cx="4" cy="12" r="2.5"/><circle cx="20" cy="6" r="2"/><circle cx="20" cy="12" r="2"/><circle cx="20" cy="18" r="2"/><line x1="6.5" y1="12" x2="18" y2="6"/><line x1="6.5" y1="12" x2="18" y2="12"/><line x1="6.5" y1="12" x2="18" y2="18"/>` },
+  { key:'gather', name:'Gather', desc:'Сбор', tag:'new', path:`<circle cx="20" cy="12" r="2.5"/><circle cx="4" cy="6" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="4" cy="18" r="2"/><line x1="6" y1="6" x2="17.5" y2="12"/><line x1="6" y1="12" x2="17.5" y2="12"/><line x1="6" y1="18" x2="17.5" y2="12"/>` },
+  { key:'split', name:'Split', desc:'Разделение', tag:'new', path:`<circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.5 12l9-6"/><path d="M7.5 12l9 6"/>` },
+  { key:'merge', name:'Merge', desc:'Слияние', tag:'new', path:`<circle cx="19" cy="12" r="2.5"/><circle cx="5" cy="6" r="2.5"/><circle cx="5" cy="18" r="2.5"/><path d="M7.5 6l9 6"/><path d="M7.5 18l9-6"/>` },
+  { key:'escrow', name:'Escrow', desc:'Эскроу', tag:'new', path:`<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="2"/>` },
+  { key:'atomic', name:'Atomic', desc:'Атомарный', tag:'new', path:`<circle cx="8" cy="12" r="5"/><circle cx="16" cy="12" r="5"/>` },
+  { key:'refund', name:'Refund', desc:'Возврат', tag:'new', path:`<path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 8 8 8"/>` },
+  { key:'chargeback', name:'Chargeback', desc:'Чарджбэк', tag:'new', path:`<path d="M12 2v6M12 22v-6"/><path d="M4 12h6M14 12h6"/><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/>` },
+  { key:'recurring', name:'Recurring', desc:'Регулярный', tag:'new', path:`<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>` },
+  { key:'subscription-pay', name:'Subscription', desc:'Подписка', tag:'new', path:`<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 15l2 2 4-4"/>` },
+  { key:'invoice', name:'Invoice', desc:'Счёт', tag:'new', path:`<path d="M4 2h16v20l-3-2-2 2-3-2-3 2-2-2-3 2z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/>` },
+  { key:'limit-order', name:'Limit Order', desc:'Лимитный', tag:'new', path:`<line x1="3" y1="14" x2="21" y2="14" stroke-dasharray="4 3"/><path d="M5 10l4-4 4 4 6-6"/>` },
+  { key:'market-order', name:'Market Order', desc:'Рыночный', tag:'new', path:`<path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/><line x1="3" y1="21" x2="21" y2="21"/>` },
+  { key:'flashloan', name:'Flash Loan', desc:'Флеш-кредит', tag:'new', path:`<path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/><circle cx="12" cy="12" r="10" stroke-dasharray="2 4" opacity="0.4"/>` },
+  { key:'stake', name:'Stake', desc:'Стейкинг', tag:'new', path:`<circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="9"/>` },
+  { key:'unstake', name:'Unstake', desc:'Анстейкинг', tag:'new', path:`<circle cx="12" cy="12" r="4"/><path d="M12 8V3M12 16v5M8 12H3M16 12h5"/><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/>` },
+  { key:'claim', name:'Claim', desc:'Клейм', tag:'new', path:`<path d="M20 12v10H4V12"/><rect x="2" y="7" width="20" height="5" rx="1"/><line x1="12" y1="7" x2="12" y2="22"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7z"/>` },
+  { key:'rewards', name:'Rewards', desc:'Награды', tag:'new', path:`<circle cx="12" cy="9" r="6"/><path d="M8 14l-2 8 6-3 6 3-2-8"/>` },
+  { key:'airdrop', name:'Airdrop', desc:'Аирдроп', tag:'new', path:`<path d="M6 6c0-2 2.5-4 6-4s6 2 6 4"/><line x1="12" y1="2" x2="12" y2="14"/><circle cx="12" cy="18" r="4"/>` },
+  { key:'wrap', name:'Wrap', desc:'Обёртка', tag:'new', path:`<circle cx="12" cy="12" r="8"/><path d="M4.5 5.5C6.5 8 9 10 12 12s5.5 4 7.5 6.5" opacity="0.5"/><path d="M12 4v4M12 4l-2 2M12 4l2 2"/>` },
+  { key:'unwrap', name:'Unwrap', desc:'Разворот', tag:'new', path:`<circle cx="12" cy="12" r="8"/><path d="M12 20v-4M12 20l-2-2M12 20l2-2"/>` },
+  { key:'add-liquidity', name:'Add Liquidity', desc:'Добавить ликвидность', tag:'new', path:`<path d="M12 3v6M12 3l-3 3M12 3l3 3"/><ellipse cx="12" cy="15" rx="7" ry="4"/><line x1="9" y1="15" x2="15" y2="15"/>` },
+  { key:'remove-liquidity', name:'Remove Liquidity', desc:'Убрать ликвидность', tag:'new', path:`<ellipse cx="12" cy="15" rx="7" ry="4"/>` },
+  { key:'vote', name:'Vote', desc:'Голосование', tag:'new', path:`<path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-9-9"/><polyline points="14 3 21 3 21 10"/>` },
+  { key:'proposal', name:'Proposal', desc:'Предложение', tag:'new', path:`<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>` },
+]},
+{ cat:'АДРЕСА', icons:[
+  { key:'add-whitelist', name:'Add Whitelist', desc:'В вайтлист', tag:'new', path:`<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>` },
+  { key:'remove-whitelist', name:'Remove Whitelist', desc:'Из вайтлиста', tag:'new', path:`<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" opacity="0.4"/><line x1="9" y1="12" x2="15" y2="12"/>` },
+  { key:'add-blocklist', name:'Add Blocklist', desc:'В блэклист', tag:'new', path:`<circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>` },
+  { key:'remove-blocklist', name:'Remove Blocklist', desc:'Из блэклиста', tag:'new', path:`<circle cx="12" cy="12" r="10" opacity="0.4"/><polyline points="9 12 11 14 15 10"/>` },
+  { key:'verify-address', name:'Verify', desc:'Проверка', tag:'new', path:`<circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/>` },
+  { key:'address-book', name:'Address Book', desc:'Адресная книга', tag:'new', path:`<path d="M4 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><line x1="2" y1="9" x2="6" y2="9"/><line x1="2" y1="15" x2="6" y2="15"/><circle cx="13" cy="11" r="2"/><path d="M9.5 17a3.5 3.5 0 0 1 7 0"/>` },
+  { key:'contact', name:'Contact', desc:'Контакт', tag:'new', path:`<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>` },
+  { key:'qr-address', name:'QR Address', desc:'QR-адрес', tag:'new', path:`<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="6.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/>` },
+  { key:'copy-address', name:'Copy', desc:'Копировать', tag:'new', path:`<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>` },
+  { key:'label-address', name:'Label', desc:'Метка', tag:'new', path:`<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>` },
+]},
+{ cat:'КОШЕЛЬКИ', icons:[
+  { key:'wallet', name:'Wallet', desc:'Кошелёк', tag:'used', path:`<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.3" fill="currentColor" stroke="none"/>` },
+  { key:'wallet-multi', name:'Wallet Multi', desc:'Мультикошелёк', tag:'new', path:`<rect x="2" y="8" width="14" height="11" rx="2"/><rect x="8" y="5" width="14" height="11" rx="2" opacity="0.6"/>` },
+  { key:'cold', name:'Cold', desc:'Холодный', tag:'used', path:`<line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/><line x1="19.1" y1="4.9" x2="4.9" y2="19.1"/>` },
+  { key:'warm', name:'Warm', desc:'Тёплый', tag:'used', path:`<path d="M12 2c2 5 7 7 7 13a7 7 0 0 1-14 0c0-3 2-5 3-6 0 2 1 4 2 4 0-3 1-8 2-11z"/>` },
+  { key:'card', name:'Card', desc:'Карта', tag:'used', path:`<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>` },
+  { key:'vault', name:'Vault', desc:'Сейф', tag:'new', path:`<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="8" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="16"/>` },
+  { key:'hardware', name:'Hardware', desc:'Аппаратный', tag:'new', path:`<rect x="7" y="3" width="10" height="18" rx="2"/><circle cx="12" cy="18" r="0.8" fill="currentColor" stroke="none"/>` },
+  { key:'paper', name:'Paper', desc:'Бумажный', tag:'new', path:`<rect x="4" y="4" width="16" height="16" rx="1"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="13" y2="15"/>` },
+  { key:'multisig', name:'Multisig', desc:'Мультиподпись', tag:'new', path:`<circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><circle cx="14" cy="17" r="2.5"/><path d="M9 10v8M11 17l-2 2"/>` },
+  { key:'account', name:'Account', desc:'Аккаунт', tag:'new', path:`<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>` },
+  { key:'piggy', name:'Piggy', desc:'Сбережения', tag:'new', path:`<path d="M5 12c0-3 3-5 7-5s7 2 7 5v4a2 2 0 0 1-2 2h-1v2h-2v-2h-4v2H8v-2H7a2 2 0 0 1-2-2v-4z"/><circle cx="9" cy="12" r="0.8" fill="currentColor" stroke="none"/><path d="M19 10h2v4h-2"/>` },
+  { key:'safe', name:'Safe', desc:'Хранилище', tag:'new', path:`<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="9" x2="12" y2="6"/>` },
+  { key:'watch-only', name:'Watch Only', desc:'Только просмотр', tag:'new', path:`<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>` },
+]},
+{ cat:'БЕЗОПАСНОСТЬ', icons:[
+  { key:'shield', name:'Shield', desc:'Щит', tag:'used', path:`<path d="M12 2l8 4v6c0 5-3.4 8.9-8 10-4.6-1.1-8-5-8-10V6z"/>` },
+  { key:'shield-check', name:'Shield Check', desc:'Проверено', tag:'used', path:`<path d="M12 2l8 4v6c0 5-3.4 8.9-8 10-4.6-1.1-8-5-8-10V6z"/><polyline points="9 12 11 14 15 10"/>` },
+  { key:'shield-x', name:'Shield X', desc:'Опасно', tag:'new', path:`<path d="M12 2l8 4v6c0 5-3.4 8.9-8 10-4.6-1.1-8-5-8-10V6z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>` },
+  { key:'lock', name:'Lock', desc:'Заблокировано', tag:'used', path:`<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>` },
+  { key:'lock-open', name:'Unlock', desc:'Открыто', tag:'new', path:`<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>` },
+  { key:'key', name:'Key', desc:'Ключ', tag:'used', path:`<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5L21 2M15 6l3 3M18 4l2 2"/>` },
+  { key:'private-key', name:'Private Key', desc:'Приватный ключ', tag:'used', path:`<circle cx="12" cy="12" r="3.5"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/>` },
+  { key:'fingerprint', name:'Fingerprint', desc:'Отпечаток', tag:'used', path:`<path d="M12 11a4 4 0 0 1 4 4v2a2 2 0 0 0 2 2h1"/><path d="M8 15v-4a4 4 0 0 1 6.9-2.7"/><path d="M5 17v-6a7 7 0 0 1 14 0v3"/><path d="M9 19v-4a3 3 0 0 1 6 0v3"/>` },
+  { key:'pattern', name:'Pattern', desc:'Граф. пароль', tag:'used', path:`<circle cx="5" cy="5" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="19" cy="5" r="1.5"/><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="19" r="1.5"/><circle cx="12" cy="19" r="1.5"/><circle cx="19" cy="19" r="1.5"/>` },
+  { key:'pin', name:'PIN', desc:'PIN', tag:'used', path:`<rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/>` },
+  { key:'qr', name:'QR Code', desc:'QR', tag:'used', path:`<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/>` },
+  { key:'scan', name:'Scan', desc:'Сканирование', tag:'new', path:`<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="3" y1="12" x2="21" y2="12"/>` },
+  { key:'eye', name:'Eye', desc:'Показать', tag:'used', path:`<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>` },
+  { key:'eye-off', name:'Eye Off', desc:'Скрыть', tag:'used', path:`<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>` },
+  { key:'whitelist', name:'Whitelist', desc:'Белый список', tag:'used', path:`<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>` },
+  { key:'blocklist', name:'Blocklist', desc:'Чёрный список', tag:'used', path:`<circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>` },
+  { key:'alert-shield', name:'Alert Shield', desc:'Опасный контракт', tag:'new', path:`<path d="M12 2l8 4v6c0 5-3.4 8.9-8 10-4.6-1.1-8-5-8-10V6z"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.8" fill="currentColor" stroke="none"/>` },
+  { key:'warning', name:'Warning', desc:'Внимание', tag:'used', path:`<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>` },
+  { key:'sessions', name:'Sessions', desc:'Сессии', tag:'used', path:`<rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/>` },
+  { key:'firewall', name:'Firewall', desc:'Файрвол', tag:'new', path:`<rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>` },
+]},
+{ cat:'АКТИВЫ', icons:[
+  { key:'coin', name:'Coin', desc:'Монета', tag:'used', path:`<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/>` },
+  { key:'token', name:'Token', desc:'Токен', tag:'new', path:`<circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>` },
+  { key:'nft', name:'NFT', desc:'NFT', tag:'new', path:`<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>` },
+  { key:'bitcoin', name:'Bitcoin', desc:'BTC', tag:'new', path:`<circle cx="12" cy="12" r="9"/><path d="M9 8h4.5a2.5 2.5 0 0 1 0 5H9zM9 13h5a2.5 2.5 0 0 1 0 5H9zM9 6v12"/>` },
+  { key:'ethereum', name:'Ethereum', desc:'ETH', tag:'new', path:`<path d="M12 2L4 13l8 5 8-5z"/><path d="M12 2v16M12 22l8-5M12 22l-8-5"/>` },
+  { key:'chart', name:'Chart', desc:'График', tag:'used', path:`<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>` },
+  { key:'trend-up', name:'Trend Up', desc:'Рост', tag:'used', path:`<path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/>` },
+  { key:'trend-down', name:'Trend Down', desc:'Падение', tag:'new', path:`<path d="M3 7l5 5 4-4 8 8"/><path d="M14 16h6v-6"/>` },
+  { key:'dollar', name:'Dollar', desc:'Фиат', tag:'used', path:`<line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>` },
+  { key:'euro', name:'Euro', desc:'EUR', tag:'new', path:`<path d="M18 6a8 8 0 1 0 0 12M4 10h10M4 14h10"/>` },
+  { key:'balance', name:'Balance', desc:'Баланс', tag:'new', path:`<path d="M3 6h18M3 12h18M3 18h18"/>` },
+  { key:'supply', name:'Supply', desc:'Запас', tag:'new', path:`<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>` },
+  { key:'holders', name:'Holders', desc:'Держатели', tag:'new', path:`<circle cx="9" cy="8" r="3"/><path d="M2 20a7 7 0 0 1 14 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 20a5 5 0 0 1 7-4.5"/>` },
+  { key:'portfolio', name:'Portfolio', desc:'Портфель', tag:'new', path:`<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="2" y1="12" x2="22" y2="12"/>` },
+]},
+{ cat:'AI / АВТО', icons:[
+  { key:'ai', name:'AI', desc:'AI-ассистент', tag:'used', path:`<line x1="9" y1="3" x2="9" y2="6"/><line x1="15" y1="3" x2="15" y2="6"/><rect x="4" y="6" width="16" height="14" rx="2"/><rect x="8" y="10" width="2" height="2" fill="currentColor" stroke="none"/><rect x="14" y="10" width="2" height="2" fill="currentColor" stroke="none"/><line x1="9" y1="15" x2="15" y2="15"/>` },
+  { key:'sparkle', name:'Sparkle', desc:'Искра', tag:'used', path:`<path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/>` },
+  { key:'sparkles', name:'Sparkles', desc:'Искры', tag:'new', path:`<path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M19 15l.7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9z"/>` },
+  { key:'lightning', name:'Lightning', desc:'Энергия', tag:'used', path:`<path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/>` },
+  { key:'atom', name:'Atom', desc:'Квантовая', tag:'used', path:`<circle cx="12" cy="12" r="2.5"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/>` },
+  { key:'brain', name:'Brain', desc:'AI-мозг', tag:'new', path:`<path d="M9 3a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3z"/><path d="M15 3a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3 3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"/>` },
+  { key:'processor', name:'Processor', desc:'Обработка', tag:'new', path:`<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="2" x2="9" y2="6"/><line x1="15" y1="2" x2="15" y2="6"/>` },
+  { key:'magic', name:'Magic', desc:'Авто', tag:'new', path:`<path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5z"/>` },
+  { key:'robot', name:'Robot', desc:'Робот', tag:'new', path:`<rect x="3" y="8" width="18" height="12" rx="2"/><circle cx="8.5" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="15.5" cy="14" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="18" x2="15" y2="18"/>` },
+]},
+{ cat:'ВРЕМЯ', icons:[
+  { key:'clock', name:'Clock', desc:'Время', tag:'used', path:`<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>` },
+  { key:'timer', name:'Timer', desc:'Таймер', tag:'used', path:`<circle cx="12" cy="13" r="8"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="9" y1="2" x2="15" y2="2"/><line x1="12" y1="2" x2="12" y2="4"/>` },
+  { key:'history', name:'History', desc:'История', tag:'used', path:`<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>` },
+  { key:'calendar', name:'Calendar', desc:'Календарь', tag:'used', path:`<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>` },
+  { key:'hourglass', name:'Hourglass', desc:'Дедлайн', tag:'new', path:`<path d="M5 22h14M5 2h14M17 22v-4.17a2 2 0 0 0-.586-1.414L12 12l-4.414 4.416A2 2 0 0 0 7 17.83V22M7 2v4.17a2 2 0 0 0 .586 1.414L12 12l4.414-4.416A2 2 0 0 0 17 6.17V2"/>` },
+  { key:'expire', name:'Expired', desc:'Истёк', tag:'new', path:`<circle cx="12" cy="12" r="9"/><path d="M8 8l8 8M16 8l-8 8"/>` },
+  { key:'refresh', name:'Refresh', desc:'Обновить', tag:'used', path:`<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>` },
+  { key:'sync', name:'Sync', desc:'Синхронизация', tag:'new', path:`<path d="M4 4v6h6M20 20v-6h-6"/><path d="M20 10A8 8 0 0 0 6 5.3L4 7M4 14a8 8 0 0 0 14 4.7L20 17"/>` },
+  { key:'schedule', name:'Schedule', desc:'Расписание', tag:'new', path:`<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>` },
+]},
+{ cat:'НАВИГАЦИЯ', icons:[
+  { key:'menu', name:'Menu', desc:'Меню', tag:'used', path:`<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>` },
+  { key:'back', name:'Back', desc:'Назад', tag:'used', path:`<path d="M15 18l-6-6 6-6"/>` },
+  { key:'forward', name:'Forward', desc:'Вперёд', tag:'used', path:`<path d="M9 18l6-6-6-6"/>` },
+  { key:'arrow-left', name:'Arrow Left', desc:'Влево', tag:'used', path:`<path d="M19 12H5M12 19l-7-7 7-7"/>` },
+  { key:'arrow-right', name:'Arrow Right', desc:'Вправо', tag:'used', path:`<path d="M5 12h14M12 5l7 7-7 7"/>` },
+  { key:'arrow-up', name:'Arrow Up', desc:'Вверх', tag:'used', path:`<path d="M12 19V5M5 12l7-7 7 7"/>` },
+  { key:'arrow-down', name:'Arrow Down', desc:'Вниз', tag:'used', path:`<path d="M12 5v14M5 12l7 7 7-7"/>` },
+  { key:'chevron-down', name:'Chevron Down', desc:'Раскрыть', tag:'used', path:`<polyline points="6 9 12 15 18 9"/>` },
+  { key:'chevron-up', name:'Chevron Up', desc:'Свернуть', tag:'used', path:`<polyline points="6 15 12 9 18 15"/>` },
+  { key:'close', name:'Close', desc:'Закрыть', tag:'used', path:`<path d="M18 6L6 18M6 6l12 12"/>` },
+  { key:'plus', name:'Plus', desc:'Добавить', tag:'used', path:`<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>` },
+  { key:'minus', name:'Minus', desc:'Минус', tag:'used', path:`<line x1="5" y1="12" x2="19" y2="12"/>` },
+  { key:'settings', name:'Settings', desc:'Настройки', tag:'used', path:`<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>` },
+  { key:'search', name:'Search', desc:'Поиск', tag:'used', path:`<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>` },
+  { key:'filter', name:'Filter', desc:'Фильтр', tag:'new', path:`<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>` },
+  { key:'info', name:'Info', desc:'Инфо', tag:'used', path:`<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>` },
+  { key:'help', name:'Help', desc:'Помощь', tag:'new', path:`<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>` },
+  { key:'external', name:'External', desc:'Внешняя', tag:'new', path:`<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>` },
+  { key:'home', name:'Home', desc:'Домой', tag:'new', path:`<path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/>` },
+]},
+{ cat:'СТАТУСЫ', icons:[
+  { key:'check', name:'Check', desc:'Успех', tag:'used', path:`<polyline points="5 12 10 17 19 7"/>` },
+  { key:'check-circle', name:'Check Circle', desc:'Готово', tag:'used', path:`<circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/>` },
+  { key:'error', name:'Error', desc:'Ошибка', tag:'used', path:`<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>` },
+  { key:'alert', name:'Alert', desc:'Внимание', tag:'used', path:`<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>` },
+  { key:'loading', name:'Loading', desc:'Загрузка', tag:'used', path:`<path d="M21 12a9 9 0 1 1-6.219-8.56"/>` },
+  { key:'live', name:'Live', desc:'Активно', tag:'used', path:`<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="7" opacity=".5"/><circle cx="12" cy="12" r="10" opacity=".25"/>` },
+  { key:'dot', name:'Dot', desc:'Точка', tag:'used', path:`<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>` },
+  { key:'bell', name:'Bell', desc:'Уведомления', tag:'new', path:`<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>` },
+  { key:'bell-off', name:'Bell Off', desc:'Без увед.', tag:'new', path:`<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><line x1="1" y1="1" x2="23" y2="23"/>` },
+  { key:'badge-check', name:'Badge Check', desc:'Значок', tag:'new', path:`<path d="M12 2l2.4 2.1 3.2-.5.9 3.1 2.9 1.4-1.1 3.1 1.1 3.1-2.9 1.4-.9 3.1-3.2-.5L12 22l-2.4-2.1-3.2.5-.9-3.1-2.9-1.4 1.1-3.1-1.1-3.1 2.9-1.4.9-3.1 3.2.5z"/><polyline points="9 12 11 14 15 10"/>` },
+]},
+{ cat:'ФАЙЛЫ', icons:[
+  { key:'file', name:'File', desc:'Файл', tag:'used', path:`<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>` },
+  { key:'folder', name:'Folder', desc:'Папка', tag:'new', path:`<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>` },
+  { key:'file-key', name:'File Key', desc:'Файл ключа', tag:'new', path:`<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><circle cx="10" cy="15" r="2"/><path d="M11.5 15h5"/>` },
+  { key:'download', name:'Download', desc:'Скачать', tag:'used', path:`<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>` },
+  { key:'upload', name:'Upload', desc:'Загрузить', tag:'new', path:`<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>` },
+  { key:'receipt', name:'Receipt', desc:'Чек', tag:'used', path:`<path d="M4 2h16v20l-3-2-2 2-3-2-3 2-2-2-3 2z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/>` },
+  { key:'attach', name:'Attach', desc:'Скрепка', tag:'used', path:`<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>` },
+  { key:'print', name:'Print', desc:'Печать', tag:'new', path:`<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>` },
+]},
+{ cat:'КОПИРОВАНИЕ', icons:[
+  { key:'copy', name:'Copy', desc:'Копировать', tag:'used', path:`<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>` },
+  { key:'paste', name:'Paste', desc:'Вставить', tag:'new', path:`<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>` },
+  { key:'share', name:'Share', desc:'Поделиться', tag:'new', path:`<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>` },
+  { key:'link', name:'Link', desc:'Ссылка', tag:'used', path:`<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>` },
+  { key:'edit', name:'Edit', desc:'Правка', tag:'used', path:`<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4z"/>` },
+  { key:'trash', name:'Trash', desc:'Удалить', tag:'used', path:`<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>` },
+  { key:'save', name:'Save', desc:'Сохранить', tag:'new', path:`<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/>` },
+]},
+{ cat:'СЕТЬ', icons:[
+  { key:'globe', name:'Globe', desc:'Глобус', tag:'used', path:`<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>` },
+  { key:'chain', name:'Chain', desc:'Блокчейн', tag:'used', path:`<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>` },
+  { key:'node', name:'Node', desc:'Нода', tag:'new', path:`<circle cx="12" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><line x1="12" y1="9" x2="7" y2="15.5"/><line x1="12" y1="9" x2="17" y2="15.5"/>` },
+  { key:'signal', name:'Signal', desc:'Сигнал', tag:'new', path:`<path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 4v16"/>` },
+  { key:'wifi', name:'Wi-Fi', desc:'Wi-Fi', tag:'new', path:`<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>` },
+  { key:'database', name:'Database', desc:'БД', tag:'new', path:`<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>` },
+  { key:'server', name:'Server', desc:'Сервер', tag:'used', path:`<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/>` },
+  { key:'cloud', name:'Cloud', desc:'Облако', tag:'new', path:`<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>` },
+  { key:'api', name:'API', desc:'API', tag:'new', path:`<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>` },
+]},
+{ cat:'УСТРОЙСТВА', icons:[
+  { key:'device', name:'Device', desc:'Устройство', tag:'used', path:`<rect x="2" y="8" width="13" height="11" rx="2"/><path d="M2 12h13"/><circle cx="12" cy="15.5" r="1" fill="currentColor" stroke="none"/><path d="M17 9 Q18 8 17 7"/>` },
+  { key:'smartphone', name:'Smartphone', desc:'Телефон', tag:'new', path:`<rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="0.8" fill="currentColor" stroke="none"/>` },
+  { key:'tablet', name:'Tablet', desc:'Планшет', tag:'new', path:`<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="18" r="0.8" fill="currentColor" stroke="none"/>` },
+  { key:'laptop', name:'Laptop', desc:'Ноутбук', tag:'new', path:`<path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 17h20"/>` },
+  { key:'monitor', name:'Monitor', desc:'Монитор', tag:'new', path:`<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>` },
+  { key:'browser', name:'Browser', desc:'Браузер', tag:'used', path:`<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>` },
+]},
+{ cat:'ПОДПИСКИ', icons:[
+  { key:'star', name:'Star', desc:'Избранное', tag:'used', path:`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>` },
+  { key:'star-filled', name:'Star Filled', desc:'Активна', tag:'new', path:`<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/>` },
+  { key:'crown', name:'Crown', desc:'Премиум', tag:'new', path:`<path d="M3 18l2-11 5 5 2-8 2 8 5-5 2 11z"/><line x1="3" y1="21" x2="21" y2="21"/>` },
+  { key:'diamond', name:'Diamond', desc:'VIP', tag:'new', path:`<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21L8 9l4-6 4 6z"/>` },
+  { key:'gift', name:'Gift', desc:'Подарок', tag:'new', path:`<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/>` },
+  { key:'tier', name:'Tier', desc:'Уровень', tag:'new', path:`<path d="M3 20h18M5 16h14M7 12h10M9 8h6M11 4h2"/>` },
+  { key:'upgrade', name:'Upgrade', desc:'Повышение', tag:'new', path:`<path d="M12 19V5M5 12l7-7 7 7"/><line x1="4" y1="21" x2="20" y2="21"/>` },
+]},
+{ cat:'ГРАФИКИ', icons:[
+  { key:'bar-chart', name:'Bar Chart', desc:'Столбики', tag:'used', path:`<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>` },
+  { key:'line-chart', name:'Line Chart', desc:'Линия', tag:'new', path:`<polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/>` },
+  { key:'pie-chart', name:'Pie Chart', desc:'Круговая', tag:'new', path:`<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>` },
+  { key:'donut', name:'Donut', desc:'Пончик', tag:'new', path:`<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>` },
+  { key:'activity', name:'Activity', desc:'Активность', tag:'new', path:`<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>` },
+  { key:'target', name:'Target', desc:'Цель', tag:'new', path:`<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>` },
+]},
+{ cat:'КОММУНИКАЦИИ', icons:[
+  { key:'message', name:'Message', desc:'Сообщение', tag:'used', path:`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>` },
+  { key:'chat', name:'Chat', desc:'Чат', tag:'new', path:`<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>` },
+  { key:'mail', name:'Mail', desc:'Почта', tag:'new', path:`<rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 6 12 13 2 6"/>` },
+  { key:'phone', name:'Phone', desc:'Телефон', tag:'new', path:`<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>` },
+  { key:'user', name:'User', desc:'Профиль', tag:'new', path:`<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>` },
+  { key:'users', name:'Users', desc:'Группа', tag:'new', path:`<circle cx="9" cy="8" r="3"/><path d="M2 20a7 7 0 0 1 14 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 20a5 5 0 0 1 7-4.5"/>` },
+  { key:'logout', name:'Logout', desc:'Выйти', tag:'new', path:`<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>` },
+  { key:'login', name:'Login', desc:'Войти', tag:'new', path:`<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>` },
+]},
+{ cat:'УНИВЕРСАЛЬНЫЕ', icons:[
+  { key:'loop', name:'Loop', desc:'Цикл', tag:'new', path:`<path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>` },
+  { key:'layers', name:'Layers', desc:'Слои', tag:'new', path:`<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>` },
+  { key:'package', name:'Package', desc:'Пакет', tag:'new', path:`<path d="M16.5 9.4L7.5 4.21M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>` },
+  { key:'box', name:'Box', desc:'Коробка', tag:'new', path:`<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>` },
+  { key:'list', name:'List', desc:'Список', tag:'new', path:`<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.2" fill="currentColor" stroke="none"/>` },
+  { key:'layout', name:'Layout', desc:'Раскладка', tag:'new', path:`<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>` },
+  { key:'power', name:'Power', desc:'Питание', tag:'new', path:`<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>` },
+  { key:'hash', name:'Hash', desc:'Хэш', tag:'new', path:`<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>` },
+  { key:'tag', name:'Tag', desc:'Тег', tag:'new', path:`<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>` },
+  { key:'bookmark', name:'Bookmark', desc:'Закладка', tag:'new', path:`<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>` },
+  { key:'flag', name:'Flag', desc:'Флаг', tag:'new', path:`<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>` },
+  { key:'pin', name:'Pin', desc:'Метка', tag:'new', path:`<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>` },
+  { key:'camera', name:'Camera', desc:'Камера', tag:'new', path:`<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>` },
+  { key:'image', name:'Image', desc:'Изображение', tag:'new', path:`<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>` },
+  { key:'mic', name:'Mic', desc:'Микрофон', tag:'used', path:`<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/>` },
+  { key:'volume', name:'Volume', desc:'Звук', tag:'new', path:`<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>` },
+  { key:'sun', name:'Sun', desc:'Светлая тема', tag:'new', path:`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/>` },
+  { key:'moon', name:'Moon', desc:'Тёмная тема', tag:'new', path:`<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>` },
+  { key:'command', name:'Command', desc:'⌘', tag:'new', path:`<path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/>` },
+  { key:'puzzle', name:'Puzzle', desc:'Пазл', tag:'new', path:`<path d="M19 13h-2v3a2 2 0 0 1-2 2h-3v2a2 2 0 1 1-4 0v-2H5a2 2 0 0 1-2-2v-3h2a2 2 0 1 0 0-4H3V7a2 2 0 0 1 2-2h3V3a2 2 0 1 1 4 0v2h3a2 2 0 0 1 2 2v3h2a2 2 0 1 1 0 4z"/>` },
+  { key:'gauge', name:'Gauge', desc:'Спидометр', tag:'new', path:`<path d="M12 14l4-4"/><circle cx="12" cy="14" r="1" fill="currentColor" stroke="none"/><path d="M3 17a9 9 0 1 1 18 0"/>` },
+  { key:'flame', name:'Flame', desc:'Огонь', tag:'new', path:`<path d="M12 2c2 5 7 7 7 13a7 7 0 0 1-14 0c0-3 2-5 3-6 0 2 1 4 2 4 0-3 1-8 2-11z"/>` },
+  { key:'droplet', name:'Droplet', desc:'Капля', tag:'new', path:`<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>` },
+  { key:'anchor', name:'Anchor', desc:'Якорь', tag:'new', path:`<circle cx="12" cy="5" r="3"/><line x1="12" y1="22" x2="12" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/>` },
+  { key:'compass', name:'Compass', desc:'Компас', tag:'new', path:`<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>` },
+  { key:'rocket', name:'Rocket', desc:'Ракета', tag:'new', path:`<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09zM12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>` },
+  { key:'hexagon', name:'Hexagon', desc:'Гексагон', tag:'new', path:`<polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/>` },
+  { key:'triangle', name:'Triangle', desc:'Треугольник', tag:'new', path:`<polygon points="12 2 22 20 2 20 12 2"/>` },
+]},
+{ cat:'ДОПОЛНИТЕЛЬНО', icons:[
+  { key:'help-circle', name:'Help Circle', desc:'Подсказка', tag:'new', path:`<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>` },
+  { key:'cpu', name:'CPU', desc:'Чип', tag:'new', path:`<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/>` },
+  { key:'terminal', name:'Terminal', desc:'Терминал', tag:'new', path:`<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>` },
+  { key:'code', name:'Code', desc:'Код', tag:'new', path:`<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>` },
+  { key:'bug', name:'Bug', desc:'Баг', tag:'new', path:`<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 9h-3M5 9h3M19 13h-3M5 13h3M19 17h-3M5 17h3M12 2v4"/>` },
+  { key:'lightbulb', name:'Lightbulb', desc:'Идея', tag:'new', path:`<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V18h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/>` },
+  { key:'palette', name:'Palette', desc:'Палитра', tag:'new', path:`<circle cx="13.5" cy="6.5" r="2.5"/><circle cx="19" cy="13" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="10" cy="19" r="2.5"/>` },
+]},
+];
+
+/* ================= BUTTONS (расширено) ================= */
+const BUTTON_DATA = [
+{ cat:'ОСНОВНЫЕ', items:[
+  { key:'btn-primary', name:'Primary', desc:'Основное действие',
+    html:`<button style="padding:14px 24px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;box-shadow:0 0 22px -8px var(--neon)">ПОДТВЕРДИТЬ</button>` },
+  { key:'btn-secondary', name:'Secondary', desc:'Второстепенное',
+    html:`<button style="padding:14px 24px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">ОТМЕНА</button>` },
+  { key:'btn-ghost', name:'Ghost', desc:'Прозрачная',
+    html:`<button style="padding:14px 24px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">ПРОПУСТИТЬ</button>` },
+  { key:'btn-danger', name:'Danger', desc:'Опасное',
+    html:`<button style="padding:14px 24px;background:linear-gradient(180deg,rgba(255,59,107,.18),transparent);border:1px solid var(--danger);border-radius:10px;color:var(--danger);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;box-shadow:0 0 22px -8px var(--danger)">УДАЛИТЬ</button>` },
+  { key:'btn-success', name:'Success', desc:'Успех',
+    html:`<button style="padding:14px 24px;background:linear-gradient(180deg,rgba(0,255,170,.18),transparent);border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;box-shadow:0 0 22px -8px var(--neon)">ГОТОВО</button>` },
+  { key:'btn-warning', name:'Warning', desc:'Внимание',
+    html:`<button style="padding:14px 24px;background:linear-gradient(180deg,rgba(255,212,0,.15),transparent);border:1px solid var(--gold);border-radius:10px;color:var(--gold);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">ВНИМАНИЕ</button>` },
+  { key:'btn-info', name:'Info', desc:'Инфо',
+    html:`<button style="padding:14px 24px;background:linear-gradient(180deg,rgba(0,217,255,.15),transparent);border:1px solid var(--cyan);border-radius:10px;color:var(--cyan);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">ПОДРОБНЕЕ</button>` },
+]},
+{ cat:'С ИКОНКОЙ', items:[
+  { key:'btn-icon-only', name:'Icon Only', desc:'Только иконка',
+    html:`<button style="width:34px;height:34px;border-radius:9px;background:transparent;border:1px solid var(--border);color:var(--text);cursor:pointer;display:grid;place-items:center;padding:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>` },
+  { key:'btn-icon-left', name:'Icon Left', desc:'Иконка + текст',
+    html:`<button style="padding:12px 18px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>ОТПРАВИТЬ</button>` },
+  { key:'btn-icon-right', name:'Icon Right', desc:'Текст + иконка',
+    html:`<button style="padding:12px 18px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:8px">ДАЛЬШЕ<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>` },
+  { key:'btn-icon-top', name:'Icon Top', desc:'Иконка над текстом',
+    html:`<button style="padding:12px 14px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:10px;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>SEND</button>` },
+  { key:'btn-with-badge', name:'With Badge', desc:'С числом',
+    html:`<button style="position:relative;padding:12px 18px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:6px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>СООБЩЕНИЯ<span style="position:absolute;top:-6px;right:-6px;background:var(--neon);color:#08090b;font-size:9px;padding:2px 6px;border-radius:999px;font-weight:800">3</span></button>` },
+  { key:'btn-copy', name:'Copy', desc:'Копирование',
+    html:`<button style="width:30px;height:30px;border-radius:8px;background:rgba(255,59,107,.08);border:1px solid rgba(255,59,107,.4);color:var(--danger);cursor:pointer;display:grid;place-items:center;padding:0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>` },
+  { key:'btn-close', name:'Close', desc:'Закрыть',
+    html:`<button style="width:32px;height:32px;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:9px;cursor:pointer;display:grid;place-items:center;font-size:14px">✕</button>` },
+  { key:'btn-menu-dots', name:'Menu Dots', desc:'Три точки',
+    html:`<button style="width:34px;height:34px;border-radius:9px;background:transparent;border:1px solid var(--border);color:var(--text);cursor:pointer;display:grid;place-items:center;padding:0"><svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="19" r="1.5" fill="currentColor"/></svg></button>` },
+]},
+{ cat:'СОЦИАЛЬНЫЕ И СЕТИ', items:[
+  { key:'btn-google', name:'Google', desc:'Google Play/вход',
+    html:`<button style="padding:12px 18px;background:rgba(0,0,0,.5);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:10px;width:100%;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3.6 2.6c-.3.3-.5.8-.5 1.4v16c0 .6.2 1.1.5 1.4l.1.1L13 12 3.7 2.5l-.1.1z"/><path d="M16.5 8.7L5.2 2.2c-.5-.3-1-.3-1.4 0l9.3 9.3 3.4-2.8z" opacity=".85"/><path d="M16.5 15.3l-3.4-2.8L3.8 21.8c.4.3.9.3 1.4 0l11.3-6.5z" opacity=".85"/><path d="M16.5 8.7L20.4 11c.9.5.9 1.5 0 2l-3.9 2.3-3.5-3.3 3.5-3.3z" opacity=".7"/></svg>Google Play</button>` },
+  { key:'btn-apple', name:'Apple', desc:'App Store/вход',
+    html:`<button style="padding:12px 18px;background:rgba(0,0,0,.5);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:10px;width:100%;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>App Store</button>` },
+  { key:'btn-walletconnect', name:'WalletConnect', desc:'WalletConnect',
+    html:`<button style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.4);border-radius:10px;color:#60a5fa;font-family:inherit;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>WalletConnect</button>` },
+  { key:'btn-metamask', name:'MetaMask', desc:'MetaMask',
+    html:`<button style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;background:rgba(255,140,0,.08);border:1px solid rgba(255,140,0,.4);border-radius:10px;color:#ff8c00;font-family:inherit;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700"><span style="font-size:16px">🦊</span>MetaMask</button>` },
+  { key:'btn-social-row', name:'Social Row', desc:'Соцсети в ряд',
+    html:`<div style="display:flex;gap:8px;width:100%"><button style="flex:1;padding:12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;font-weight:700;font-size:14px">𝕏</button><button style="flex:1;padding:12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;font-weight:700;font-size:14px">f</button><button style="flex:1;padding:12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;font-weight:700;font-size:14px">in</button></div>` },
+]},
+{ cat:'РАЗМЕРЫ', items:[
+  { key:'btn-sm', name:'Small', desc:'Маленькая',
+    html:`<button style="padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-weight:700">SMALL</button>` },
+  { key:'btn-md', name:'Medium', desc:'Средняя',
+    html:`<button style="padding:12px 20px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700">MEDIUM</button>` },
+  { key:'btn-lg', name:'Large', desc:'Большая',
+    html:`<button style="padding:16px 32px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:14px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">LARGE</button>` },
+  { key:'btn-full', name:'Full Width', desc:'На всю ширину',
+    html:`<button style="width:100%;padding:15px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:13px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;box-shadow:0 0 22px -8px var(--neon)">ПОДТВЕРДИТЬ</button>` },
+  { key:'btn-circle', name:'Circle', desc:'Круглая',
+    html:`<button style="width:46px;height:46px;border-radius:50%;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);color:var(--neon);cursor:pointer;display:grid;place-items:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>` },
+  { key:'btn-fab', name:'FAB', desc:'Плавающая',
+    html:`<button style="width:54px;height:54px;border-radius:50%;background:var(--neon);border:none;color:#08090b;font-size:24px;font-weight:700;box-shadow:0 0 24px var(--neon-dim);cursor:pointer;display:grid;place-items:center">+</button>` },
+  { key:'btn-pill', name:'Pill', desc:'Овальная',
+    html:`<button style="padding:12px 26px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:999px;color:var(--text);font-family:inherit;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700">PILL</button>` },
+]},
+{ cat:'ГРУППЫ И ПАРЫ', items:[
+  { key:'btn-pair-primary', name:'Primary Pair', desc:'Primary + Ghost',
+    html:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%"><button style="padding:14px 12px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">ДА</button><button style="padding:14px 12px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--muted);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">НЕТ</button></div>` },
+  { key:'btn-pair-danger', name:'Danger Pair', desc:'Danger + Ghost',
+    html:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%"><button style="padding:14px 12px;background:linear-gradient(180deg,rgba(255,59,107,.18),transparent);border:1px solid var(--danger);border-radius:12px;color:var(--danger);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">УДАЛИТЬ</button><button style="padding:14px 12px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--muted);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">ОТМЕНА</button></div>` },
+  { key:'btn-tabs', name:'Tabs', desc:'Табы',
+    html:`<div style="display:flex;gap:4px;background:rgba(0,0,0,.4);padding:4px;border-radius:10px;border:1px solid var(--border);width:100%"><button style="flex:1;padding:10px;background:var(--neon-dim);border:none;color:var(--neon);font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border-radius:7px;font-weight:700">ВСЕ</button><button style="flex:1;padding:10px;background:transparent;border:none;color:var(--muted);font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border-radius:7px;font-weight:700">МОИ</button><button style="flex:1;padding:10px;background:transparent;border:none;color:var(--muted);font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border-radius:7px;font-weight:700">АРХИВ</button></div>` },
+  { key:'btn-chips', name:'Chips', desc:'Чипы',
+    html:`<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center"><button style="padding:7px 14px;border:1px solid var(--neon);border-radius:999px;background:var(--neon-dim);color:var(--neon);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">10</button><button style="padding:7px 14px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.35);color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">25</button><button style="padding:7px 14px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.35);color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">50</button><button style="padding:7px 14px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.35);color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">MAX</button></div>` },
+  { key:'btn-segmented', name:'Segmented', desc:'Сегментированная',
+    html:`<div style="display:inline-flex;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;padding:3px;gap:2px"><button style="padding:8px 16px;background:var(--neon-dim);border:none;border-radius:7px;color:var(--neon);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">ДЕНЬ</button><button style="padding:8px 16px;background:transparent;border:none;border-radius:7px;color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">НЕД</button><button style="padding:8px 16px;background:transparent;border:none;border-radius:7px;color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">МЕС</button></div>` },
+  { key:'btn-stepper', name:'Stepper', desc:'Счётчик +/-',
+    html:`<div style="display:inline-flex;align-items:center;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;overflow:hidden"><button style="width:38px;height:38px;background:transparent;border:none;color:var(--text);cursor:pointer;font-size:16px;font-weight:700">−</button><span style="padding:0 16px;font-weight:700;font-variant-numeric:tabular-nums">25</span><button style="width:38px;height:38px;background:transparent;border:none;color:var(--text);cursor:pointer;font-size:16px;font-weight:700">+</button></div>` },
+  { key:'btn-pagination', name:'Pagination', desc:'Пагинация',
+    html:`<div style="display:flex;gap:4px;justify-content:center;align-items:center"><button style="width:34px;height:34px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer">‹</button><button style="width:34px;height:34px;background:var(--neon-dim);border:1px solid var(--neon);border-radius:8px;color:var(--neon);font-weight:700;cursor:pointer">1</button><button style="width:34px;height:34px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer">2</button><button style="width:34px;height:34px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer">3</button><button style="width:34px;height:34px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer">›</button></div>` },
+]},
+{ cat:'СПЕЦИАЛЬНЫЕ', items:[
+  { key:'btn-pulse', name:'Pulse', desc:'Пульс',
+    html:`<button style="width:100%;padding:18px;border-radius:14px;font-family:inherit;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#08090b;cursor:pointer;border:none;background:linear-gradient(180deg,var(--neon),#00cc88);box-shadow:0 0 26px var(--neon),0 0 60px var(--neon-dim)">ПОДТВЕРДИТЬ</button>` },
+  { key:'btn-gradient', name:'Gradient', desc:'Градиент',
+    html:`<button style="padding:14px 28px;border-radius:12px;background:linear-gradient(135deg,var(--neon),var(--cyan));border:none;color:#08090b;font-family:inherit;font-size:13px;letter-spacing:2px;text-transform:uppercase;font-weight:700;cursor:pointer;box-shadow:0 0 26px -6px var(--neon)">ПОДПИСАТЬ</button>` },
+  { key:'btn-glass', name:'Glass', desc:'Стекло',
+    html:`<button style="padding:14px 24px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--text);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">GLASS</button>` },
+  { key:'btn-dashed', name:'Dashed', desc:'Пунктир',
+    html:`<button style="padding:14px 24px;border-radius:12px;background:transparent;border:2px dashed var(--neon);color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">+ ДОБАВИТЬ</button>` },
+  { key:'btn-upgrade', name:'Upgrade', desc:'Звёздочка',
+    html:`<button style="position:relative;width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(168,85,247,.18),rgba(255,43,214,.08));border:1px solid rgba(168,85,247,.5);color:#c084fc;cursor:pointer;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span style="position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:#a855f7;box-shadow:0 0 8px #a855f7"></span></button>` },
+  { key:'btn-loading', name:'Loading', desc:'Загрузка',
+    html:`<button style="padding:14px 24px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:wait;font-weight:700;display:inline-flex;align-items:center;gap:10px"><span style="width:14px;height:14px;border:2px solid var(--neon-dim);border-top-color:var(--neon);border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span>ЗАГРУЗКА...</button>` },
+  { key:'btn-disabled', name:'Disabled', desc:'Отключена',
+    html:`<button style="padding:15px;width:100%;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:13px;letter-spacing:2px;text-transform:uppercase;cursor:not-allowed;opacity:.4;font-weight:700" disabled>НЕДОСТУПНО</button>` },
+  { key:'btn-breadcrumbs', name:'Breadcrumbs', desc:'Хлебные крошки',
+    html:`<div style="display:flex;gap:6px;align-items:center;font-size:11px;flex-wrap:wrap"><button style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:4px 6px;font-family:inherit;font-size:11px">Главная</button><span style="color:var(--muted)">/</span><button style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:4px 6px;font-family:inherit;font-size:11px">Кошелёк</button><span style="color:var(--muted)">/</span><span style="color:var(--neon);padding:4px 6px;font-weight:700">Отправка</span></div>` },
+]},
+];
+
+/* ================= FIELDS (расширено) ================= */
+const FIELD_DATA = [
+{ cat:'ТЕКСТОВЫЕ', items:[
+  { key:'field-basic', name:'Basic', desc:'Простое',
+    html:`<input type="text" placeholder="0x..." style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/>` },
+  { key:'field-labeled', name:'Labeled', desc:'С подписью',
+    html:`<div style="width:100%"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">АДРЕС</label><input type="text" placeholder="0x..." style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/></div>` },
+  { key:'field-number', name:'Number', desc:'Число',
+    html:`<input type="number" step="0.0001" placeholder="0.0" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/>` },
+  { key:'field-password', name:'Password', desc:'Пароль',
+    html:`<input type="password" maxlength="9" inputmode="numeric" placeholder="•••••••••" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;text-align:center;letter-spacing:8px"/>` },
+  { key:'field-textarea', name:'Textarea', desc:'Многострочное',
+    html:`<textarea placeholder="Заметка..." maxlength="140" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:none;min-height:60px;line-height:1.5"></textarea>` },
+  { key:'field-textarea-counter', name:'Counter', desc:'С счётчиком',
+    html:`<div style="width:100%;position:relative"><textarea placeholder="Заметка..." maxlength="140" style="width:100%;padding:12px 14px 24px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:none;min-height:80px;line-height:1.5"></textarea><span style="position:absolute;bottom:6px;right:12px;font-size:9px;color:var(--muted);letter-spacing:1px">0/140</span></div>` },
+]},
+{ cat:'С ИКОНКОЙ / КНОПКОЙ', items:[
+  { key:'field-icon-left', name:'Icon Left', desc:'Иконка слева',
+    html:`<div style="position:relative;width:100%"><input type="text" placeholder="ПОИСК..." style="width:100%;padding:12px 14px 12px 38px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/><svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted);pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></div>` },
+  { key:'field-search-round', name:'Search Round', desc:'Круглый поиск',
+    html:`<div style="position:relative;width:100%"><input type="text" placeholder="Поиск..." style="width:100%;padding:12px 16px 12px 42px;background:rgba(20,22,26,.7);border:2px solid var(--neon-dim);border-radius:30px;color:var(--text);font-family:inherit;font-size:12px;letter-spacing:1px;outline:none;box-shadow:0 0 15px -5px var(--neon-dim)"/><svg style="position:absolute;left:16px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--neon);pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></div>` },
+  { key:'field-with-copy', name:'With Copy', desc:'С копированием',
+    html:`<div style="position:relative;width:100%"><input type="text" value="0x742d...5f0bEb0" readonly style="width:100%;padding:12px 40px 12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/><button style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--muted);cursor:pointer;padding:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>` },
+  { key:'field-with-qr', name:'With QR', desc:'С QR-кнопкой',
+    html:`<div style="position:relative;width:100%;display:flex;gap:6px"><input type="text" placeholder="0x..." style="flex:1;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/><button style="width:44px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--neon);cursor:pointer;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3z"/></svg></button></div>` },
+  { key:'field-with-max', name:'With MAX', desc:'С MAX-кнопкой',
+    html:`<div style="position:relative;width:100%"><input type="text" value="1.5" style="width:100%;padding:12px 60px 12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:16px;font-weight:700;outline:none"/><button style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--neon-dim);border:1px solid var(--neon);border-radius:6px;color:var(--neon);font-family:inherit;font-size:9px;letter-spacing:1px;padding:4px 8px;cursor:pointer;font-weight:700">MAX</button></div>` },
+  { key:'field-with-unit', name:'With Unit', desc:'С валютой',
+    html:`<div style="position:relative;width:100%"><input type="text" value="1.5" style="width:100%;padding:12px 70px 12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;font-weight:700;outline:none"/><span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--neon);font-size:11px;font-weight:700;letter-spacing:1px">ETH</span></div>` },
+]},
+{ cat:'СОСТОЯНИЯ', items:[
+  { key:'field-focus', name:'Focused', desc:'В фокусе',
+    html:`<input type="text" value="0x742d..." style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--neon);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-shadow:0 0 0 3px var(--neon-dim)"/>` },
+  { key:'field-error', name:'Error', desc:'Ошибка',
+    html:`<input type="text" value="неверный-адрес" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--danger);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-shadow:0 0 0 3px rgba(255,59,107,.2)"/>` },
+  { key:'field-success', name:'Success', desc:'Валидное',
+    html:`<input type="text" value="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--neon);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-shadow:0 0 0 3px var(--neon-dim)"/>` },
+  { key:'field-disabled', name:'Disabled', desc:'Отключено',
+    html:`<input type="text" value="0x742d..." disabled style="width:100%;padding:12px 14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.06);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;opacity:.55;cursor:not-allowed"/>` },
+]},
+{ cat:'ЧЕКБОКСЫ И ТОГГЛЫ', items:[
+  { key:'checkbox-row', name:'Checkbox', desc:'Чекбокс',
+    html:`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;cursor:pointer;width:100%"><input type="checkbox" style="appearance:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border);background:rgba(0,0,0,.4);cursor:pointer;flex-shrink:0;margin:0"/><span style="font-size:12px;color:var(--text);flex:1">Официальный контракт<small style="display:block;color:var(--muted);font-size:10px;margin-top:2px">Автоматически проверяется</small></span></label>` },
+  { key:'checkbox-checked', name:'Checked', desc:'Отмеченный',
+    html:`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;cursor:pointer;width:100%"><input type="checkbox" checked style="appearance:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--neon);background:var(--neon);box-shadow:0 0 12px var(--neon-dim);cursor:pointer;flex-shrink:0;margin:0;position:relative"/><span style="font-size:12px;color:var(--text);flex:1">Согласен с условиями</span></label>` },
+  { key:'toggle-on', name:'Toggle On', desc:'Включено',
+    html:`<div style="display:inline-flex;align-items:center;gap:10px"><div style="position:relative;width:44px;height:24px;background:var(--neon-dim);border-radius:12px;cursor:pointer;border:1px solid var(--neon)"><div style="position:absolute;top:2px;right:2px;width:18px;height:18px;background:var(--neon);border-radius:50%;box-shadow:0 0 10px var(--neon)"></div></div><span style="font-size:12px;color:var(--text)">Включено</span></div>` },
+  { key:'toggle-off', name:'Toggle Off', desc:'Выключено',
+    html:`<div style="display:inline-flex;align-items:center;gap:10px"><div style="position:relative;width:44px;height:24px;background:rgba(0,0,0,.5);border-radius:12px;cursor:pointer;border:1px solid var(--border)"><div style="position:absolute;top:2px;left:2px;width:18px;height:18px;background:var(--muted);border-radius:50%"></div></div><span style="font-size:12px;color:var(--muted)">Выключено</span></div>` },
+  { key:'radio-group', name:'Radio', desc:'Радио',
+    html:`<div style="display:flex;flex-direction:column;gap:8px;width:100%"><label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,0,0,.35);border:1px solid var(--neon);border-radius:10px;cursor:pointer"><input type="radio" name="r" checked style="appearance:none;width:18px;height:18px;border-radius:50%;background:var(--neon);box-shadow:0 0 10px var(--neon);flex-shrink:0;margin:0"/><span style="font-size:12px">Ethereum</span></label><label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;cursor:pointer"><input type="radio" name="r" style="appearance:none;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--border);background:rgba(0,0,0,.4);flex-shrink:0;margin:0"/><span style="font-size:12px">Polygon</span></label></div>` },
+]},
+{ cat:'СПЕЦИАЛЬНЫЕ', items:[
+  { key:'field-datetime', name:'Datetime', desc:'Дата',
+    html:`<div style="width:100%;padding:12px 40px 12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;cursor:pointer;display:flex;align-items:center;min-height:44px;position:relative">15.03.2026, 12:00<svg style="position:absolute;right:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--neon);pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>` },
+  { key:'field-select', name:'Select', desc:'Селект',
+    html:`<div style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">Ежемесячно<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>` },
+  { key:'field-token-picker', name:'Token Picker', desc:'Выбор токенов',
+    html:`<div style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:46px"><span style="border:1px solid var(--neon-dim);color:var(--neon);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700">USDT ×</span><span style="border:1px solid var(--neon-dim);color:var(--neon);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700">USDC ×</span><span style="color:var(--muted);margin-left:auto">▼</span></div>` },
+  { key:'field-slider', name:'Slider', desc:'Слайдер',
+    html:`<div style="width:100%"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">СУММА</span><span style="font-size:13px;color:var(--neon);font-weight:700">$250</span></div><div style="position:relative;height:56px;background:rgba(0,0,0,.55);border:1px solid var(--border);border-radius:14px;overflow:hidden"><div style="position:absolute;inset:0;background-image:linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);background-size:5% 100%;opacity:.18"></div><div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:linear-gradient(90deg,rgba(0,255,170,.05),rgba(0,255,170,.28));border-right:2px solid var(--neon);box-shadow:0 0 18px var(--neon)"></div><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--neon);font-size:18px;font-weight:800">$250</div></div></div>` },
+  { key:'field-pin', name:'PIN Slots', desc:'PIN-точки',
+    html:`<div style="display:flex;gap:8px;justify-content:center;padding:14px 0;flex-wrap:wrap"><div style="width:16px;height:16px;border-radius:50%;background:var(--neon);border:1px solid var(--neon);box-shadow:0 0 12px var(--neon)"></div><div style="width:16px;height:16px;border-radius:50%;background:var(--neon);border:1px solid var(--neon);box-shadow:0 0 12px var(--neon)"></div><div style="width:16px;height:16px;border-radius:50%;background:var(--neon);border:1px solid var(--neon);box-shadow:0 0 12px var(--neon)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div></div>` },
+  { key:'field-otp', name:'OTP', desc:'6 цифр',
+    html:`<div style="display:flex;gap:6px;justify-content:center"><input type="text" maxlength="1" value="4" style="width:38px;height:46px;text-align:center;background:rgba(0,0,0,.4);border:1px solid var(--neon);border-radius:8px;color:var(--text);font-family:inherit;font-size:16px;font-weight:700;outline:none;box-shadow:0 0 0 2px var(--neon-dim)"/><input type="text" maxlength="1" value="9" style="width:38px;height:46px;text-align:center;background:rgba(0,0,0,.4);border:1px solid var(--neon);border-radius:8px;color:var(--text);font-family:inherit;font-size:16px;font-weight:700;outline:none;box-shadow:0 0 0 2px var(--neon-dim)"/><input type="text" maxlength="1" value="2" style="width:38px;height:46px;text-align:center;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:16px;font-weight:700;outline:none"/><input type="text" maxlength="1" style="width:38px;height:46px;text-align:center;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:16px;font-weight:700;outline:none"/></div>` },
+  { key:'field-card', name:'Card Number', desc:'Номер карты',
+    html:`<div style="position:relative;width:100%"><input type="text" value="4821 8472 9013 7391" style="width:100%;padding:12px 60px 12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;letter-spacing:1.5px;font-variant-numeric:tabular-nums;outline:none"/><span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--neon);font-weight:700;letter-spacing:1px">VISA</span></div>` },
+  { key:'field-card-pair', name:'Card Expiry/CVV', desc:'Срок и CVV',
+    html:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%"><div><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px">СРОК</label><input type="text" value="09/28" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;text-align:center"/></div><div><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px">CVV</label><input type="password" value="417" maxlength="4" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;text-align:center;letter-spacing:4px"/></div></div>` },
+  { key:'field-seed-grid', name:'Seed Grid', desc:'Сетка seed-слов',
+    html:`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%"><div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:10px 8px;font-size:11px;text-align:center;color:var(--text)"><span style="color:var(--muted);margin-right:4px">1</span>apple</div><div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:10px 8px;font-size:11px;text-align:center;color:var(--text)"><span style="color:var(--muted);margin-right:4px">2</span>bridge</div><div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:10px 8px;font-size:11px;text-align:center;color:var(--text)"><span style="color:var(--muted);margin-right:4px">3</span>crypto</div></div>` },
+  { key:'field-password-strength', name:'Password + Strength', desc:'Пароль с индикатором',
+    html:`<div style="width:100%"><input type="password" value="●●●●●●●●" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/><div style="display:flex;gap:4px;margin-top:8px"><div style="flex:1;height:4px;background:var(--neon);border-radius:2px;box-shadow:0 0 8px var(--neon)"></div><div style="flex:1;height:4px;background:var(--neon);border-radius:2px;box-shadow:0 0 8px var(--neon)"></div><div style="flex:1;height:4px;background:var(--neon);border-radius:2px;box-shadow:0 0 8px var(--neon)"></div><div style="flex:1;height:4px;background:rgba(0,0,0,.5);border-radius:2px"></div></div><div style="font-size:10px;color:var(--neon);margin-top:6px;letter-spacing:1px;text-transform:uppercase">Сильный пароль</div></div>` },
+  { key:'field-file', name:'File Upload', desc:'Загрузка файла',
+    html:`<label style="display:flex;align-items:center;gap:12px;padding:14px;background:rgba(0,0,0,.4);border:1px dashed var(--border);border-radius:10px;cursor:pointer;width:100%"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--neon)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text)">Выбрать файл</div><div style="font-size:10px;color:var(--muted);margin-top:3px">JSON, до 10 МБ</div></div></label>` },
+  { key:'field-drop-zone', name:'Drop Zone', desc:'Drag & drop',
+    html:`<div style="width:100%;padding:24px 14px;background:rgba(0,0,0,.35);border:2px dashed var(--neon-dim);border-radius:12px;text-align:center;cursor:pointer"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--neon)" stroke-width="1.8" style="margin-bottom:8px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style="font-size:12px;color:var(--text);margin-bottom:4px">Перетащите файл сюда</div><div style="font-size:10px;color:var(--muted)">или нажмите для выбора</div></div>` },
+]},
+{ cat:'СЕТЬ И ГАЗ', items:[
+  { key:'field-network-pill', name:'Network Pill', desc:'Пилюля сети',
+    html:`<button style="display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--border);border-radius:999px;background:var(--panel);color:var(--text);font-family:inherit;font-size:11px;cursor:pointer"><span style="width:6px;height:6px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon)"></span>Ethereum<span style="color:var(--muted);font-size:10px;letter-spacing:1px">ETH</span></button>` },
+  { key:'field-gas-speed', name:'Gas Speed', desc:'Скорость газа',
+    html:`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%"><button style="padding:10px 6px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:inherit;font-size:10px;letter-spacing:.5px;cursor:pointer;display:flex;flex-direction:column;gap:3px;align-items:center"><b style="color:var(--text);font-size:11px">Slow</b><span>12 gwei</span></button><button style="padding:10px 6px;background:var(--neon-dim);border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;font-size:10px;letter-spacing:.5px;cursor:pointer;display:flex;flex-direction:column;gap:3px;align-items:center;box-shadow:0 0 14px -4px var(--neon)"><b style="color:var(--neon);font-size:11px">Normal</b><span>18 gwei</span></button><button style="padding:10px 6px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:inherit;font-size:10px;letter-spacing:.5px;cursor:pointer;display:flex;flex-direction:column;gap:3px;align-items:center"><b style="color:var(--text);font-size:11px">Fast</b><span>32 gwei</span></button></div>` },
+  { key:'field-slippage', name:'Slippage', desc:'Проскальзывание',
+    html:`<div style="display:flex;gap:6px;width:100%"><button style="flex:1;padding:8px 4px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">0.1%</button><button style="flex:1;padding:8px 4px;background:var(--neon-dim);border:1px solid var(--neon);border-radius:8px;color:var(--neon);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">0.5%</button><button style="flex:1;padding:8px 4px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">1%</button><button style="flex:1;padding:8px 4px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">3%</button></div>` },
+  { key:'field-address-book-pick', name:'Address Book', desc:'Книга адресов',
+    html:`<div style="width:100%;padding:10px 12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:10px"><div style="width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,0,0,.5));border:1px solid var(--neon-dim);display:grid;place-items:center;color:var(--neon);font-size:12px;font-weight:700">B</div><div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);font-weight:700">Binance Hot</div><div style="font-size:10px;color:var(--muted);margin-top:2px">0x28c6...1d60</div></div><span style="color:var(--muted)">▼</span></div>` },
+]},
+];
+
+/* ================= MODALS ================= */
+const MODAL_DATA = [
+{ cat:'ПОДТВЕРЖДЕНИЯ', items:[
+  { key:'modal-confirm', name:'Confirm', desc:'Обычное',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 0 40px var(--neon-dim)"><h3 style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--neon);margin-bottom:14px;display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--neon-dim);border:1px solid var(--neon);color:var(--neon);font-weight:800">?</span>ПОДТВЕРДИТЕ</h3><p style="font-size:12px;color:var(--muted);line-height:1.65">Продолжить действие?</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px"><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--muted);font-weight:700">ОТМЕНА</button><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);color:var(--neon);font-weight:700">ОК</button></div></div>` },
+  { key:'modal-danger', name:'Danger', desc:'Опасное',
+    html:`<div style="background:#0e1014;border:1px solid rgba(255,59,107,.4);border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 0 40px rgba(255,59,107,.3)"><h3 style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--danger);margin-bottom:14px;display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:rgba(255,59,107,.1);border:1px solid rgba(255,59,107,.35);color:var(--danger)">✕</span>УДАЛИТЬ</h3><p style="font-size:12px;color:var(--muted);line-height:1.65">Действие нельзя отменить.</p><div style="font-family:inherit;font-size:10px;color:var(--text);background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:10px;word-break:break-all">0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px"><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--muted);font-weight:700">ОТМЕНА</button><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;background:linear-gradient(180deg,rgba(255,59,107,.18),transparent);border:1px solid var(--danger);color:var(--danger);font-weight:700">УДАЛИТЬ</button></div></div>` },
+  { key:'modal-warning', name:'Warning', desc:'Внимание',
+    html:`<div style="background:#0e1014;border:1px solid rgba(255,212,0,.35);border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 0 40px rgba(255,212,0,.2)"><h3 style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:rgba(255,212,0,.1);border:1px solid rgba(255,212,0,.35);color:var(--gold)">!</span>ВНИМАНИЕ</h3><p style="font-size:12px;color:var(--muted);line-height:1.65">Проверьте операцию перед подтверждением.</p><button style="width:100%;padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;background:linear-gradient(180deg,rgba(255,212,0,.18),transparent);border:1px solid var(--gold);color:var(--gold);font-weight:700;margin-top:18px">ПОНЯТНО</button></div>` },
+]},
+{ cat:'ФОРМЫ', items:[
+  { key:'modal-form', name:'Send Form', desc:'Форма отправки',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:20px;max-width:400px;width:100%;box-shadow:0 0 40px var(--neon-dim)"><h3 style="font-size:13px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center">ОТПРАВИТЬ<button style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:12px">✕</button></h3><div style="margin-bottom:12px"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px">АДРЕС</label><input type="text" placeholder="0x..." style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/></div><div style="margin-bottom:12px"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px">СУММА</label><input type="number" placeholder="0.0" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/></div><button style="width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;margin-top:6px">ОТПРАВИТЬ</button></div>` },
+  { key:'modal-form-grid', name:'Network Form', desc:'Форма сети',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:20px;max-width:400px;width:100%;box-shadow:0 0 40px var(--neon-dim)"><h3 style="font-size:13px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px">СЕТЬ</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px">RPC</label><input type="text" value="https://rpc..." style="width:100%;padding:10px 12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;outline:none"/></div><div><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px">CHAIN ID</label><input type="text" value="1" style="width:100%;padding:10px 12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;outline:none"/></div></div></div>` },
+]},
+{ cat:'СОСТОЯНИЯ', items:[
+  { key:'modal-loading', name:'Loading', desc:'Загрузка',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:32px;max-width:340px;width:100%;box-shadow:0 0 40px var(--neon-dim);text-align:center"><div style="width:48px;height:48px;border:3px solid var(--neon-dim);border-top-color:var(--neon);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 18px"></div><div style="font-size:12px;letter-spacing:2px;color:var(--neon);text-transform:uppercase">ОБРАБОТКА...</div><div style="font-size:11px;color:var(--muted);margin-top:8px">Подождите несколько секунд</div></div>` },
+  { key:'modal-success', name:'Success', desc:'Успех',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:26px;max-width:340px;width:100%;box-shadow:0 0 40px var(--neon-dim);text-align:center"><div style="width:80px;height:80px;border-radius:50%;display:grid;place-items:center;border:3px solid var(--neon);color:var(--neon);font-size:44px;font-weight:300;box-shadow:0 0 40px var(--neon),0 0 70px var(--neon-dim),inset 0 0 30px var(--neon-dim);background:radial-gradient(circle,rgba(0,255,170,.15),transparent 70%);margin:0 auto 18px">✓</div><div style="font-size:13px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:10px">УСПЕШНО</div><div style="font-size:11px;color:var(--muted)">Операция завершена</div><button style="width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;margin-top:20px">ГОТОВО</button></div>` },
+  { key:'modal-progress', name:'Progress', desc:'Прогресс',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:22px;max-width:340px;width:100%;box-shadow:0 0 40px var(--neon-dim)"><div style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;text-align:center;margin-bottom:10px">ПОДПИСЬ ЧЕРЕЗ</div><div style="font-size:40px;font-weight:700;text-align:center;letter-spacing:2px;color:var(--neon);text-shadow:0 0 26px var(--neon-dim);line-height:1">04:32</div><div style="height:5px;background:rgba(0,0,0,.6);border-radius:3px;margin-top:14px;overflow:hidden;border:1px solid rgba(255,255,255,.04)"><div style="height:100%;width:72%;background:linear-gradient(90deg,var(--neon-dim),var(--neon));box-shadow:0 0 14px var(--neon-dim)"></div></div></div>` },
+]},
+{ cat:'СПИСКИ', items:[
+  { key:'modal-list', name:'Select List', desc:'Список',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:20px;max-width:400px;width:100%;box-shadow:0 0 40px var(--neon-dim)"><h3 style="font-size:13px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px">СЕТЬ</h3><div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--neon);border-radius:10px;cursor:pointer;background:var(--neon-dim)"><span style="width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,0,0,.4));border:1px solid var(--neon-dim);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--neon)">ETH</span><div style="flex:1"><div style="font-size:12px;font-weight:700">Ethereum</div><div style="font-size:10px;color:var(--muted)">chainId 1</div></div><span style="color:var(--neon)">✓</span></div><div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;cursor:pointer"><span style="width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,0,0,.4));border:1px solid var(--neon-dim);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--neon)">POL</span><div style="flex:1"><div style="font-size:12px;font-weight:700">Polygon</div><div style="font-size:10px;color:var(--muted)">chainId 137</div></div></div></div></div>` },
+  { key:'modal-perms', name:'Permissions', desc:'Разрешения',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:20px;max-width:400px;width:100%;box-shadow:0 0 40px var(--neon-dim)"><h3 style="font-size:13px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px">РАЗРЕШЕНИЯ</h3><div style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;font-size:12px;padding:10px 12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px"><span>wallet.connect</span><span style="color:var(--neon)">✓</span></div><div style="display:flex;justify-content:space-between;font-size:12px;padding:10px 12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px"><span>wallet.sign</span><span style="color:var(--neon)">✓</span></div><div style="display:flex;justify-content:space-between;font-size:12px;padding:10px 12px;background:rgba(255,59,107,.06);border:1px solid rgba(255,59,107,.3);border-radius:10px"><span>wallet.approve</span><span style="color:var(--danger)">✕</span></div></div></div>` },
+]},
+];
+
+/* ================= RECIPES (готовые комбо) ================= */
+const RECIPE_DATA = [
+{ cat:'ОТПРАВКА И ПЕРЕВОДЫ', items:[
+  { key:'recipe-send-token', name:'Send Token', desc:'Форма отправки токена',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:18px;width:100%"><div style="font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;display:flex;justify-content:space-between"><span>ОТПРАВКА</span><span style="color:var(--neon)">ETH</span></div><div style="margin-bottom:12px"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">ПОЛУЧАТЕЛЬ</label><div style="position:relative"><input type="text" placeholder="0x..." style="width:100%;padding:12px 42px 12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;outline:none"/><button style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--neon);cursor:pointer;padding:4px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3z"/></svg></button></div></div><div style="margin-bottom:12px"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">СУММА</label><div style="position:relative"><input type="text" value="1.5" style="width:100%;padding:12px 60px 12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;font-weight:700;outline:none"/><button style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--neon-dim);border:1px solid var(--neon);border-radius:6px;color:var(--neon);font-family:inherit;font-size:9px;padding:3px 7px;cursor:pointer;font-weight:700">MAX</button></div></div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:12px"><span>≈ $4 650.00</span><span>Комиссия ~$0.42</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--muted);font-weight:700">ОТМЕНА</button><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);color:var(--neon);font-weight:700">ОТПРАВИТЬ</button></div></div>` },
+  { key:'recipe-receive', name:'Receive', desc:'Экран получения',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:20px;width:100%;text-align:center"><div style="font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px">ПОЛУЧИТЬ</div><div style="display:inline-block;padding:14px;background:#05060a;border:2px solid var(--neon);border-radius:14px;box-shadow:0 0 30px -8px var(--neon);margin-bottom:14px"><div style="width:120px;height:120px;background:repeating-conic-gradient(var(--neon) 0 25%, #05060a 0 50%) 50%/16px 16px;border-radius:6px"></div></div><div style="font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:8px">ВАШ АДРЕС</div><div style="display:flex;gap:6px;align-items:center;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px"><span style="flex:1;font-size:11px;word-break:break-all;text-align:left">0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0</span><button style="background:transparent;border:none;color:var(--neon);cursor:pointer;padding:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div><button style="width:100%;padding:12px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700">ПОДЕЛИТЬСЯ</button></div>` },
+  { key:'recipe-swap', name:'Swap Form', desc:'Форма обмена',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:16px;width:100%"><div style="font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;display:flex;justify-content:space-between"><span>ОБМЕН</span><span style="color:var(--neon);cursor:pointer">SLIP 0.5%</span></div><div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:8px"><span>ОТДАЁТЕ</span><span>Баланс: 2.45</span></div><div style="display:flex;align-items:center;gap:10px"><input type="text" value="1.0" style="flex:1;background:none;border:none;color:#fff;font-family:inherit;font-size:20px;font-weight:700;outline:none"/><button style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:999px;color:var(--text);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer"><span style="width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,0,0,.4));border:1px solid var(--neon-dim);display:grid;place-items:center;font-size:8px;color:var(--neon)">ETH</span>ETH ▼</button></div></div><div style="display:grid;place-items:center;margin:-9px auto;width:34px;height:34px;background:#0e1014;border:1px solid var(--neon);border-radius:50%;color:var(--neon);position:relative;z-index:2;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div><div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;padding:14px"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:8px"><span>ПОЛУЧАЕТЕ</span><span>Баланс: 1240.5</span></div><div style="display:flex;align-items:center;gap:10px"><input type="text" value="3100" readonly style="flex:1;background:none;border:none;color:var(--neon);font-family:inherit;font-size:20px;font-weight:700;outline:none"/><button style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:999px;color:var(--text);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer"><span style="width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,0,0,.4));border:1px solid var(--neon-dim);display:grid;place-items:center;font-size:7px;color:var(--neon)">USDT</span>USDT ▼</button></div></div><div style="display:flex;flex-direction:column;gap:6px;margin-top:14px;font-size:10px;color:var(--muted)"><div style="display:flex;justify-content:space-between"><span>Курс</span><b style="color:var(--text)">1 ETH ≈ 3 100 USDT</b></div><div style="display:flex;justify-content:space-between"><span>Мин. к получению</span><b style="color:var(--text)">3 084.5 USDT</b></div></div><button style="width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;margin-top:14px">ОБМЕНЯТЬ</button></div>` },
+]},
+{ cat:'КОШЕЛЁК И ДОСТУП', items:[
+  { key:'recipe-unlock', name:'Unlock Screen', desc:'Экран блокировки',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:22px;width:100%;text-align:center"><div style="font-size:11px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">КОШЕЛЁК ЗАБЛОКИРОВАН</div><div style="font-size:14px;color:var(--text);margin-bottom:16px">Введите 9-значный PIN</div><div style="display:flex;gap:8px;justify-content:center;margin-bottom:18px;flex-wrap:wrap"><div style="width:16px;height:16px;border-radius:50%;background:var(--neon);border:1px solid var(--neon);box-shadow:0 0 12px var(--neon)"></div><div style="width:16px;height:16px;border-radius:50%;background:var(--neon);border:1px solid var(--neon);box-shadow:0 0 12px var(--neon)"></div><div style="width:16px;height:16px;border-radius:50%;background:var(--neon);border:1px solid var(--neon);box-shadow:0 0 12px var(--neon)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div><div style="width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border)"></div></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto"><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">1</button><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">2</button><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">3</button><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">4</button><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">5</button><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">6</button><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">7</button><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">8</button><button style="aspect-ratio:1;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:16px;cursor:pointer">9</button></div></div>` },
+  { key:'recipe-connect', name:'Connect Wallet', desc:'Подключение кошелька',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:20px;width:100%"><h3 style="font-size:12px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px;text-align:center">ПОДКЛЮЧИТЬ КОШЕЛЁК</h3><div style="display:flex;flex-direction:column;gap:8px"><button style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;cursor:pointer;font-size:12px"><span style="font-size:18px">🦊</span><span style="flex:1;text-align:left;font-weight:700">MetaMask</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button><button style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.4);border-radius:10px;color:#60a5fa;font-family:inherit;cursor:pointer;font-size:12px"><span style="font-size:18px">🔗</span><span style="flex:1;text-align:left;font-weight:700">WalletConnect</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button><button style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;cursor:pointer;font-size:12px"><span style="font-size:18px">👛</span><span style="flex:1;text-align:left;font-weight:700">Coinbase Wallet</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button></div></div>` },
+  { key:'recipe-backup', name:'Backup Shares', desc:'Бэкап (2 share)',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:18px;width:100%"><h3 style="font-size:12px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:12px">БЭКАП КОШЕЛЬКА</h3><div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:14px">Seed разбит на <b style="color:var(--text)">2 shares</b> (XOR). Скачайте <b style="color:var(--danger)">ОБА</b> файла.</div><div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;margin-bottom:8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--neon)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style="flex:1;min-width:0"><div style="font-size:11px;color:var(--text)">share1.json</div><div style="font-size:9px;color:var(--muted);margin-top:2px">1.2 KB</div></div><button style="width:32px;height:32px;border-radius:8px;background:rgba(0,255,170,.1);border:1px solid var(--neon);color:var(--neon);cursor:pointer;display:grid;place-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></button></div><div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--neon)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style="flex:1;min-width:0"><div style="font-size:11px;color:var(--text)">share2.json</div><div style="font-size:9px;color:var(--muted);margin-top:2px">1.2 KB</div></div><button style="width:32px;height:32px;border-radius:8px;background:rgba(0,255,170,.1);border:1px solid var(--neon);color:var(--neon);cursor:pointer;display:grid;place-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg></button></div></div>` },
+]},
+{ cat:'БЕЗОПАСНОСТЬ И DAO', items:[
+  { key:'recipe-whitelist', name:'Add Whitelist', desc:'Добавление адреса',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:18px;width:100%"><h3 style="font-size:12px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:12px">ДОБАВИТЬ В WHITELIST</h3><div style="margin-bottom:12px"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">АДРЕС</label><input type="text" value="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--neon);border-radius:10px;color:var(--text);font-family:inherit;font-size:11px;outline:none;box-shadow:0 0 0 2px var(--neon-dim)"/></div><div style="margin-bottom:12px"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">ИМЯ</label><input type="text" value="Binance Hot Wallet" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:12px;outline:none"/></div><div style="display:flex;justify-content:space-between;font-size:11px;padding:10px 12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;margin-bottom:14px"><span style="color:var(--muted)">Лимит</span><b style="color:var(--neon)">25% supply</b></div><button style="width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">РАЗРЕШИТЬ</button></div>` },
+  { key:'recipe-dao-vote', name:'DAO Vote', desc:'Голосование DAO',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:18px;width:100%"><h3 style="font-size:12px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px">ГОЛОСОВАНИЕ DAO</h3><div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px"><div style="font-size:12px;color:var(--text);font-weight:700;margin-bottom:4px">Предложение #42</div><div style="font-size:10px;color:var(--muted);line-height:1.5">Увеличить комиссию сети с 0.3% до 0.5% сроком на 90 дней</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px"><button style="padding:16px 10px;background:linear-gradient(180deg,rgba(0,255,170,.12),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-weight:700;cursor:pointer"><div style="font-size:20px;margin-bottom:6px">✓</div><div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase">ЗА</div></button><button style="padding:16px 10px;background:linear-gradient(180deg,rgba(255,59,107,.12),transparent);border:1px solid var(--danger);border-radius:12px;color:var(--danger);font-family:inherit;font-weight:700;cursor:pointer"><div style="font-size:20px;margin-bottom:6px">✕</div><div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase">ПРОТИВ</div></button></div><div style="height:5px;background:rgba(0,0,0,.6);border-radius:3px;overflow:hidden;display:flex;margin-bottom:8px"><div style="width:62%;background:linear-gradient(90deg,var(--neon-dim),var(--neon));box-shadow:0 0 10px var(--neon-dim)"></div><div style="flex:1;background:linear-gradient(90deg,var(--danger-dim),var(--danger))"></div></div><div style="display:flex;justify-content:space-between;font-size:10px"><b style="color:var(--neon)">62% ЗА</b><b style="color:var(--danger)">38% ПРОТИВ</b></div></div>` },
+  { key:'recipe-arbitration', name:'DAO Arbitration', desc:'Арбитражный спор',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:18px;width:100%"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:11px;letter-spacing:2px;color:var(--neon);text-transform:uppercase">АРБИТРАЖ DAO</div><div style="font-size:9px;letter-spacing:1px;color:var(--cyan);background:rgba(0,217,255,.1);border:1px solid rgba(0,217,255,.4);padding:3px 8px;border-radius:999px;font-weight:700">LIVE</div></div><div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;margin-bottom:14px"><div style="padding:14px 6px;border-radius:12px;background:linear-gradient(180deg,rgba(0,255,170,.16),rgba(0,255,170,.02));border:1px solid rgba(0,255,170,.45);color:var(--neon);text-align:center"><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;opacity:.9;margin-bottom:6px">USER WIN</div><div style="font-size:26px;font-weight:700">42</div></div><div style="display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 4px"><div style="font-size:20px;font-weight:700;color:#fff">70</div><div style="font-size:7px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-top:4px">ГОЛОСУЮТ</div></div><div style="padding:14px 6px;border-radius:12px;background:linear-gradient(180deg,rgba(255,59,107,.16),rgba(255,59,107,.02));border:1px solid rgba(255,59,107,.45);color:var(--danger);text-align:center"><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;opacity:.9;margin-bottom:6px">USER LOSE</div><div style="font-size:26px;font-weight:700">28</div></div></div><div style="background:rgba(0,255,170,.05);border:1px solid rgba(0,255,170,.3);border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">ВАШ СПОР</div><div style="font-size:18px;font-weight:700;color:var(--neon);text-shadow:0 0 14px var(--neon-dim)">+$100 000</div></div></div>` },
+  { key:'recipe-contract-warning', name:'Contract Warning', desc:'Опасный контракт',
+    html:`<div style="background:#0e1014;border:1px solid rgba(255,59,107,.5);border-radius:14px;padding:18px;width:100%;box-shadow:0 0 40px rgba(255,59,107,.2)"><div style="display:flex;gap:12px;margin-bottom:14px"><div style="font-size:28px">⚠️</div><div><div style="font-size:13px;color:var(--danger);font-weight:700;margin-bottom:4px">ОПАСНЫЙ КОНТРАКТ</div><div style="font-size:11px;color:#ff8fa8;line-height:1.5">Запрос на <b>неограниченный Approve</b>. Spender может списать все ваши USDT.</div></div></div><div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:10px;color:var(--text);margin-bottom:14px"><div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">Токен</span><b>USDT</b></div><div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">Spender</span><b style="word-break:break-all;text-align:right">0x1234...9aF2</b></div><div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">Amount</span><b style="color:var(--danger)">MAX_UINT256</b></div></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><button style="padding:10px 6px;background:transparent;border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;font-size:9.5px;font-weight:700;letter-spacing:.8px;cursor:pointer">✓ WHITELIST</button><button style="padding:10px 6px;background:transparent;border:1px solid var(--danger);border-radius:10px;color:var(--danger);font-family:inherit;font-size:9.5px;font-weight:700;letter-spacing:.8px;cursor:pointer">✕ BLOCK</button><button style="padding:10px 6px;background:transparent;border:1px solid var(--muted);border-radius:10px;color:var(--muted);font-family:inherit;font-size:9.5px;font-weight:700;letter-spacing:.8px;cursor:pointer">→ ИГНОР</button></div></div>` },
+]},
+{ cat:'ПОДПИСКИ И ТАРИФЫ', items:[
+  { key:'recipe-tier-select', name:'Tier Select', desc:'Выбор тарифа',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:18px;width:100%"><h3 style="font-size:12px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px">ТАРИФ</h3><div style="display:flex;flex-direction:column;gap:8px"><div style="padding:14px;background:linear-gradient(135deg,rgba(91,102,114,.15),rgba(91,102,114,.03));border:1px solid rgba(91,102,114,.5);border-radius:12px;cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><b style="font-size:12px;letter-spacing:2px;color:#8892a0">BASIC</b><b style="font-size:12px;color:var(--text)">FREE</b></div><div style="font-size:10px;color:var(--muted)">3 функции</div></div><div style="padding:14px;background:linear-gradient(135deg,rgba(0,217,255,.15),rgba(0,217,255,.03));border:2px solid var(--cyan);border-radius:12px;cursor:pointer;box-shadow:0 0 24px -8px var(--cyan);position:relative"><div style="position:absolute;top:-8px;right:12px;font-size:8px;letter-spacing:1px;background:var(--cyan);color:#08090b;padding:2px 8px;border-radius:999px;font-weight:800">АКТИВЕН</div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><b style="font-size:12px;letter-spacing:2px;color:var(--cyan)">STANDARD</b><b style="font-size:12px;color:var(--text)">$1 / мес</b></div><div style="font-size:10px;color:var(--muted)">+5 функций</div></div><div style="padding:14px;background:linear-gradient(135deg,rgba(168,85,247,.18),rgba(255,43,214,.08));border:1px solid rgba(168,85,247,.5);border-radius:12px;cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><b style="font-size:12px;letter-spacing:2px;color:#c084fc">PREMIUM</b><b style="font-size:12px;color:var(--text)">$15 / мес</b></div><div style="font-size:10px;color:var(--muted)">+7 функций</div></div></div></div>` },
+  { key:'recipe-subscription', name:'New Subscription', desc:'Новая подписка',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:18px;width:100%"><h3 style="font-size:12px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px">НОВАЯ ПОДПИСКА</h3><div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;margin-bottom:12px"><div style="width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,0,0,.4));border:1px solid var(--neon-dim);display:grid;place-items:center;color:var(--neon);font-weight:700;font-size:12px">NFLX</div><div style="flex:1"><div style="font-size:12px;color:var(--text);font-weight:700">Netflix Crypto</div><div style="font-size:10px;color:var(--muted);margin-top:2px">0xa0b8...eB48</div></div><span style="color:var(--cyan);font-size:14px">✓</span></div><div style="display:flex;justify-content:space-between;font-size:11px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:var(--muted)">Сумма</span><b style="color:var(--neon)">9.99 USDT</b></div><div style="display:flex;justify-content:space-between;font-size:11px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:var(--muted)">Периодичность</span><b style="color:var(--cyan)">Ежемесячно</b></div><div style="display:flex;justify-content:space-between;font-size:11px;padding:8px 0"><span style="color:var(--muted)">Дедлайн</span><b style="color:var(--gold)">15.03.2026</b></div><button style="width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;margin-top:14px">ОФОРМИТЬ</button></div>` },
+]},
+{ cat:'МАСТЕР-ФОРМЫ', items:[
+  { key:'recipe-wizard', name:'Wizard Steps', desc:'Пошаговый мастер',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:18px;width:100%"><div style="display:flex;gap:6px;justify-content:center;margin-bottom:16px"><div style="width:24px;height:3px;border-radius:2px;background:var(--neon);box-shadow:0 0 6px var(--neon)"></div><div style="width:24px;height:3px;border-radius:2px;background:var(--neon);box-shadow:0 0 6px var(--neon)"></div><div style="width:24px;height:3px;border-radius:2px;background:var(--muted)"></div><div style="width:24px;height:3px;border-radius:2px;background:var(--muted)"></div></div><div style="font-size:9px;letter-spacing:2px;color:var(--neon);background:var(--neon-dim);border:1px solid var(--neon);padding:3px 10px;border-radius:999px;display:inline-block;margin-bottom:14px;font-weight:700">ШАГ 2 ИЗ 4</div><div style="font-size:13px;color:var(--text);margin-bottom:6px;letter-spacing:1px">ГРАФИЧЕСКИЙ ПАРОЛЬ</div><div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:14px">Соедините минимум 4 точки на сетке</div><div style="width:180px;height:180px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:14px"><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--neon);box-shadow:0 0 18px var(--neon-dim);position:relative"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:var(--neon);border-radius:50%"></div></div><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--neon);box-shadow:0 0 18px var(--neon-dim);position:relative"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:var(--neon);border-radius:50%"></div></div><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--border)"></div><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--border)"></div><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--border)"></div><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--border)"></div><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--border)"></div><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--border)"></div><div style="aspect-ratio:1;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--border)"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px"><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--muted);font-weight:700">← НАЗАД</button><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);color:var(--neon);font-weight:700">ДАЛЕЕ →</button></div></div>` },
+  { key:'recipe-login', name:'Login', desc:'Экран входа',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;text-align:center"><div style="font-size:20px;font-weight:700;letter-spacing:4px;color:var(--neon);margin-bottom:8px;text-shadow:0 0 20px var(--neon-dim)">CLANDAI</div><div style="font-size:11px;color:var(--muted);margin-bottom:22px">КИБЕР-КОШЕЛЁК</div><div style="text-align:left;margin-bottom:14px"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">АДРЕС ИЛИ ENS</label><input type="text" placeholder="vitalik.eth" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none"/></div><div style="text-align:left;margin-bottom:18px"><label style="display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">ПАРОЛЬ</label><input type="password" placeholder="••••••••" style="width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;letter-spacing:3px"/></div><button style="width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700">ВОЙТИ</button><div style="font-size:11px;color:var(--muted);margin-top:16px">Нет кошелька? <span style="color:var(--cyan);cursor:pointer">Создать</span></div></div>` },
+  { key:'recipe-tx-preview', name:'TX Preview', desc:'Просмотр транзакции',
+    html:`<div style="background:#0e1014;border:1px solid var(--border);border-radius:14px;padding:20px;width:100%"><h3 style="font-size:12px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:14px;text-align:center">ПОДПИСЬ ТРАНЗАКЦИИ</h3><div style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;padding:4px 0;margin-bottom:14px"><div style="display:flex;justify-content:space-between;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px"><span style="color:var(--muted)">Контракт</span><b>Uniswap V3 Router</b></div><div style="display:flex;justify-content:space-between;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px"><span style="color:var(--muted)">Метод</span><b style="color:var(--cyan)">swapExactTokensForTokens</b></div><div style="display:flex;justify-content:space-between;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px"><span style="color:var(--muted)">Отдаёте</span><b style="color:var(--danger)">1 000.00 USDT</b></div><div style="display:flex;justify-content:space-between;padding:9px 14px;font-size:11px"><span style="color:var(--muted)">Получаете</span><b style="color:var(--neon)">0.322 ETH</b></div></div><div style="display:flex;gap:8px;align-items:center;padding:10px 12px;background:rgba(255,212,0,.06);border:1px solid rgba(255,212,0,.3);border-radius:10px;font-size:10px;color:#ffe08a;margin-bottom:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Комиссия сети: ~$4.20</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;background:transparent;border:1px solid var(--danger);color:var(--danger);font-weight:700">ОТКЛОНИТЬ</button><button style="padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);color:var(--neon);font-weight:700">ПОДПИСАТЬ</button></div></div>` },
+]},
+];
+
+/* ================= RENDER ================= */
+const state = {
+  tab: 'icons',
+  search: '',
+  activeCat: 'all',
+  globalColor: '#00ffaa',
+};
+
+const PRESET_COLORS = [
+  { name: 'NEON', value: '#00ffaa' },
+  { name: 'CYAN', value: '#00d9ff' },
+  { name: 'PINK', value: '#ff2bd6' },
+  { name: 'PURPLE', value: '#a855f7' },
+  { name: 'GOLD', value: '#ffd400' },
+  { name: 'ORANGE', value: '#ff9a3c' },
+  { name: 'RED', value: '#ff3b6b' },
+  { name: 'BLUE', value: '#3b82f6' },
+  { name: 'GREEN', value: '#22c55e' },
+  { name: 'WHITE', value: '#ffffff' },
+];
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+function toast(msg, err=false){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => el.className = 'toast', 1800);
+}
+function buildSvg(path){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+}
+function fullSvgCode(ic){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ic.path}</svg>`;
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function hexToRgba(hex, a){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substr(0,2),16);
+  const g = parseInt(h.substr(2,2),16);
+  const b = parseInt(h.substr(4,2),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ==== COLOR PROPAGATION: --neon, --border, etc. all follow global color ==== */
+function applyGlobalColor(hex){
+  state.globalColor = hex;
+  const root = document.documentElement.style;
+  root.setProperty('--icon-color', hex);
+  root.setProperty('--icon-color-dim', hexToRgba(hex, .3));
+  root.setProperty('--neon', hex);
+  root.setProperty('--neon-dim', hexToRgba(hex, .33));
+  root.setProperty('--border', hexToRgba(hex, .18));
+  $$('.preset-swatch').forEach(el => {
+    el.classList.toggle('active', el.dataset.color.toLowerCase() === hex.toLowerCase());
+  });
+}
+
+function renderPresets(){
+  const wrap = $('#color-presets');
+  wrap.innerHTML = '';
+  PRESET_COLORS.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'preset-swatch' + (c.value.toLowerCase() === state.globalColor.toLowerCase() ? ' active' : '');
+    el.dataset.color = c.value;
+    el.style.background = c.value;
+    el.style.color = c.value;
+    el.title = c.name;
+    el.onclick = () => {
+      applyGlobalColor(c.value);
+      $('#global-color').value = c.value;
+      toast('🎨 ' + c.name);
+    };
+    wrap.appendChild(el);
+  });
+}
+
+function getItems(tab = state.tab){
+  const out = [];
+  if (tab === 'icons') ICON_DATA.forEach(cat => cat.icons.forEach(ic => out.push({ ...ic, cat: cat.cat })));
+  if (tab === 'buttons') BUTTON_DATA.forEach(cat => cat.items.forEach(ic => out.push({ ...ic, cat: cat.cat })));
+  if (tab === 'fields') FIELD_DATA.forEach(cat => cat.items.forEach(ic => out.push({ ...ic, cat: cat.cat })));
+  if (tab === 'modals') MODAL_DATA.forEach(cat => cat.items.forEach(ic => out.push({ ...ic, cat: cat.cat })));
+  if (tab === 'recipes') RECIPE_DATA.forEach(cat => cat.items.forEach(ic => out.push({ ...ic, cat: cat.cat })));
+  return out;
+}
+
+async function copyToClipboard(text){
+  try{ await navigator.clipboard.writeText(text); return true; }
+  catch{
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try{ document.execCommand('copy'); ok = true; }catch{}
+    ta.remove();
+    return ok;
+  }
+}
+
+function render(){
+  const all = getItems();
+  $('#stat-total').textContent = all.length;
+
+  const catMap = new Map();
+  all.forEach(it => { catMap.set(it.cat, (catMap.get(it.cat) || 0) + 1); });
+  const catList = ['all', ...catMap.keys()];
+  const catsEl = $('#cats');
+  catsEl.innerHTML = '';
+  catList.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn' + (state.activeCat === cat ? ' active' : '');
+    btn.textContent = cat === 'all' ? 'ВСЕ' : cat;
+    btn.onclick = () => { state.activeCat = cat; render(); };
+    catsEl.appendChild(btn);
+  });
+
+  const q = state.search.toLowerCase().trim();
+  const filtered = all.filter(it => {
+    if (state.activeCat !== 'all' && it.cat !== state.activeCat) return false;
+    if (!q) return true;
+    return (it.name + ' ' + it.desc + ' ' + it.key + ' ' + it.cat).toLowerCase().includes(q);
+  });
+
+  $('#stat-show').textContent = filtered.length;
+
+  const wrap = $('#sections');
+  wrap.innerHTML = '';
+
+  if (!filtered.length){
+    wrap.innerHTML = '<div class="empty">Ничего не найдено</div>';
+    return;
+  }
+
+  const grouped = {};
+  filtered.forEach(ic => {
+    if (!grouped[ic.cat]) grouped[ic.cat] = [];
+    grouped[ic.cat].push(ic);
+  });
+
+  Object.entries(grouped).forEach(([cat, icons]) => {
+    const sec = document.createElement('div');
+    sec.className = 'section';
+    let gridClass = 'grid';
+    if (state.tab === 'fields' || state.tab === 'modals' || state.tab === 'buttons') gridClass = 'grid-wide';
+    if (state.tab === 'recipes') gridClass = 'grid-recipe';
+    sec.innerHTML = `
+      <div class="section-head">
+        <h2>${escapeHtml(cat)}</h2>
+        <span class="badge">${icons.length}</span>
+        <span class="line"></span>
+      </div>
+      <div class="${gridClass}"></div>
+    `;
+    const grid = sec.querySelector('.' + gridClass);
+
+    icons.forEach(ic => {
+      if (state.tab === 'icons') grid.appendChild(buildIconCard(ic));
+      else grid.appendChild(buildComponentCard(ic, state.tab));
+    });
+
+    wrap.appendChild(sec);
+  });
+}
+
+function buildIconCard(ic){
+  const card = document.createElement('div');
+  card.className = 'icon-card';
+  card.innerHTML = `
+    <span class="ic-tag ${ic.tag === 'new' ? 'tag-new' : 'tag-used'}">${ic.tag === 'new' ? 'NEW' : 'USED'}</span>
+    <div class="ic-top">
+      <div class="ic-preview">${buildSvg(ic.path)}</div>
+      <div class="ic-info">
+        <div class="ic-name">${escapeHtml(ic.name)}</div>
+        <div class="ic-key">${escapeHtml(ic.key)}</div>
+      </div>
+    </div>
+    <div class="ic-desc">${escapeHtml(ic.desc)}</div>
+  `;
+  card.addEventListener('click', async () => {
+    const ok = await copyToClipboard(fullSvgCode(ic));
+    if (ok){
+      card.classList.add('copied');
+      toast('✓ SVG скопирован: ' + ic.key);
+      setTimeout(() => card.classList.remove('copied'), 700);
+    } else toast('Ошибка копирования', true);
+    if (navigator.vibrate) navigator.vibrate(8);
+  });
+  return card;
+}
+
+function buildComponentCard(ic, tab){
+  const card = document.createElement('div');
+  card.className = 'comp-card';
+  let previewClass = 'comp-preview dark';
+  if (tab === 'modals') previewClass = 'comp-preview modal-preview';
+  if (tab === 'recipes') previewClass = 'comp-preview recipe-preview';
+  card.innerHTML = `
+    <div class="${previewClass}">${ic.html}</div>
+    <div class="comp-info">
+      <div class="comp-name">${escapeHtml(ic.name)}</div>
+      <div class="comp-key">${escapeHtml(ic.key)}</div>
+      <div class="comp-desc">${escapeHtml(ic.desc)}</div>
+    </div>
+  `;
+  card.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const ok = await copyToClipboard(ic.html);
+    if (ok){
+      card.classList.add('copied');
+      toast('✓ HTML скопирован: ' + ic.key);
+      setTimeout(() => card.classList.remove('copied'), 700);
+    } else toast('Ошибка копирования', true);
+    if (navigator.vibrate) navigator.vibrate(8);
+  });
+  return card;
+}
+
+$$('.main-tab').forEach(tab => {
+  tab.onclick = () => {
+    state.tab = tab.dataset.tab;
+    state.activeCat = 'all';
+    $$('.main-tab').forEach(t => t.classList.toggle('active', t === tab));
+    render();
+  };
+});
+
+$('#search-input').addEventListener('input', e => {
+  state.search = e.target.value;
+  render();
+});
+
+$('#global-color').addEventListener('input', e => {
+  applyGlobalColor(e.target.value);
+});
+
+$('#btn-copy-all').addEventListener('click', async () => {
+  const all = getItems();
+  let out = '';
+  if (state.tab === 'icons'){
+    out = all.map(ic => `/* ${ic.key} — ${ic.name} (${ic.cat}) */\n${fullSvgCode(ic)}`).join('\n\n');
+  } else {
+    out = all.map(ic => `/* ${ic.key} — ${ic.name} (${ic.cat}) */\n${ic.html}`).join('\n\n');
+  }
+  const ok = await copyToClipboard(out);
+  toast(ok ? ('✓ Всё скопировано (' + all.length + ')') : 'Ошибка копирования', !ok);
+  if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+});
+
+applyGlobalColor(state.globalColor);
+renderPresets();
+render();
+</script>
+</body>
+</html>

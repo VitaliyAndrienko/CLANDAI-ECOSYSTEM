@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>CLANDAI · TOKEN HUB</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #08090b;
+    --panel: rgba(20, 22, 26, 0.55);
+    --text: #d8dee6;
+    --muted: #5b6672;
+    --font: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    --neon: #00ffaa;
+    --neon-dim: #00ffaa55;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ============ BACKGROUND EFFECTS ============ */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(600px 400px at 15% 0%, var(--neon-dim), transparent 60%),
+      radial-gradient(500px 300px at 100% 100%, rgba(255, 43, 214, 0.08), transparent 60%),
+      radial-gradient(400px 400px at 50% 50%, rgba(168, 85, 247, 0.05), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--neon-dim) 1px, transparent 1px),
+      linear-gradient(90deg, var(--neon-dim) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.05;
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, black, transparent 85%);
+    mask-image: radial-gradient(circle at 50% 40%, black, transparent 85%);
+  }
+
+  /* ============ APP CONTAINER ============ */
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 100vh;
+  }
+
+  /* ============ HEADER & SEARCH ============ */
+  .header-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+  }
+
+  .logo {
+    font-weight: 700;
+    letter-spacing: 4px;
+    font-size: 16px;
+    color: var(--text);
+    opacity: 0.9;
+  }
+  .logo b { color: var(--neon); text-shadow: 0 0 15px var(--neon-dim); }
+
+  .search-container {
+    position: relative;
+    width: 100%;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 12px 16px 12px 42px;
+    background: rgba(20, 22, 26, 0.7);
+    border: 2px solid var(--neon-dim);
+    border-radius: 30px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 1px;
+    outline: none;
+    backdrop-filter: blur(14px);
+    transition: all 0.3s ease;
+    box-shadow: 0 0 15px -5px var(--neon-dim);
+  }
+
+  .search-input:focus {
+    border-color: var(--neon);
+    box-shadow: 0 0 25px var(--neon-dim), inset 0 0 10px var(--neon-dim);
+  }
+
+  .search-input::placeholder {
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 10px;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: var(--neon);
+    pointer-events: none;
+    filter: drop-shadow(0 0 6px var(--neon));
+  }
+
+  /* ============ GRID ============ */
+  .token-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  /* ============ CARD WRAPPER ============ */
+  .card-wrapper {
+    position: relative;
+    padding: 2px;
+    background: var(--accent);
+    clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+    border-radius: 10px;
+    box-shadow: 0 0 20px -5px var(--accent-dim), inset 0 0 8px var(--accent-dim);
+    transition: transform 0.2s ease, box-shadow 0.2s;
+    cursor: pointer;
+    overflow: hidden; /* Важно для clip-path */
+  }
+
+  .card-wrapper:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 30px -5px var(--accent), inset 0 0 15px var(--accent-dim);
+  }
+
+  .token-card {
+    background: linear-gradient(145deg, rgba(16, 18, 22, 0.95), rgba(8, 9, 11, 0.98));
+    backdrop-filter: blur(14px);
+    clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .token-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.04) 50%, transparent 60%);
+    pointer-events: none;
+  }
+
+  /* ============ CARD TOP ROW ============ */
+  .card-top {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* ============ ICON CONTAINER ============ */
+  .icon-frame {
+    width: 64px;
+    height: 64px;
+    min-width: 64px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 0 15px var(--accent-dim), inset 0 0 15px var(--accent-dim);
+    background: radial-gradient(circle, var(--accent-dim) 0%, transparent 70%);
+    transition: box-shadow 0.3s;
+  }
+
+  .card-wrapper:hover .icon-frame {
+    box-shadow: 0 0 25px var(--accent), inset 0 0 20px var(--accent-dim);
+  }
+
+  .icon-frame::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    border: 1px dashed var(--accent-dim);
+    animation: spin-reverse 10s linear infinite;
+  }
+
+  .icon-rotating {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    background-color: #000;
+    animation: spin 8s linear infinite;
+    box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    position: relative;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    text-shadow: 0 0 15px var(--accent);
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes spin-reverse {
+    0% { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
+  }
+
+  /* ============ TOKEN DETAILS ============ */
+  .token-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-shadow: 0 0 10px var(--accent-dim);
+    border-bottom: 1px solid var(--accent-dim);
+    padding-bottom: 4px;
+    width: 100%;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .action-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--accent);
+    background: rgba(0, 0, 0, 0.5);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0;
+    outline: none;
+  }
+
+  .action-icon:hover {
+    background: var(--accent-dim);
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  .action-icon svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* ============ STATS PANEL ============ */
+  .stats-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-label {
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .stat-value {
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-value.accent {
+    color: var(--accent);
+    text-shadow: 0 0 8px var(--accent-dim);
+  }
+
+  /* ============ EXPANDED PANELS (Chat & Details) ============ */
+  .chat-window, .details-window {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    border-top: 1px solid var(--accent-dim);
+    padding-top: 10px;
+    margin-top: 4px;
+    position: relative;
+    z-index: 2;
+    animation: slideDown 0.3s ease forwards;
+  }
+
+  .chat-window.active, .details-window.active {
+    display: flex;
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Chat Window Specifics */
+  .chat-window {
+    height: 170px; /* Примерно 2 карточки */
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+    margin-bottom: 8px;
+  }
+
+  .chat-messages::-webkit-scrollbar {
+    width: 4px;
+  }
+  .chat-messages::-webkit-scrollbar-thumb {
+    background: var(--accent-dim);
+    border-radius: 4px;
+  }
+
+  .message {
+    max-width: 85%;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    word-wrap: break-word;
+  }
+
+  .message.user {
+    align-self: flex-end;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-bottom-right-radius: 2px;
+    color: #fff;
+  }
+
+  .message.bot {
+    align-self: flex-start;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 2px;
+    color: var(--text);
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  /* AI Eyes */
+  .ai-avatar {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+  }
+
+  .ai-eyes {
+    display: flex;
+    gap: 3px;
+  }
+
+  .ai-eye {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #000;
+    transition: all 0.2s;
+  }
+
+  .ai-avatar.thinking .ai-eye {
+    background: #fff;
+    box-shadow: 0 0 6px #fff, 0 0 12px var(--accent);
+    animation: pulse 0.8s infinite alternate;
+  }
+
+  @keyframes pulse {
+    from { opacity: 0.4; }
+    to { opacity: 1; }
+  }
+
+  .chat-input-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .chat-input-row input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 11px;
+    outline: none;
+  }
+
+  .chat-input-row input:focus {
+    border-color: var(--accent);
+  }
+
+  .chat-input-row button {
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #000;
+    padding: 0 12px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    transition: box-shadow 0.2s;
+  }
+
+  .chat-input-row button:hover {
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  /* Details Window Specifics */
+  .details-window {
+    height: 80px; /* Примерно 1 карточка */
+    overflow-y: auto;
+  }
+
+  .details-window::-webkit-scrollbar {
+    width: 4px;
+  }
+  .details-window::-webkit-scrollbar-thumb {
+    background: var(--accent-dim);
+    border-radius: 4px;
+  }
+
+  .details-content {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .details-content strong {
+    color: var(--text);
+  }
+
+  /* ============ PAGINATION ============ */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .page-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(20, 22, 26, 0.6);
+    border: 1px solid var(--neon-dim);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(14px);
+  }
+
+  .page-btn:hover {
+    border-color: var(--neon);
+    color: var(--neon);
+  }
+
+  .page-btn.active {
+    background: var(--neon-dim);
+    border-color: var(--neon);
+    color: var(--neon);
+    box-shadow: inset 0 0 10px var(--neon-dim);
+  }
+
+  .page-arrow {
+    color: var(--neon);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 6px;
+    transition: transform 0.2s;
+    text-shadow: 0 0 8px var(--neon);
+  }
+
+  .page-arrow:hover {
+    transform: scale(1.2);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header-section">
+    <div class="logo">CLAN<b>DAI</b> · HUB</div>
+    <div class="search-container">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="M21 21l-4.35-4.35"></path>
+      </svg>
+      <input type="text" class="search-input" id="searchInput" placeholder="Find a token..." autocomplete="off" />
+    </div>
+  </div>
+
+  <!-- TOKEN GRID -->
+  <div class="token-grid" id="tokenGrid">
+    <!-- Tokens will be injected here by JS -->
+  </div>
+
+  <!-- PAGINATION -->
+  <div class="pagination">
+    <span class="page-arrow">«</span>
+    <button class="page-btn active">1</button>
+    <button class="page-btn">2</button>
+    <button class="page-btn">3</button>
+    <button class="page-btn">4</button>
+    <button class="page-btn">5</button>
+    <span class="page-arrow">»</span>
+  </div>
+
+</div>
+
+<script>
+  // ==========================================
+  // MOCK DATA
+  // ==========================================
+  const tokens = [
+    { 
+      name: 'TERRA', accent: '#00ffaa', vg: '112%', lo: '$1,000,000', sr: 34, icon: '🌍',
+      details: 'Network: Ethereum\nContract: 0x1234...5678\nDescription: A next-gen utility token for the Terra ecosystem.',
+      aiResponses: [
+        "Terra is a decentralized finance protocol.",
+        "The current value locked is $1,000,000.",
+        "You can stake Terra to earn rewards."
+      ]
+    },
+    { 
+      name: 'LINA', accent: '#a855f7', vg: '128%', lo: '$100,000,000', sr: 57, icon: '👤',
+      details: 'Network: Binance Smart Chain\nContract: 0x9876...4321\nDescription: LINA powers cross-chain interoperability.',
+      aiResponses: [
+        "Lina focuses on cross-chain bridges.",
+        "It has a market cap of over $100M.",
+        "Lina is available on BSC and Ethereum."
+      ]
+    },
+    { 
+      name: 'RZOND', accent: '#00d9ff', vg: '105%', lo: '$10,000,000', sr: 69, icon: '🐯',
+      details: 'Network: Polygon\nContract: 0xabcd...efgh\nDescription: Rzond is a privacy-focused layer 2 solution.',
+      aiResponses: [
+        "Rzond prioritizes user privacy.",
+        "It uses zero-knowledge proofs.",
+        "The total supply is capped at 1 billion."
+      ]
+    },
+    { 
+      name: 'CAPONI', accent: '#ff9a3c', vg: '141%', lo: '$200,000,000', sr: 87, icon: '🧢',
+      details: 'Network: Avalanche\nContract: 0x1357...2468\nDescription: Caponi is a meme token with real utility.',
+      aiResponses: [
+        "Caponi is a community-driven token.",
+        "It has a massive following on social media.",
+        "Caponi is listed on several major exchanges."
+      ]
+    },
+    { 
+      name: 'NEXUS', accent: '#ff2bd6', vg: '98%', lo: '$5,500,000', sr: 42, icon: '⚡',
+      details: 'Network: Arbitrum\nContract: 0x1111...2222\nDescription: Nexus connects DeFi protocols seamlessly.',
+      aiResponses: [
+        "Nexus is a DeFi aggregator.",
+        "It supports over 50 protocols.",
+        "Nexus aims to simplify yield farming."
+      ]
+    },
+    { 
+      name: 'ORION', accent: '#ffd400', vg: '115%', lo: '$45,000,000', sr: 61, icon: '✨',
+      details: 'Network: Optimism\nContract: 0x3333...4444\nDescription: Orion is a decentralized oracle network.',
+      aiResponses: [
+        "Orion provides reliable price feeds.",
+        "It is secured by a network of nodes.",
+        "Orion is integrated with many dApps."
+      ]
+    },
+    { 
+      name: 'VEGA', accent: '#3b82f6', vg: '134%', lo: '$88,000,000', sr: 73, icon: '💎',
+      details: 'Network: Base\nContract: 0x5555...6666\nDescription: Vega is a high-performance trading engine.',
+      aiResponses: [
+        "Vega offers lightning-fast trades.",
+        "It uses a custom consensus mechanism.",
+        "Vega is built for institutional traders."
+      ]
+    },
+    { 
+      name: 'ATLAS', accent: '#ff3b6b', vg: '101%', lo: '$12,000,000', sr: 28, icon: '🛡️',
+      details: 'Network: Solana\nContract: 0x7777...8888\nDescription: Atlas is a secure wallet and staking platform.',
+      aiResponses: [
+        "Atlas provides a secure wallet.",
+        "You can stake SOL through Atlas.",
+        "Atlas has a user-friendly interface."
+      ]
+    },
+  ];
+
+  // ==========================================
+  // RENDER TOKENS
+  // ==========================================
+  const grid = document.getElementById('tokenGrid');
+
+  function renderTokens(data) {
+    grid.innerHTML = '';
+    
+    if (data.length === 0) {
+      grid.innerHTML = `
+        <div style="text-align: center; padding: 40px 20px; color: var(--muted); font-size: 12px; letter-spacing: 2px; text-transform: uppercase;">
+          No tokens found
+        </div>
+      `;
+      return;
+    }
+
+    data.forEach((token, index) => {
+      const card = document.createElement('div');
+      card.className = 'card-wrapper';
+      card.style.setProperty('--accent', token.accent);
+      card.style.setProperty('--accent-dim', token.accent + '55');
+
+      // Уникальные ID для окон
+      const chatId = `chat-${token.name}`;
+      const detailsId = `details-${token.name}`;
+
+      card.innerHTML = `
+        <div class="token-card">
+          <div class="card-top">
+            <div class="icon-frame">
+              <div class="icon-rotating">${token.icon}</div>
+            </div>
+            <div class="token-details">
+              <div class="card-header">
+                <span>${token.name}</span>
+                <div class="card-actions">
+                  <button class="action-icon ai-btn" data-target="${chatId}" title="AI Chat">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="4" y="6" width="16" height="12" rx="2"/>
+                      <circle cx="9" cy="12" r="1.5" fill="currentColor"/>
+                      <circle cx="15" cy="12" r="1.5" fill="currentColor"/>
+                      <path d="M9 16h6"/>
+                    </svg>
+                  </button>
+                  <button class="action-icon info-btn" data-target="${detailsId}" title="Details">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 16v-4"/>
+                      <path d="M12 8h.01"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="stats-panel">
+                <div class="stat-row">
+                  <span class="stat-label">VG:</span>
+                  <span class="stat-value accent">${token.vg}</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">LO:</span>
+                  <span class="stat-value">${token.lo}</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">SR:</span>
+                  <span class="stat-value">${token.sr}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Chat Window -->
+          <div class="chat-window" id="${chatId}">
+            <div class="chat-messages">
+              <div class="message bot">
+                <div class="ai-avatar"><div class="ai-eyes"><div class="ai-eye"></div><div class="ai-eye"></div></div></div>
+                <div>Hello! Ask me anything about ${token.name}.</div>
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <input type="text" placeholder="Type a question..." />
+              <button>→</button>
+            </div>
+          </div>
+
+          <!-- Details Window -->
+          <div class="details-window" id="${detailsId}">
+            <div class="details-content">
+              <strong>Token Details:</strong><br>
+              ${token.details.replace(/\n/g, '<br>')}
+            </div>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    // ==========================================
+    // ATTACH EVENT LISTENERS
+    // ==========================================
+    
+    // Toggle Windows
+    document.querySelectorAll('.ai-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const targetId = btn.dataset.target;
+        const targetEl = document.getElementById(targetId);
+        const card = btn.closest('.card-wrapper');
+        const infoBtn = card.querySelector('.info-btn');
+        const infoTargetId = infoBtn.dataset.target;
+        const infoTargetEl = document.getElementById(infoTargetId);
+
+        // Закрываем окно деталей, если открыто
+        infoTargetEl.classList.remove('active');
+        infoBtn.style.background = 'rgba(0, 0, 0, 0.5)';
+        infoBtn.style.color = 'var(--accent)';
+
+        // Переключаем чат
+        targetEl.classList.toggle('active');
+        if (targetEl.classList.contains('active')) {
+          btn.style.background = 'var(--accent)';
+          btn.style.color = '#000';
+        } else {
+          btn.style.background = 'rgba(0, 0, 0, 0.5)';
+          btn.style.color = 'var(--accent)';
+        }
+      });
+    });
+
+    document.querySelectorAll('.info-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const targetId = btn.dataset.target;
+        const targetEl = document.getElementById(targetId);
+        const card = btn.closest('.card-wrapper');
+        const aiBtn = card.querySelector('.ai-btn');
+        const aiTargetId = aiBtn.dataset.target;
+        const aiTargetEl = document.getElementById(aiTargetId);
+
+        // Закрываем чат, если открыт
+        aiTargetEl.classList.remove('active');
+        aiBtn.style.background = 'rgba(0, 0, 0, 0.5)';
+        aiBtn.style.color = 'var(--accent)';
+
+        // Переключаем детали
+        targetEl.classList.toggle('active');
+        if (targetEl.classList.contains('active')) {
+          btn.style.background = 'var(--accent)';
+          btn.style.color = '#000';
+        } else {
+          btn.style.background = 'rgba(0, 0, 0, 0.5)';
+          btn.style.color = 'var(--accent)';
+        }
+      });
+    });
+
+    // Chat Send Logic
+    document.querySelectorAll('.chat-input-row button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const input = btn.previousElementSibling;
+        const text = input.value.trim();
+        if (!text) return;
+
+        const chatWindow = btn.closest('.chat-window');
+        const messagesContainer = chatWindow.querySelector('.chat-messages');
+        
+        // Добавляем сообщение пользователя
+        const userMsg = document.createElement('div');
+        userMsg.className = 'message user';
+        userMsg.textContent = text;
+        messagesContainer.appendChild(userMsg);
+        
+        input.value = '';
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Добавляем сообщение бота с анимацией "думает"
+        const botMsg = document.createElement('div');
+        botMsg.className = 'message bot';
+        botMsg.innerHTML = `
+          <div class="ai-avatar thinking"><div class="ai-eyes"><div class="ai-eye"></div><div class="ai-eye"></div></div></div>
+          <div>Thinking...</div>
+        `;
+        messagesContainer.appendChild(botMsg);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Имитация ответа ИИ
+        setTimeout(() => {
+          const tokenName = chatWindow.id.replace('chat-', '');
+          const tokenData = tokens.find(t => t.name === tokenName);
+          const responses = tokenData ? tokenData.aiResponses : ["I'm not sure about that."];
+          const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+          
+          botMsg.innerHTML = `
+            <div class="ai-avatar"><div class="ai-eyes"><div class="ai-eye"></div><div class="ai-eye"></div></div></div>
+            <div>${randomResponse}</div>
+          `;
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }, 1500);
+      });
+    });
+
+    // Enter key to send
+    document.querySelectorAll('.chat-input-row input').forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          input.nextElementSibling.click();
+        }
+      });
+    });
+  }
+
+  // Initial Render
+  renderTokens(tokens);
+
+  // ==========================================
+  // SEARCH FILTER
+  // ==========================================
+  const searchInput = document.getElementById('searchInput');
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    const filtered = tokens.filter(token => 
+      token.name.toLowerCase().includes(query)
+    );
+    renderTokens(filtered);
+  });
+
+  // ==========================================
+  // PAGINATION (Visual only)
+  // ==========================================
+  document.querySelectorAll('.page-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.page-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>

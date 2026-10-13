@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI WHITELIST</title>
+<style>
+:root{
+  --bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);
+  --neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--pink:#ff2bd6;
+  --text:#d8dee6;--muted:#5b6672;--danger:#ff3b6b;--radius:14px;--gold:#ffd400;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+
+.app{position:relative;z-index:1;max-width:480px;margin:0 auto;min-height:100vh;
+  padding:22px 18px 40px;display:flex;flex-direction:column;gap:16px}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px}
+.logo{font-weight:700;letter-spacing:3px;font-size:14px;opacity:.78;white-space:nowrap}
+.logo b{color:var(--neon)}
+.topbar-actions{display:flex;gap:6px;align-items:center}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);
+  width:34px;height:34px;border-radius:9px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .15s,color .15s;flex-shrink:0}
+.icon-btn:hover{border-color:var(--neon);color:var(--neon)}
+.icon-btn:active{transform:scale(.94)}
+.icon-btn svg{width:15px;height:15px}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  backdrop-filter:blur(18px);padding:18px;position:relative}
+.section-title{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;
+  margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.section-title .link{color:var(--cyan);cursor:pointer;letter-spacing:1px}
+.section-title .link:hover{text-decoration:underline}
+
+/* ============ FORM FIELDS ============ */
+.field{margin-bottom:16px}
+.field label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:8px}
+input[type="text"],input[type="datetime-local"],textarea{
+  width:100%;padding:12px 14px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);
+  font-family:inherit;font-size:13px;outline:none;
+  transition:border-color .15s,box-shadow .15s;resize:none}
+input:focus,textarea:focus{border-color:var(--neon);box-shadow:0 0 0 3px var(--neon-dim)}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+textarea{min-height:60px;line-height:1.5}
+
+/* ============ THICK LIMIT SLIDER ============ */
+.limit-slider{
+  position:relative;
+  height:72px;
+  background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.35));
+  border:1px solid var(--border);
+  border-radius:16px;
+  overflow:hidden;
+  cursor:grab;
+  touch-action:none;
+  user-select:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+.limit-slider:active{cursor:grabbing}
+.limit-slider.dragging{border-color:var(--neon);box-shadow:0 0 0 3px var(--neon-dim),inset 0 0 30px -12px var(--neon)}
+.limit-slider-grid{position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(90deg, var(--neon-dim) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 0 calc(25% - 1px), rgba(0,255,170,.35) 25%, transparent calc(25% + 1px)),
+    linear-gradient(90deg, transparent 0 calc(50% - 1px), rgba(0,255,170,.35) 50%, transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent 0 calc(75% - 1px), rgba(0,255,170,.35) 75%, transparent calc(75% + 1px));
+  background-size:5% 100%, 100% 100%, 100% 100%, 100% 100%;
+  opacity:.18}
+.limit-slider-fill{position:absolute;left:0;top:0;bottom:0;width:0%;
+  background:linear-gradient(90deg,rgba(0,255,170,.05),rgba(0,255,170,.28));
+  transition:width .05s linear;
+  pointer-events:none}
+.limit-slider-fill::after{content:'';position:absolute;right:-1px;top:0;bottom:0;width:2px;
+  background:var(--neon);box-shadow:0 0 18px var(--neon),0 0 4px #fff inset}
+.limit-slider-thumb{position:absolute;top:6px;bottom:6px;width:16px;
+  background:var(--neon);
+  border-radius:8px;
+  box-shadow:0 0 22px var(--neon),0 0 4px #fff inset,0 0 0 1px rgba(255,255,255,.15);
+  transition:left .05s linear,transform .12s;
+  pointer-events:none}
+.limit-slider.dragging .limit-slider-thumb{transform:scaleY(1.04)}
+.limit-slider-thumb::before{content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:6px;height:22px;
+  background:rgba(8,9,11,.6);border-radius:3px}
+.limit-slider-value{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  color:var(--neon);font-size:22px;font-weight:800;letter-spacing:1px;
+  text-shadow:0 0 14px var(--neon-dim);
+  pointer-events:none;
+  font-variant-numeric:tabular-nums;
+  z-index:2}
+.limit-slider-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  color:var(--muted);font-size:10px;letter-spacing:3px;text-transform:uppercase;
+  pointer-events:none;transition:opacity .2s;z-index:1}
+.limit-slider.dragged .limit-slider-hint{opacity:0}
+
+.limit-info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.limit-info-item{background:rgba(0,0,0,.4);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:4px}
+.limit-info-item span{font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase}
+.limit-info-item b{font-size:14px;color:var(--neon);font-weight:800;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 10px var(--neon-dim)}
+.limit-info-item.pct b{color:var(--cyan);text-shadow:0 0 10px rgba(0,217,255,.4)}
+
+.limit-presets{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.limit-presets button{flex:1;min-width:52px;padding:8px 6px;
+  background:rgba(0,0,0,.4);border:1px solid var(--border);
+  border-radius:8px;color:var(--muted);font-family:inherit;font-size:10px;
+  letter-spacing:1px;cursor:pointer;transition:all .15s;font-weight:700}
+.limit-presets button:hover{border-color:var(--neon);color:var(--neon)}
+.limit-presets button.active{background:var(--neon-dim);border-color:var(--neon);color:var(--neon)}
+
+/* ============ DEADLINE PRESETS ============ */
+.deadline-presets{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.deadline-presets button{flex:1;min-width:52px;padding:8px 6px;
+  background:rgba(0,0,0,.4);border:1px solid var(--border);
+  border-radius:8px;color:var(--muted);font-family:inherit;font-size:10px;
+  letter-spacing:1px;cursor:pointer;transition:all .15s;font-weight:700}
+.deadline-presets button:hover{border-color:var(--cyan);color:var(--cyan)}
+.deadline-presets button.active{background:rgba(0,217,255,.15);border-color:var(--cyan);color:var(--cyan)}
+
+/* ============ BTN ============ */
+.btn-full{width:100%;padding:15px;background:linear-gradient(180deg,var(--neon-dim),transparent);
+  border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;
+  font-size:13px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;
+  transition:box-shadow .15s,transform .1s;margin-top:6px;font-weight:700}
+.btn-full:hover{box-shadow:0 0 24px var(--neon-dim)}
+.btn-full:active{transform:translateY(1px)}
+.btn-full:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted);box-shadow:none}
+
+/* ============ CONFIRM ANIMATION ============ */
+.confirm-stage{
+  display:flex;flex-direction:column;align-items:center;
+  padding:8px 0 4px;position:relative
+}
+.confirm-stage::before{content:'';position:absolute;top:0;left:50%;
+  transform:translateX(-50%);width:70%;height:1px;
+  background:linear-gradient(90deg,transparent,var(--neon-dim),transparent);
+  opacity:.6}
+.confirm-title{font-size:11px;letter-spacing:3px;color:var(--muted);
+  text-transform:uppercase;margin:8px 0 20px}
+.confirm-title.done{color:var(--neon);text-shadow:0 0 12px var(--neon-dim)}
+
+.stamp-area{
+  min-height:78px;
+  display:flex;align-items:center;justify-content:center;
+  width:100%;
+  margin-bottom:20px;
+}
+.stamp{
+  display:inline-block;
+  position:relative;
+  padding:10px 26px;
+  border:3px solid var(--neon);
+  border-radius:8px;
+  color:var(--neon);
+  font-size:22px;
+  font-weight:800;
+  letter-spacing:6px;
+  text-shadow:0 0 12px var(--neon),0 0 26px var(--neon-dim);
+  box-shadow:0 0 24px var(--neon-dim),inset 0 0 22px rgba(0,255,170,.14);
+  background:rgba(0,255,170,.05);
+  transform:rotate(-8deg);
+  opacity:0;
+  transform-origin:center center;
+}
+.stamp::before{content:'';position:absolute;inset:3px;
+  border:1px solid var(--neon);border-radius:5px;opacity:.5;pointer-events:none}
+.stamp::after{content:'';position:absolute;left:0;right:0;top:50%;
+  height:1px;background:var(--neon);opacity:.35;
+  transform:translateY(-50%) scaleX(.7);pointer-events:none}
+.stamp.show{
+  animation:stampSlam .55s cubic-bezier(.2,.9,.3,1.5) forwards,
+            stampGlow 2.4s ease-in-out infinite .6s;
+}
+@keyframes stampSlam{
+  0%   {opacity:0;transform:rotate(-40deg) scale(2.6)}
+  55%  {opacity:1;transform:rotate(-8deg) scale(.94)}
+  75%  {transform:rotate(-8deg) scale(1.03)}
+  100% {opacity:1;transform:rotate(-8deg) scale(1)}
+}
+@keyframes stampGlow{
+  0%,100%{box-shadow:0 0 24px var(--neon-dim),inset 0 0 22px rgba(0,255,170,.14)}
+  50%    {box-shadow:0 0 42px var(--neon),inset 0 0 32px rgba(0,255,170,.24)}
+}
+
+.typing-field{
+  width:100%;
+  background:rgba(0,0,0,.5);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px 16px;
+  position:relative;
+  min-height:60px;
+  display:flex;align-items:center;
+  transition:border-color .2s,box-shadow .2s;
+  overflow:hidden;
+}
+.typing-field.typing{border-color:var(--neon);box-shadow:0 0 0 3px var(--neon-dim)}
+.typing-field.done{border-color:var(--neon)}
+.typing-field::before{content:'';position:absolute;left:0;right:0;bottom:0;
+  height:1px;background:linear-gradient(90deg,transparent,var(--neon-dim),transparent);
+  opacity:.4}
+.typing-addr{
+  font-family:inherit;
+  font-size:14px;
+  color:var(--text);
+  letter-spacing:.6px;
+  word-break:break-all;
+  line-height:1.4;
+  position:relative;
+}
+.typing-addr.typing{color:var(--neon);text-shadow:0 0 10px var(--neon-dim)}
+.typing-addr::after{
+  content:'▋';
+  display:inline-block;
+  color:var(--neon);
+  margin-left:2px;
+  animation:caretBlink .8s steps(2,start) infinite;
+}
+.typing-addr.done::after{display:none}
+@keyframes caretBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+.confirm-details{
+  width:100%;
+  display:flex;flex-direction:column;gap:8px;
+  margin-top:20px;
+  opacity:0;transform:translateY(8px);
+  transition:opacity .4s,transform .4s;
+}
+.confirm-details.show{opacity:1;transform:translateY(0)}
+.confirm-row{display:flex;justify-content:space-between;font-size:11px;gap:12px;
+  padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.confirm-row:last-of-type{border-bottom:none}
+.confirm-row .lbl{color:var(--muted);flex-shrink:0;letter-spacing:1px;text-transform:uppercase;font-size:10px}
+.confirm-row .val{color:var(--text);text-align:right;word-break:break-all;font-weight:700;font-size:12px}
+.confirm-row .val.good{color:var(--neon);text-shadow:0 0 10px var(--neon-dim)}
+
+/* ============ WHITELIST ============ */
+.wl-list{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.wl-empty{color:var(--muted);font-size:12px;text-align:center;padding:28px 0;letter-spacing:1px}
+
+.wl-item{
+  position:relative;
+  background:linear-gradient(135deg,rgba(0,255,170,.03),rgba(0,0,0,.3));
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  transition:border-color .25s,background .25s,opacity .4s;
+  animation:slideIn .35s cubic-bezier(.2,.9,.3,1.1);
+}
+@keyframes slideIn{
+  from{opacity:0;transform:translateY(-8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.wl-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--neon);box-shadow:0 0 12px var(--neon-dim);
+  transition:background .4s,box-shadow .4s;z-index:2}
+.wl-item:hover{border-color:rgba(0,255,170,.35)}
+.wl-item.deleted{
+  background:linear-gradient(135deg,rgba(255,59,107,.04),rgba(0,0,0,.3));
+  border-color:rgba(255,59,107,.28);
+}
+.wl-item.deleted::before{background:var(--danger);box-shadow:0 0 12px var(--danger)}
+.wl-item.removing{opacity:0;transform:translateX(20px);transition:opacity .5s,transform .5s}
+
+.wl-item-body{padding:14px 14px 14px 16px;display:flex;flex-direction:column;gap:8px}
+
+.wl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.wl-head-left{flex:1;min-width:0}
+.wl-addr{
+  font-size:12px;
+  color:var(--text);
+  letter-spacing:.4px;
+  word-break:break-all;
+  line-height:1.35;
+  position:relative;
+  display:inline-block;
+  transition:color .4s;
+}
+.wl-addr::after{
+  content:'';
+  position:absolute;
+  left:-2px;right:-2px;top:50%;
+  height:1.5px;
+  background:var(--danger);
+  box-shadow:0 0 8px var(--danger);
+  transform:scaleX(0);
+  transform-origin:left center;
+  transition:transform .5s cubic-bezier(.2,.8,.2,1);
+}
+.wl-item.deleted .wl-addr{color:var(--muted);opacity:.65}
+.wl-item.deleted .wl-addr::after{transform:scaleX(1)}
+
+.wl-timer{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 9px;border-radius:999px;
+  background:rgba(0,217,255,.08);
+  border:1px solid rgba(0,217,255,.3);
+  color:var(--cyan);
+  font-size:10px;
+  letter-spacing:1px;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+  flex-shrink:0;
+  transition:all .3s;
+}
+.wl-timer svg{width:11px;height:11px}
+.wl-timer.warn{background:rgba(255,212,0,.08);border-color:rgba(255,212,0,.4);color:var(--gold)}
+.wl-timer.danger{background:rgba(255,59,107,.08);border-color:rgba(255,59,107,.4);color:var(--danger);
+  animation:pulseTimer 1.4s ease-in-out infinite}
+@keyframes pulseTimer{0%,100%{opacity:1}50%{opacity:.55}}
+
+.wl-name{font-size:12px;color:var(--neon);font-weight:700;letter-spacing:.5px}
+.wl-desc{font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+.wl-meta{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  font-size:11px;
+  margin-top:2px;
+}
+.wl-meta-item{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 8px;
+  background:rgba(0,0,0,.35);
+  border:1px solid var(--border);
+  border-radius:6px;
+  color:var(--muted);
+  letter-spacing:.5px;
+}
+.wl-meta-item b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+.wl-meta-item.amount b{color:var(--neon);text-shadow:0 0 8px var(--neon-dim)}
+.wl-meta-item.pct b{color:var(--cyan);text-shadow:0 0 8px rgba(0,217,255,.4)}
+
+.wl-actions{
+  display:flex;align-items:center;justify-content:flex-end;
+  gap:8px;margin-top:4px;
+}
+
+.wl-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 12px;
+  background:transparent;
+  border:1px solid var(--border);
+  border-radius:9px;
+  color:var(--muted);
+  font-family:inherit;font-size:10px;
+  letter-spacing:1.2px;text-transform:uppercase;
+  cursor:pointer;
+  transition:all .2s;
+  font-weight:700;
+}
+.wl-btn svg{width:13px;height:13px;transition:transform .2s}
+.wl-btn.del:hover{border-color:var(--danger);color:var(--danger);
+  box-shadow:0 0 18px -4px var(--danger)}
+.wl-btn.del:hover svg{transform:rotate(-12deg)}
+.wl-btn.lock{
+  border-color:var(--danger);
+  color:var(--danger);
+  background:linear-gradient(180deg,rgba(255,59,107,.12),transparent);
+  cursor:default;
+  box-shadow:0 0 18px -6px var(--danger);
+}
+.wl-btn.lock:hover{border-color:var(--danger);color:var(--danger)}
+
+/* ============ DELETE COUNTDOWN BANNER ============ */
+.delete-countdown{
+  position:relative;
+  overflow:hidden;
+  background:linear-gradient(90deg,rgba(255,59,107,.14),rgba(255,59,107,.05));
+  border-bottom:1px solid rgba(255,59,107,.3);
+  padding:11px 14px;
+  display:flex;align-items:center;gap:10px;
+  animation:cdSlideDown .3s cubic-bezier(.2,.9,.3,1.15);
+  z-index:1;
+}
+@keyframes cdSlideDown{
+  from{opacity:0;transform:translateY(-8px);max-height:0;padding-top:0;padding-bottom:0}
+  to{opacity:1;transform:translateY(0);max-height:60px;padding-top:11px;padding-bottom:11px}
+}
+.delete-countdown-fill{
+  position:absolute;
+  left:0;top:0;bottom:0;
+  background:linear-gradient(90deg,rgba(255,59,107,.32),rgba(255,59,107,.14));
+  transition:width .1s linear;
+  pointer-events:none;
+  box-shadow:inset -2px 0 8px rgba(255,59,107,.6);
+  z-index:0;
+}
+.delete-countdown-content{
+  position:relative;z-index:1;
+  display:flex;align-items:center;gap:10px;
+  width:100%;
+}
+.delete-countdown-icon{
+  width:18px;height:18px;
+  color:var(--danger);
+  flex-shrink:0;
+  animation:cdPulse 1s ease-in-out infinite;
+}
+@keyframes cdPulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.5;transform:scale(1.1)}
+}
+.delete-countdown-text{
+  flex:1;min-width:0;
+  font-size:10px;
+  color:var(--danger);
+  letter-spacing:1.2px;
+  text-transform:uppercase;
+  font-weight:700;
+  text-shadow:0 0 8px rgba(255,59,107,.4);
+}
+.delete-countdown-text b{
+  color:#fff;
+  font-size:14px;
+  text-shadow:0 0 10px var(--danger),0 0 18px rgba(255,59,107,.5);
+  font-variant-numeric:tabular-nums;
+  display:inline-block;
+  min-width:24px;
+  text-align:center;
+}
+.cd-cancel{
+  padding:6px 12px;
+  background:rgba(0,255,170,.1);
+  border:1px solid var(--neon);
+  color:var(--neon);
+  border-radius:7px;
+  font-family:inherit;
+  font-size:10px;
+  letter-spacing:1px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all .18s;
+  text-transform:uppercase;
+  flex-shrink:0;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+}
+.cd-cancel svg{width:11px;height:11px}
+.cd-cancel:hover{
+  background:var(--neon);
+  color:#08090b;
+  box-shadow:0 0 16px var(--neon);
+  transform:translateY(-1px);
+}
+.cd-cancel:active{transform:translateY(0) scale(.97)}
+
+/* toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);
+  background:#0e1014;border:1px solid var(--neon);color:var(--neon);padding:12px 20px;
+  border-radius:999px;font-size:12px;letter-spacing:1px;z-index:200;opacity:0;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;
+  box-shadow:0 0 24px var(--neon-dim);max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--danger);color:var(--danger);
+  box-shadow:0 0 24px rgba(255,59,107,.25)}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:8px}
+
+@media (max-width:640px){
+  .panel{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(18,20,24,.95)}
+  body::after{display:none}
+  .app{padding:16px 14px 32px;gap:14px}
+  .panel{padding:16px}
+  .limit-slider{height:66px}
+  .limit-slider-value{font-size:20px}
+  .stamp{font-size:20px;letter-spacing:5px;padding:9px 22px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">CLAN<b>DAI</b> WHITELIST</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btn-info" title="Info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ FORM ============ -->
+  <div class="panel" id="form-panel">
+    <div class="section-title">
+      <span>ДОБАВИТЬ В WHITELIST</span>
+      <span class="link" id="toggle-form">СВЕРНУТЬ</span>
+    </div>
+
+    <div class="field">
+      <label>АДРЕС КОНТРАКТА ИЛИ КОШЕЛЬКА</label>
+      <input type="text" id="addr-input" placeholder="0x..." autocomplete="off"
+        spellcheck="false" inputmode="text" />
+    </div>
+
+    <div class="field">
+      <label>ИМЯ (необязательно)</label>
+      <input type="text" id="name-input" placeholder="Например: Binance Hot Wallet"
+        maxlength="40" autocomplete="off" />
+    </div>
+
+    <div class="field">
+      <label>ОПИСАНИЕ (необязательно)</label>
+      <textarea id="desc-input" maxlength="140"
+        placeholder="Назначение, заметка, источник..."></textarea>
+    </div>
+
+    <!-- THICK LIMIT SLIDER -->
+    <div class="field">
+      <label>ЛИМИТ ТОКЕНОВ</label>
+      <div class="limit-slider" id="limit-slider">
+        <div class="limit-slider-grid"></div>
+        <div class="limit-slider-fill" id="limit-fill"></div>
+        <div class="limit-slider-thumb" id="limit-thumb"></div>
+        <div class="limit-slider-hint" id="limit-hint">ТЯНИТЕ →</div>
+        <div class="limit-slider-value" id="limit-value">0.0%</div>
+      </div>
+      <div class="limit-info">
+        <div class="limit-info-item">
+          <span>Сумма токенов</span>
+          <b id="amount-display">0</b>
+        </div>
+        <div class="limit-info-item pct">
+          <span>% от supply</span>
+          <b id="pct-display">0.00%</b>
+        </div>
+      </div>
+      <div class="limit-presets" id="limit-presets">
+        <button data-p="1">1%</button>
+        <button data-p="5">5%</button>
+        <button data-p="10">10%</button>
+        <button data-p="25">25%</button>
+        <button data-p="50">50%</button>
+        <button data-p="100">MAX</button>
+      </div>
+    </div>
+
+    <!-- DEADLINE -->
+    <div class="field" style="margin-bottom:8px">
+      <label>ДЕДЛАЙН РАЗРЕШЕНИЯ</label>
+      <div class="deadline-presets" id="deadline-presets">
+        <button data-h="1">1 ЧАС</button>
+        <button data-h="24">24 ЧАСА</button>
+        <button data-h="168">7 ДНЕЙ</button>
+        <button data-h="720">30 ДНЕЙ</button>
+      </div>
+      <input type="datetime-local" id="deadline-input" />
+    </div>
+
+    <button class="btn-full" id="btn-confirm" style="margin-top:18px">
+      ПОДТВЕРДИТЬ
+    </button>
+  </div>
+
+  <!-- ============ CONFIRM ANIMATION ============ -->
+  <div class="panel" id="confirm-panel" style="display:none">
+    <div class="section-title">
+      <span>ПОДТВЕРЖДЕНИЕ</span>
+    </div>
+
+    <div class="confirm-stage">
+      <div class="stamp-area">
+        <div class="stamp" id="stamp">WHITELIST</div>
+      </div>
+      <div class="confirm-title" id="confirm-title">ПЕЧАТАЕМ АДРЕС...</div>
+
+      <div class="typing-field" id="typing-field">
+        <div class="typing-addr" id="typing-addr"></div>
+      </div>
+
+      <div class="confirm-details" id="confirm-details">
+        <div class="confirm-row">
+          <span class="lbl">Сумма</span>
+          <span class="val good" id="c-amount">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="lbl">% Supply</span>
+          <span class="val good" id="c-pct">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="lbl">Дедлайн</span>
+          <span class="val" id="c-deadline">—</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-full" id="btn-done" style="margin-top:22px" disabled>
+      ГОТОВО
+    </button>
+  </div>
+
+  <!-- ============ WHITELIST ============ -->
+  <div class="panel">
+    <div class="section-title">
+      <span>МОИ АДРЕСА</span>
+      <span class="link" id="wl-count">0</span>
+    </div>
+    <div class="wl-list" id="wl-list"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   CLANDAI WHITELIST
+   ========================================================= */
+const TOTAL_SUPPLY = 100000000; // 100M CLND
+const STORAGE_KEY = 'clandai_whitelist_v1';
+const DELETE_TIMEOUT = 60000;
+
+const state = {
+  entries: [],
+  sliderPct: 0,
+  dragging: false,
+  dragStartX: 0,
+  dragStartPct: 0,
+  pending: null,
+  typingTimer: null,
+  deleteTimers: new Map(),
+};
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+/* ---------- UTIL ---------- */
+function toast(msg, err=false){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => el.className = 'toast', 2400);
+}
+function vibrate(ms=6){ if (navigator.vibrate) navigator.vibrate(ms); }
+function fmtNumber(n){
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+function shortAddr(a, n=6){
+  if (!a) return '';
+  if (a.length <= n*2+3) return a;
+  return a.slice(0, n) + '…' + a.slice(-4);
+}
+function isValidAddr(a){
+  const s = String(a || '').trim();
+  if (!s) return false;
+  if (/^0x[0-9a-fA-F]{40}$/.test(s)) return true;
+  if (/^0x[0-9a-fA-F]{6,}$/.test(s)) return true;
+  if (/^[a-zA-Z0-9_\-\:\.]{4,120}$/.test(s)) return true;
+  return false;
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function pad2(n){ return String(n).padStart(2, '0'); }
+
+/* ---------- STORAGE ---------- */
+function load(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { state.entries = []; return; }
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) state.entries = arr;
+  } catch { state.entries = []; }
+}
+function save(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries)); } catch {}
+}
+
+/* =========================================================
+   SLIDER
+   ========================================================= */
+const slider = $('#limit-slider');
+const fill = $('#limit-fill');
+const thumb = $('#limit-thumb');
+const hint = $('#limit-hint');
+const valueEl = $('#limit-value');
+
+function applySlider(){
+  const trackW = slider.clientWidth;
+  const thumbW = thumb.offsetWidth || 16;
+  const pad = 6;
+  const maxLeft = trackW - thumbW - pad*2;
+  const left = pad + (state.sliderPct/100) * maxLeft;
+  thumb.style.left = left + 'px';
+  fill.style.width = (left + thumbW/2) + 'px';
+  valueEl.textContent = state.sliderPct.toFixed(1) + '%';
+  slider.classList.toggle('dragged', state.sliderPct > 0.5);
+
+  const pct = state.sliderPct;
+  const amount = Math.round(TOTAL_SUPPLY * pct / 100);
+  $('#amount-display').textContent = fmtNumber(amount) + ' CLND';
+  $('#pct-display').textContent = pct.toFixed(2) + '%';
+
+  $$('#limit-presets button').forEach(b => {
+    const v = parseFloat(b.dataset.p);
+    b.classList.toggle('active', Math.abs(v - pct) < 0.15);
+  });
+}
+
+function setPct(p){
+  state.sliderPct = Math.max(0, Math.min(100, p));
+  applySlider();
+}
+
+function sliderPointerDown(e){
+  state.dragging = true;
+  slider.classList.add('dragging');
+  dragStart(e.clientX);
+  e.preventDefault();
+  window.addEventListener('pointermove', sliderPointerMove);
+  window.addEventListener('pointerup', sliderPointerUp);
+  window.addEventListener('pointercancel', sliderPointerUp);
+  vibrate(8);
+}
+let _dragStartX = 0, _dragStartPct = 0;
+function dragStart(x){
+  _dragStartX = x;
+  _dragStartPct = state.sliderPct;
+}
+function sliderPointerMove(e){
+  if (!state.dragging) return;
+  const trackW = slider.clientWidth;
+  const thumbW = thumb.offsetWidth || 16;
+  const pad = 6;
+  const maxLeft = trackW - thumbW - pad*2;
+  const dx = e.clientX - _dragStartX;
+  const newLeft = Math.max(0, Math.min(maxLeft, (_dragStartPct/100)*maxLeft + dx));
+  setPct((newLeft / maxLeft) * 100);
+}
+function sliderPointerUp(){
+  if (!state.dragging) return;
+  state.dragging = false;
+  slider.classList.remove('dragging');
+  window.removeEventListener('pointermove', sliderPointerMove);
+  window.removeEventListener('pointerup', sliderPointerUp);
+  window.removeEventListener('pointercancel', sliderPointerUp);
+}
+
+slider.addEventListener('pointerdown', e => {
+  const rect = slider.getBoundingClientRect();
+  const thumbRect = thumb.getBoundingClientRect();
+  if (e.clientX >= thumbRect.left && e.clientX <= thumbRect.right){
+    sliderPointerDown(e);
+  } else {
+    const trackW = slider.clientWidth;
+    const thumbW = thumb.offsetWidth || 16;
+    const pad = 6;
+    const maxLeft = trackW - thumbW - pad*2;
+    const relX = e.clientX - rect.left - pad - thumbW/2;
+    setPct(Math.max(0, Math.min(100, (relX/maxLeft)*100)));
+    sliderPointerDown(e);
+  }
+});
+
+$$('#limit-presets button').forEach(b => {
+  b.onclick = () => {
+    setPct(parseFloat(b.dataset.p));
+    vibrate(10);
+  };
+});
+
+window.addEventListener('resize', applySlider);
+
+/* =========================================================
+   DEADLINE
+   ========================================================= */
+$$('#deadline-presets button').forEach(b => {
+  b.onclick = () => {
+    const hours = parseFloat(b.dataset.h);
+    const d = new Date(Date.now() + hours * 3600 * 1000);
+    setDeadline(d);
+    $$('#deadline-presets button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    vibrate(8);
+  };
+});
+
+function toLocalInputValue(d){
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function setDeadline(d){
+  $('#deadline-input').value = toLocalInputValue(d);
+}
+function getDeadline(){
+  const v = $('#deadline-input').value;
+  if (!v) return null;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
+setDeadline(new Date(Date.now() + 24*3600*1000));
+$('#deadline-presets button[data-h="24"]').classList.add('active');
+
+/* =========================================================
+   CONFIRM FLOW
+   ========================================================= */
+$('#btn-confirm').onclick = () => {
+  const addr = $('#addr-input').value.trim();
+  const name = $('#name-input').value.trim();
+  const desc = $('#desc-input').value.trim();
+  const deadline = getDeadline();
+
+  if (!isValidAddr(addr)){
+    toast('Введите корректный адрес', true);
+    $('#addr-input').focus();
+    return;
+  }
+  if (state.sliderPct <= 0){
+    toast('Установите лимит токенов', true);
+    return;
+  }
+  if (!deadline){
+    toast('Укажите дедлайн', true);
+    return;
+  }
+  if (deadline.getTime() <= Date.now()){
+    toast('Дедлайн должен быть в будущем', true);
+    return;
+  }
+  const dup = state.entries.find(e => e.address.toLowerCase() === addr.toLowerCase() && !e.deleted);
+  if (dup){
+    toast('Этот адрес уже в вайтлисте', true);
+    return;
+  }
+
+  const amount = Math.round(TOTAL_SUPPLY * state.sliderPct / 100);
+  state.pending = {
+    address: addr,
+    name,
+    desc,
+    pct: state.sliderPct,
+    amount,
+    deadline: deadline.getTime(),
+    createdAt: Date.now(),
+  };
+
+  runConfirmAnimation(state.pending);
+};
+
+function runConfirmAnimation(p){
+  $('#form-panel').style.display = 'none';
+  const panel = $('#confirm-panel');
+  panel.style.display = 'block';
+  window.scrollTo({top:0, behavior:'smooth'});
+
+  const stamp = $('#stamp');
+  const typingAddr = $('#typing-addr');
+  const typingField = $('#typing-field');
+  const title = $('#confirm-title');
+  const details = $('#confirm-details');
+  const doneBtn = $('#btn-done');
+
+  stamp.classList.remove('show');
+  typingAddr.textContent = '';
+  typingAddr.className = 'typing-addr typing';
+  typingField.className = 'typing-field typing';
+  title.className = 'confirm-title';
+  title.textContent = 'ПЕЧАТАЕМ АДРЕС...';
+  details.classList.remove('show');
+  doneBtn.disabled = true;
+  doneBtn.textContent = 'ГОТОВО';
+
+  $('#c-amount').textContent = fmtNumber(p.amount) + ' CLND';
+  $('#c-pct').textContent = p.pct.toFixed(2) + '%';
+  $('#c-deadline').textContent = new Date(p.deadline).toLocaleString('ru-RU', {
+    day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+  });
+
+  const chars = p.address.split('');
+  let i = 0;
+  const speed = Math.max(18, Math.min(50, 1400 / chars.length));
+  clearInterval(state.typingTimer);
+  state.typingTimer = setInterval(() => {
+    if (i >= chars.length){
+      clearInterval(state.typingTimer);
+      typingAddr.classList.remove('typing');
+      typingAddr.classList.add('done');
+      typingField.classList.remove('typing');
+      typingField.classList.add('done');
+      setTimeout(() => {
+        stamp.classList.add('show');
+        vibrate([20, 40, 20]);
+        title.textContent = '✓ АДРЕС ДОБАВЛЕН В WHITELIST';
+        title.classList.add('done');
+        setTimeout(() => {
+          details.classList.add('show');
+          doneBtn.disabled = false;
+          commitPending();
+        }, 250);
+      }, 180);
+      return;
+    }
+    typingAddr.textContent += chars[i];
+    if (i % 3 === 0) vibrate(3);
+    i++;
+  }, speed);
+}
+
+function commitPending(){
+  if (!state.pending) return;
+  const p = state.pending;
+  const dup = state.entries.find(e => e.address.toLowerCase() === p.address.toLowerCase());
+  if (dup){
+    Object.assign(dup, { ...p, deleted:false, id: dup.id });
+  } else {
+    state.entries.unshift({
+      id: 'wl_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      ...p,
+      deleted: false,
+    });
+  }
+  save();
+  renderList();
+  state.pending = null;
+}
+
+$('#btn-done').onclick = () => {
+  $('#confirm-panel').style.display = 'none';
+  $('#form-panel').style.display = 'block';
+  $('#addr-input').value = '';
+  $('#name-input').value = '';
+  $('#desc-input').value = '';
+  setPct(0);
+  setDeadline(new Date(Date.now() + 24*3600*1000));
+  $$('#deadline-presets button').forEach(x => x.classList.remove('active'));
+  $('#deadline-presets button[data-h="24"]').classList.add('active');
+  toast('✓ Адрес в вайтлисте');
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+
+/* =========================================================
+   WHITELIST RENDER
+   ========================================================= */
+function formatTimer(ms){
+  if (ms <= 0) return 'EXPIRED';
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 99) return '>99ч';
+  return `${h}ч ${pad2(m)}м`;
+}
+
+function renderList(){
+  const w = $('#wl-list');
+  const active = state.entries.filter(e => !e.deleted && !e.removing).length;
+  const total = state.entries.filter(e => !e.removing).length;
+  $('#wl-count').textContent = total + (active !== total ? ' · ' + active : '');
+
+  const visible = state.entries.filter(e => !e.removing);
+  if (!visible.length){
+    w.innerHTML = '<div class="wl-empty">Пока пусто. Добавьте первый адрес выше.</div>';
+    return;
+  }
+
+  w.innerHTML = '';
+  const fr = document.createDocumentFragment();
+  visible.forEach(e => fr.appendChild(buildItem(e)));
+  w.appendChild(fr);
+
+  // restart/resume countdowns
+  state.entries.forEach(e => {
+    if (e.deleted && e.deletedAt) {
+      const elapsed = Date.now() - e.deletedAt;
+      const remaining = Math.max(0, DELETE_TIMEOUT - elapsed);
+      if (remaining > 0) {
+        startCountdown(e.id, remaining);
+      } else {
+        removeExpired(e.id);
+      }
+    }
+  });
+
+  updateTimers();
+}
+
+function buildItem(e){
+  const el = document.createElement('div');
+  el.className = 'wl-item' + (e.deleted ? ' deleted' : '');
+  el.dataset.id = e.id;
+
+  // Countdown banner (if deleting)
+  if (e.deleted) {
+    el.appendChild(buildCountdownBanner(e.id));
+  }
+
+  const nameHtml = e.name ? `<div class="wl-name">${escapeHtml(e.name)}</div>` : '';
+  const descHtml = e.desc ? `<div class="wl-desc">${escapeHtml(e.desc)}</div>` : '';
+
+  const body = document.createElement('div');
+  body.className = 'wl-item-body';
+  body.innerHTML = `
+    <div class="wl-head">
+      <div class="wl-head-left">
+        <div class="wl-addr">${escapeHtml(e.address)}</div>
+        ${nameHtml}
+        ${descHtml}
+      </div>
+      <div class="wl-timer" data-deadline="${e.deadline}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+          <polyline points="12 7 12 12 15 14"/>
+        </svg>
+        <span class="wl-timer-text">—</span>
+      </div>
+    </div>
+    <div class="wl-meta">
+      <span class="wl-meta-item amount">
+        <b>${fmtNumber(e.amount)}</b> CLND
+      </span>
+      <span class="wl-meta-item pct">
+        <b>${e.pct.toFixed(2)}%</b> supply
+      </span>
+    </div>
+    <div class="wl-actions">
+      ${e.deleted ? `
+        <button class="wl-btn lock" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            <circle cx="12" cy="16" r="1.2" fill="currentColor"/>
+          </svg>
+          ЗАБЛОКИРОВАНО
+        </button>
+      ` : `
+        <button class="wl-btn del" data-act="del">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+          </svg>
+          УДАЛИТЬ
+        </button>
+      `}
+    </div>
+  `;
+
+  el.appendChild(body);
+
+  const delBtn = body.querySelector('.wl-btn.del');
+  if (delBtn){
+    delBtn.onclick = () => startDelete(e.id);
+  }
+
+  return el;
+}
+
+function buildCountdownBanner(id){
+  const banner = document.createElement('div');
+  banner.className = 'delete-countdown';
+  banner.dataset.for = id;
+  banner.innerHTML = `
+    <div class="delete-countdown-fill" style="width: 100%"></div>
+    <div class="delete-countdown-content">
+      <svg class="delete-countdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6M14 11v6"/>
+      </svg>
+      <span class="delete-countdown-text">УДАЛЕНИЕ ЧЕРЕЗ <b class="cd-seconds">60</b>с</span>
+      <button class="cd-cancel" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/>
+          <polyline points="3 3 3 8 8 8"/>
+        </svg>
+        ОТМЕНИТЬ
+      </button>
+    </div>
+  `;
+  banner.querySelector('.cd-cancel').addEventListener('click', (e) => {
+    e.stopPropagation();
+    restoreItem(id);
+  });
+  return banner;
+}
+
+/* =========================================================
+   DELETE / RESTORE
+   ========================================================= */
+function startDelete(id){
+  const e = state.entries.find(x => x.id === id);
+  if (!e || e.deleted) return;
+
+  e.deleted = true;
+  e.deletedAt = Date.now();
+  save();
+  renderList();
+  vibrate([12, 30, 12]);
+  toast('Удаление через 60 секунд · можно отменить');
+}
+
+function restoreItem(id){
+  const e = state.entries.find(x => x.id === id);
+  if (!e) return;
+  if (state.deleteTimers.has(id)) {
+    clearInterval(state.deleteTimers.get(id));
+    state.deleteTimers.delete(id);
+  }
+  e.deleted = false;
+  delete e.deletedAt;
+  save();
+  renderList();
+  toast('✓ Удаление отменено');
+}
+
+function removeExpired(id){
+  if (state.deleteTimers.has(id)) {
+    clearInterval(state.deleteTimers.get(id));
+    state.deleteTimers.delete(id);
+  }
+  state.entries = state.entries.filter(x => x.id !== id);
+  save();
+  const item = document.querySelector(`.wl-item[data-id="${id}"]`);
+  if (item) {
+    item.classList.add('removing');
+    setTimeout(() => renderList(), 500);
+  } else {
+    renderList();
+  }
+}
+
+function startCountdown(id, totalMs){
+  if (state.deleteTimers.has(id)) {
+    clearInterval(state.deleteTimers.get(id));
+    state.deleteTimers.delete(id);
+  }
+
+  const item = document.querySelector(`.wl-item[data-id="${id}"]`);
+  if (!item) return;
+  const banner = item.querySelector('.delete-countdown');
+  if (!banner) return;
+
+  const fillEl = banner.querySelector('.delete-countdown-fill');
+  const secondsEl = banner.querySelector('.cd-seconds');
+
+  const startTime = Date.now();
+  const tick = () => {
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, totalMs - elapsed);
+    const progress = remaining / totalMs;
+    const seconds = Math.ceil(remaining / 1000);
+    if (fillEl) fillEl.style.width = (progress * 100) + '%';
+    if (secondsEl) secondsEl.textContent = seconds;
+    if (remaining <= 0) {
+      clearInterval(state.deleteTimers.get(id));
+      state.deleteTimers.delete(id);
+      removeExpired(id);
+    }
+  };
+  tick();
+  const intervalId = setInterval(tick, 100);
+  state.deleteTimers.set(id, intervalId);
+}
+
+/* ---------- TIMERS (deadline) ---------- */
+function updateTimers(){
+  const now = Date.now();
+  document.querySelectorAll('.wl-timer').forEach(el => {
+    const dl = parseInt(el.dataset.deadline, 10);
+    if (!dl) return;
+    const textEl = el.querySelector('.wl-timer-text');
+    const left = dl - now;
+    if (left <= 0){
+      el.classList.remove('warn');
+      el.classList.add('danger');
+      textEl.textContent = 'ИСТЁК';
+    } else if (left < 3600 * 1000){
+      el.classList.remove('danger');
+      el.classList.add('warn');
+      textEl.textContent = formatTimer(left);
+    } else {
+      el.classList.remove('warn', 'danger');
+      textEl.textContent = formatTimer(left);
+    }
+  });
+}
+setInterval(updateTimers, 1000);
+
+/* =========================================================
+   MISC
+   ========================================================= */
+$('#btn-info').onclick = () => {
+  toast('Вайтлист: доверенные адреса и лимиты', false);
+};
+
+$('#toggle-form').onclick = () => {
+  const p = $('#form-panel');
+  const body = p.querySelectorAll('.field, #btn-confirm');
+  const hidden = p.dataset.collapsed === '1';
+  body.forEach(el => el.style.display = hidden ? '' : 'none');
+  p.dataset.collapsed = hidden ? '0' : '1';
+  p.querySelector('.section-title span:first-child').textContent = hidden ? 'ДОБАВИТЬ В WHITELIST' : 'ФОРМА СВЁРНУТА';
+};
+
+$('#addr-input').addEventListener('input', e => {
+  const v = e.target.value.trim();
+  if (!v){ e.target.style.borderColor = ''; return; }
+  e.target.style.borderColor = isValidAddr(v) ? 'var(--neon)' : 'var(--danger)';
+});
+
+/* =========================================================
+   INIT
+   ========================================================= */
+(function init(){
+  load();
+  requestAnimationFrame(() => {
+    applySlider();
+    renderList();
+  });
+})();
+</script>
+</body>
+</html>

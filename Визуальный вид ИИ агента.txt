@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>CLANDAI · AI ASSISTANT v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #08090b; --panel: rgba(20,22,26,.55);
+    --neon: #00ffaa; --neon-dim: #00ffaa55;
+    --cyan: #00d9ff; --pink: #ff2bd6; --purple: #a855f7;
+    --orange: #ff9a3c; --danger: #ff3b6b;
+    --text: #d8dee6; --muted: #5b6672;
+    --border: rgba(0,255,170,.18);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px; -webkit-font-smoothing: antialiased; overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background:
+      radial-gradient(900px 500px at 15% 0%, var(--neon-dim), transparent 60%),
+      radial-gradient(700px 400px at 100% 100%, rgba(255,43,214,.05), transparent 60%);
+    pointer-events: none; z-index: 0; opacity: .18;
+  }
+  body::after {
+    content: ''; position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--neon-dim) 1px, transparent 1px),
+      linear-gradient(90deg, var(--neon-dim) 1px, transparent 1px);
+    background-size: 42px 42px; pointer-events: none; z-index: 0; opacity: .06;
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, black, transparent 85%);
+    mask-image: radial-gradient(circle at 50% 40%, black, transparent 85%);
+  }
+
+  .app {
+    position: relative; z-index: 1; max-width: 480px; margin: 0 auto;
+    height: 100vh; height: 100dvh;
+    padding: 10px 14px 10px;
+    display: flex; flex-direction: column; gap: 8px;
+    overflow: hidden;
+  }
+
+  /* ============ TOPBAR ============ */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
+  .logo { font-weight: 700; letter-spacing: 3px; font-size: 11px; color: var(--text); opacity: .82; white-space: nowrap; }
+  .logo b { color: var(--neon); }
+  .topbar-actions { display: flex; gap: 5px; }
+
+  .icon-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    width: 32px; height: 32px; border-radius: 9px; cursor: pointer;
+    display: grid; place-items: center;
+    transition: border-color .15s, color .15s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { border-color: var(--neon); color: var(--neon); }
+  .icon-btn:active { transform: scale(.94); }
+  .icon-btn svg { width: 14px; height: 14px; }
+
+  /* ============ ENERGY BAR (THICK) ============ */
+  .energy-wrap {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; backdrop-filter: blur(14px);
+    flex-shrink: 0;
+  }
+  .energy-icon {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: var(--neon-dim); border: 1px solid var(--border);
+    display: grid; place-items: center; color: var(--neon);
+    flex-shrink: 0;
+  }
+  .energy-icon svg { width: 18px; height: 18px; }
+  .energy-bar-thick {
+    flex: 1; height: 26px; border-radius: 9px;
+    background: rgba(0,0,0,.55); border: 1px solid var(--border);
+    overflow: hidden; position: relative;
+    min-width: 0;
+  }
+  .energy-fill-thick {
+    height: 100%; width: 78%;
+    background: linear-gradient(90deg, var(--neon-dim), var(--neon));
+    box-shadow: 0 0 16px var(--neon-dim), inset 0 0 6px var(--neon);
+    border-radius: 9px;
+    transition: width .4s ease;
+  }
+  .energy-fill-thick.low {
+    background: linear-gradient(90deg, rgba(255,59,107,.4), var(--danger));
+    box-shadow: 0 0 16px rgba(255,59,107,.5);
+  }
+  .energy-fill-thick.mid {
+    background: linear-gradient(90deg, rgba(255,154,60,.4), var(--orange));
+    box-shadow: 0 0 16px rgba(255,154,60,.5);
+  }
+  .energy-text {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; letter-spacing: 2px; font-weight: 700;
+    color: #fff; text-shadow: 0 0 6px rgba(0,0,0,.8);
+    font-variant-numeric: tabular-nums;
+  }
+  .energy-text small { font-size: 9px; opacity: .75; margin-left: 5px; font-weight: 400; }
+  .charge-btn {
+    padding: 8px 12px;
+    background: var(--neon-dim); border: 1px solid var(--neon);
+    color: var(--neon); border-radius: 10px; cursor: pointer;
+    font-family: inherit; font-size: 9px; letter-spacing: 1.3px;
+    text-transform: uppercase; font-weight: 700;
+    transition: all .15s; flex-shrink: 0;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .charge-btn:hover { background: var(--neon); color: #08090b; box-shadow: 0 0 18px var(--neon-dim); }
+  .charge-btn svg { width: 12px; height: 12px; }
+
+  /* ============ TABS ============ */
+  .views-tabs {
+    display: flex; gap: 3px; padding: 3px;
+    background: rgba(0,0,0,.4); border: 1px solid var(--border);
+    border-radius: 12px; flex-shrink: 0;
+  }
+  .view-tab {
+    flex: 1; padding: 8px 4px;
+    background: transparent; border: none;
+    color: var(--muted); font-family: inherit; font-size: 9px;
+    letter-spacing: 1.2px; text-transform: uppercase; cursor: pointer;
+    border-radius: 8px; transition: all .18s;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .view-tab svg { width: 13px; height: 13px; }
+  .view-tab:hover { color: var(--text); }
+  .view-tab.active {
+    background: var(--neon-dim); color: var(--neon);
+    box-shadow: inset 0 0 14px -4px var(--neon);
+  }
+
+  /* ============ VIEWS ============ */
+  .view { display: none; flex-direction: column; gap: 10px; flex: 1; min-height: 0; overflow: hidden; }
+  .view.active { display: flex; }
+
+  /* ============ AI ENTITY ============ */
+  .ai-stage {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px;
+    flex-shrink: 0; padding: 8px 0;
+  }
+  .ai-entity {
+    position: relative; width: 130px; height: 130px;
+    display: grid; place-items: center;
+    transition: transform .3s;
+  }
+  .ai-entity.thinking { transform: scale(1.04); }
+  .ai-aura {
+    position: absolute; inset: -20px; border-radius: 50%;
+    background: radial-gradient(circle, var(--neon-dim) 0%, transparent 62%);
+    animation: auraPulse 3.4s ease-in-out infinite;
+  }
+  @keyframes auraPulse { 0%,100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+  .ai-ring { position: absolute; border-radius: 50%; }
+  .ai-ring.r1 { inset: 0; border: 1px dashed var(--neon-dim); animation: spin 14s linear infinite; }
+  .ai-ring.r2 { inset: 12px; border: 1px dotted var(--cyan); opacity: .55; animation: spin 9s linear infinite reverse; }
+  .ai-ring.r3 { inset: 24px; border: 1px solid rgba(255,43,214,.4); animation: spin 20s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ai-core {
+    position: absolute; inset: 32px; border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 28%, rgba(0,255,170,.55), rgba(0,217,255,.12) 45%, transparent 70%),
+      linear-gradient(145deg, rgba(20,22,26,.9), rgba(8,9,11,.95));
+    box-shadow: 0 0 40px var(--neon-dim), inset 0 0 40px rgba(0,255,170,.15), inset 0 0 6px rgba(0,217,255,.4);
+    animation: morph 8s ease-in-out infinite;
+    display: grid; place-items: center;
+    border: 1px solid var(--neon-dim);
+  }
+  @keyframes morph {
+    0%,100% { border-radius: 48% 52% 60% 40% / 55% 45% 55% 45%; }
+    25%     { border-radius: 60% 40% 45% 55% / 42% 62% 38% 58%; }
+    50%     { border-radius: 40% 60% 55% 45% / 58% 42% 52% 48%; }
+    75%     { border-radius: 55% 45% 42% 58% / 45% 55% 45% 55%; }
+  }
+  .ai-eyes { display: flex; gap: 16px; z-index: 2; animation: eyeTrack 6s ease-in-out infinite; }
+  @keyframes eyeTrack {
+    0%,100% { transform: translateX(0); }
+    30% { transform: translateX(-3px); }
+    60% { transform: translateX(3px); }
+  }
+  .ai-eye {
+    width: 12px; height: 4px; border-radius: 3px; background: var(--neon);
+    box-shadow: 0 0 10px var(--neon), 0 0 22px var(--neon), 0 0 40px var(--neon-dim);
+    transition: all .2s;
+  }
+  .ai-entity.thinking .ai-eye {
+    background: var(--pink);
+    box-shadow: 0 0 12px var(--pink), 0 0 28px var(--pink), 0 0 50px rgba(255,43,214,.4);
+    animation: blink .8s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(.35); } }
+  .ai-label {
+    font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ai-label.thinking { color: var(--pink); text-shadow: 0 0 10px rgba(255,43,214,.4); }
+
+  /* ============ CHAT ============ */
+  .chat-messages {
+    flex: 1; min-height: 0; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 7px; padding: 2px;
+  }
+  .chat-messages::-webkit-scrollbar { width: 6px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--neon-dim); border-radius: 6px; }
+  .msg { display: flex; max-width: 88%; }
+  .msg.me { align-self: flex-end; }
+  .msg .bubble {
+    padding: 8px 11px; font-size: 11.5px; line-height: 1.55;
+    border-radius: 12px; border: 1px solid var(--border);
+    background: rgba(20,22,26,.7); color: var(--text);
+    word-wrap: break-word;
+  }
+  .msg.me .bubble { background: var(--neon-dim); border-color: var(--neon); border-top-right-radius: 4px; }
+  .msg.bot .bubble { border-top-left-radius: 4px; }
+  .msg .bubble .typing { display: inline-flex; gap: 4px; align-items: center; }
+  .msg .bubble .typing span {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--neon);
+    animation: dot 1.4s infinite;
+  }
+  .msg .bubble .typing span:nth-child(2) { animation-delay: .2s; }
+  .msg .bubble .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes dot { 0%,60%,100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+  .chat-input {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 5px 5px 10px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 22px; backdrop-filter: blur(14px);
+    flex-shrink: 0;
+  }
+  .chat-input input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-family: inherit; font-size: 12px; min-width: 0;
+  }
+  .chat-input input::placeholder { color: var(--muted); }
+  .chip-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    width: 32px; height: 32px; border-radius: 50%;
+    display: grid; place-items: center; cursor: pointer;
+    transition: all .15s; flex-shrink: 0;
+  }
+  .chip-btn:hover { border-color: var(--neon); color: var(--neon); }
+  .chip-btn.send { background: var(--neon); border-color: var(--neon); color: #08090b; box-shadow: 0 0 16px var(--neon-dim); }
+  .chip-btn.send:hover { box-shadow: 0 0 26px var(--neon); }
+  .chip-btn svg { width: 13px; height: 13px; }
+
+  /* ============ SECTION TITLES ============ */
+  .section-title {
+    font-size: 9px; letter-spacing: 2px; color: var(--muted);
+    text-transform: uppercase; display: flex; justify-content: space-between;
+    align-items: center; flex-shrink: 0; padding: 0 2px;
+  }
+  .section-title b { color: var(--neon); font-weight: 700; }
+
+  /* ============ NOTES ============ */
+  .notes-grid {
+    flex: 1; min-height: 0; overflow-y: auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 9px;
+    align-content: start; padding: 2px 2px 8px;
+  }
+  .notes-grid::-webkit-scrollbar { width: 6px; }
+  .notes-grid::-webkit-scrollbar-thumb { background: var(--neon-dim); border-radius: 6px; }
+  .note-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 11px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    min-height: 122px; backdrop-filter: blur(14px);
+    transition: all .2s; position: relative; overflow: hidden;
+    cursor: pointer;
+  }
+  .note-card:hover { border-color: var(--neon); box-shadow: 0 0 18px -6px var(--neon-dim); }
+  .note-card.ai { border-color: rgba(168,85,247,.35); }
+  .note-card.ai:hover { border-color: var(--purple); box-shadow: 0 0 18px -6px rgba(168,85,247,.4); }
+  .note-card.done { opacity: .5; }
+  .note-card::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.04) 50%, transparent 60%);
+  }
+  .note-title {
+    font-size: 11.5px; line-height: 1.4; color: var(--text);
+    margin-bottom: 8px; word-break: break-word;
+  }
+  .note-body {
+    font-size: 10px; line-height: 1.5; color: var(--muted);
+    margin-bottom: 8px; word-break: break-word;
+    font-style: italic;
+  }
+  .note-meta {
+    font-size: 8.5px; letter-spacing: 1px; color: var(--muted);
+    display: flex; align-items: center; gap: 4px; text-transform: uppercase;
+    flex-wrap: wrap;
+  }
+  .note-tag {
+    display: inline-block; font-size: 8px; letter-spacing: 1px;
+    padding: 2px 5px; border-radius: 4px; text-transform: uppercase;
+    background: var(--neon-dim); color: var(--neon); border: 1px solid var(--neon-dim);
+  }
+  .note-tag.ai { background: rgba(168,85,247,.15); color: var(--purple); border-color: rgba(168,85,247,.3); }
+  .note-tag.done { background: rgba(255,255,255,.05); color: var(--muted); border-color: var(--border); }
+  .note-tag.wip { background: rgba(255,154,60,.15); color: var(--orange); border-color: rgba(255,154,60,.3); }
+  .note-actions { display: flex; gap: 5px; margin-top: 8px; }
+  .edit-btn {
+    flex: 1; padding: 6px 8px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); border-radius: 7px; cursor: pointer;
+    font-family: inherit; font-size: 8.5px; letter-spacing: 1.2px;
+    text-transform: uppercase; transition: all .15s;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+  }
+  .edit-btn:hover { border-color: var(--neon); color: var(--neon); }
+  .edit-btn svg { width: 10px; height: 10px; }
+
+  .fab {
+    position: absolute; bottom: 16px; right: 16px;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--neon); border: none; color: #08090b;
+    cursor: pointer; font-size: 20px; font-weight: 700;
+    box-shadow: 0 0 24px var(--neon-dim);
+    display: grid; place-items: center; z-index: 5;
+    transition: all .15s;
+  }
+  .fab:hover { box-shadow: 0 0 36px var(--neon); transform: scale(1.05); }
+
+  /* ============ WORKFLOW ============ */
+  .timeline {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding-left: 4px; padding-bottom: 6px;
+  }
+  .timeline::-webkit-scrollbar { width: 6px; }
+  .timeline::-webkit-scrollbar-thumb { background: rgba(255,154,60,.35); border-radius: 6px; }
+
+  .timeline-item {
+    display: flex; gap: 12px; margin-bottom: 10px;
+    transition: opacity .2s;
+  }
+  .timeline-item.hidden-detail .timeline-detail { display: none; }
+  .timeline-dot {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(20,22,26,.9); border: 1px solid var(--border);
+    display: grid; place-items: center; flex-shrink: 0;
+    color: var(--muted); font-size: 11px;
+    position: relative; z-index: 2;
+  }
+  .timeline-item.active .timeline-dot {
+    border-color: var(--orange); color: var(--orange);
+    box-shadow: 0 0 16px rgba(255,154,60,.4);
+    background: rgba(255,154,60,.08);
+  }
+  .timeline-item.done .timeline-dot {
+    border-color: var(--neon); color: var(--neon); background: var(--neon-dim);
+  }
+  .timeline-item.paused .timeline-dot {
+    border-color: var(--muted); color: var(--muted);
+  }
+  .timeline-content {
+    flex: 1; padding: 11px 12px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; backdrop-filter: blur(14px);
+    min-width: 0;
+  }
+  .timeline-item.active .timeline-content {
+    border-color: rgba(255,154,60,.4);
+    box-shadow: 0 0 18px -8px rgba(255,154,60,.4);
+  }
+  .timeline-item.done .timeline-content { opacity: .8; }
+  .timeline-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 8px; cursor: pointer;
+  }
+  .timeline-head h4 {
+    font-size: 11.5px; color: var(--text); font-weight: 500;
+    letter-spacing: .3px; line-height: 1.3; min-width: 0;
+  }
+  .expand-icon {
+    color: var(--muted); flex-shrink: 0;
+    transition: transform .2s;
+  }
+  .timeline-item.expanded .expand-icon { transform: rotate(180deg); }
+  .timeline-detail {
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px dashed rgba(255,255,255,.06);
+  }
+  .timeline-detail p {
+    font-size: 10px; color: var(--muted); line-height: 1.5;
+  }
+  .timeline-progress {
+    height: 4px; background: rgba(0,0,0,.5); border-radius: 3px;
+    overflow: hidden; margin-top: 8px; border: 1px solid var(--border);
+  }
+  .timeline-progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--orange), var(--neon));
+    transition: width .4s;
+    box-shadow: 0 0 10px rgba(255,154,60,.5);
+  }
+  .timeline-meta {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 8.5px; color: var(--muted); letter-spacing: 1px;
+    text-transform: uppercase; margin-top: 6px;
+  }
+  .timeline-meta .live { color: var(--orange); display: inline-flex; align-items: center; gap: 4px; }
+  .timeline-meta .live::before {
+    content: ''; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--orange); box-shadow: 0 0 8px var(--orange);
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+  .timeline-controls {
+    display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .ctrl-btn {
+    padding: 5px 9px; background: rgba(0,0,0,.4);
+    border: 1px solid var(--border); color: var(--muted);
+    border-radius: 7px; cursor: pointer; font-family: inherit;
+    font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase;
+    transition: all .15s;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .ctrl-btn:hover { border-color: var(--neon); color: var(--neon); }
+  .ctrl-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .ctrl-btn.warn:hover { border-color: var(--orange); color: var(--orange); }
+  .ctrl-btn svg { width: 10px; height: 10px; }
+
+  .wave {
+    display: flex; align-items: center; gap: 2px;
+    height: 24px; margin-top: 8px;
+  }
+  .wave span {
+    flex: 1; background: var(--orange); border-radius: 2px;
+    opacity: .5;
+    animation: waveBar 1s ease-in-out infinite;
+  }
+  .wave span:nth-child(1) { animation-delay: .0s; }
+  .wave span:nth-child(2) { animation-delay: .1s; }
+  .wave span:nth-child(3) { animation-delay: .2s; }
+  .wave span:nth-child(4) { animation-delay: .3s; }
+  .wave span:nth-child(5) { animation-delay: .4s; }
+  .wave span:nth-child(6) { animation-delay: .5s; }
+  .wave span:nth-child(7) { animation-delay: .6s; }
+  .wave span:nth-child(8) { animation-delay: .7s; }
+  @keyframes waveBar {
+    0%,100% { height: 20%; opacity: .35; }
+    50%     { height: 100%; opacity: 1; }
+  }
+  .wave.paused span { animation-play-state: paused; opacity: .2; }
+
+  .context-chat {
+    padding: 8px 11px; flex-shrink: 0;
+    background: var(--panel); border: 1px solid rgba(0,217,255,.35);
+    border-radius: 11px; backdrop-filter: blur(14px);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .context-chat svg.pen { width: 13px; height: 13px; color: var(--cyan); flex-shrink: 0; }
+  .context-chat input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-family: inherit; font-size: 11px; min-width: 0;
+  }
+  .context-chat input::placeholder { color: var(--muted); }
+  .context-chat button {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--cyan); display: grid; place-items: center;
+  }
+  .context-chat button:hover { color: #fff; }
+
+  /* ============ FINANCE ============ */
+  .finance-head {
+    display: flex; gap: 6px; padding: 3px;
+    background: rgba(0,0,0,.4); border: 1px solid var(--border);
+    border-radius: 10px; flex-shrink: 0;
+  }
+  .period-tab {
+    flex: 1; padding: 6px 4px; background: transparent; border: none;
+    color: var(--muted); font-family: inherit; font-size: 9px;
+    letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+    border-radius: 7px; transition: all .15s;
+  }
+  .period-tab.active { background: var(--neon-dim); color: var(--neon); }
+
+  .metric-card {
+    padding: 14px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; backdrop-filter: blur(14px);
+    flex-shrink: 0;
+  }
+  .metric-label {
+    font-size: 9px; letter-spacing: 2px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .metric-value {
+    font-size: 26px; font-weight: 700; letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .metric-value.up { color: var(--neon); text-shadow: 0 0 18px var(--neon-dim); }
+  .metric-value.down { color: var(--danger); text-shadow: 0 0 18px rgba(255,59,107,.4); }
+  .metric-value small {
+    font-size: 11px; font-weight: 500; color: var(--muted);
+    letter-spacing: 0;
+  }
+  .metric-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 9px;
+    flex-shrink: 0;
+  }
+  .metric-mini {
+    padding: 11px 12px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 11px; backdrop-filter: blur(14px);
+  }
+  .metric-mini .label {
+    font-size: 8.5px; letter-spacing: 1.5px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 5px;
+  }
+  .metric-mini .val {
+    font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .metric-mini.in .val { color: var(--neon); text-shadow: 0 0 12px var(--neon-dim); }
+  .metric-mini.out .val { color: var(--danger); text-shadow: 0 0 12px rgba(255,59,107,.3); }
+
+  .tx-history {
+    flex: 1; min-height: 0; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 2px; padding-bottom: 6px;
+  }
+  .tx-history::-webkit-scrollbar { width: 6px; }
+  .tx-history::-webkit-scrollbar-thumb { background: var(--neon-dim); border-radius: 6px; }
+  .tx-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.04);
+    border-radius: 8px; transition: background .12s;
+  }
+  .tx-row:last-child { border-bottom: none; }
+  .tx-row:hover { background: rgba(255,255,255,.03); }
+  .tx-avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: grid; place-items: center; font-size: 13px; font-weight: 700;
+    background: var(--neon-dim); border: 1px solid var(--border); color: var(--neon);
+  }
+  .tx-row.out .tx-avatar { background: rgba(255,59,107,.08); border-color: rgba(255,59,107,.25); color: var(--danger); }
+  .tx-info { flex: 1; min-width: 0; }
+  .tx-name {
+    font-size: 11px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .tx-time { font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: .5px; }
+  .tx-amount {
+    font-size: 12px; font-weight: 700; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .tx-amount.in { color: var(--neon); text-shadow: 0 0 12px var(--neon-dim); }
+  .tx-amount.out { color: var(--text); }
+
+  /* ============ BOTTOM USER BAR ============ */
+  .bottom-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 9px; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; backdrop-filter: blur(14px);
+    flex-shrink: 0;
+  }
+  .user-btn {
+    display: flex; align-items: center; gap: 9px;
+    padding: 6px 11px 6px 6px;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 11px; color: var(--text); cursor: pointer;
+    font-family: inherit; transition: all .15s;
+    flex: 1; min-width: 0;
+  }
+  .user-btn:hover { border-color: var(--neon); }
+  .user-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--neon), var(--cyan));
+    display: grid; place-items: center; color: #08090b;
+    font-weight: 700; font-size: 13px;
+    flex-shrink: 0;
+  }
+  .user-info { flex: 1; min-width: 0; text-align: left; }
+  .user-info .name {
+    font-size: 10px; letter-spacing: 1.2px;
+    color: var(--text); text-transform: uppercase; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .user-info .limit {
+    font-size: 9px; color: var(--neon); letter-spacing: .8px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .status-pill {
+    padding: 5px 10px; border-radius: 999px;
+    font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase;
+    border: 1px solid var(--border); color: var(--muted);
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .status-pill .d {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--neon); box-shadow: 0 0 8px var(--neon);
+    animation: pulse 1.6s infinite;
+  }
+
+  /* ============ MODALS ============ */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.78);
+    backdrop-filter: blur(6px); display: none;
+    align-items: center; justify-content: center; z-index: 100; padding: 16px;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: #0e1014; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px;
+    max-width: 420px; width: 100%;
+    box-shadow: 0 0 40px var(--neon-dim);
+    max-height: 92vh; overflow-y: auto;
+  }
+  .modal h3 {
+    font-size: 11px; letter-spacing: 2px; color: var(--neon);
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block; font-size: 9px; letter-spacing: 1.5px;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 6px;
+  }
+  .field input, .field textarea {
+    width: 100%; padding: 11px 13px;
+    background: rgba(0,0,0,.4); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: inherit; font-size: 12px; outline: none;
+    resize: none; transition: border-color .15s;
+  }
+  .field input:focus, .field textarea:focus {
+    border-color: var(--neon); box-shadow: 0 0 0 3px var(--neon-dim);
+  }
+  .btn-full {
+    width: 100%; padding: 12px;
+    background: linear-gradient(180deg, var(--neon-dim), transparent);
+    border: 1px solid var(--neon); border-radius: 10px;
+    color: var(--neon); font-family: inherit; font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer;
+    transition: box-shadow .15s; margin-top: 6px;
+  }
+  .btn-full:hover { box-shadow: 0 0 24px var(--neon-dim); }
+  .btn-ghost {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); margin-top: 8px;
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); box-shadow: none; }
+
+  /* ============ THEME SWATCHES ============ */
+  .theme-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-bottom: 4px;
+  }
+  .theme-swatch {
+    aspect-ratio: 1.4;
+    border-radius: 12px; cursor: pointer;
+    border: 2px solid var(--border);
+    transition: all .15s; position: relative;
+    display: grid; place-items: center;
+    font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: rgba(0,0,0,.75); font-weight: 700;
+  }
+  .theme-swatch.active { border-color: #fff; box-shadow: 0 0 22px currentColor; }
+  .theme-swatch:hover { transform: scale(1.03); }
+
+  /* ============ LIMIT MODAL ============ */
+  .limit-display {
+    text-align: center; padding: 8px 0 4px;
+  }
+  .limit-value {
+    font-size: 34px; font-weight: 700; color: #fff;
+    font-variant-numeric: tabular-nums; letter-spacing: -1px;
+    text-shadow: 0 0 24px var(--neon-dim);
+    display: flex; align-items: baseline; justify-content: center; gap: 6px;
+  }
+  .limit-value small { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .limit-hint {
+    font-size: 9px; letter-spacing: 2px; color: var(--muted);
+    text-transform: uppercase; margin-top: 4px;
+  }
+  .limit-slider {
+    position: relative; height: 88px; border-radius: 18px;
+    background: rgba(0,0,0,.55);
+    border: 2px solid var(--border);
+    overflow: hidden; cursor: grab; user-select: none;
+    margin: 14px 0 10px;
+    touch-action: none;
+  }
+  .limit-slider:active { cursor: grabbing; }
+  .limit-slider-pattern {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(90deg, var(--neon-dim) 2px, transparent 2px);
+    background-size: 18px 100%;
+    opacity: .35; pointer-events: none;
+  }
+  .limit-slider-fill {
+    position: absolute; inset: 0 auto 0 0; width: 50%;
+    background: linear-gradient(90deg, transparent, var(--neon-dim));
+    box-shadow: 0 0 30px var(--neon-dim);
+    pointer-events: none;
+    transition: width .05s;
+  }
+  .limit-slider-thumb {
+    position: absolute; top: 8px; bottom: 8px;
+    width: 74px; border-radius: 12px;
+    background: var(--neon); color: #08090b;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 700; box-shadow: 0 0 24px var(--neon), 0 0 4px #fff inset;
+    transition: transform .1s;
+    z-index: 2; pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .limit-slider-thumb.dragging { transform: scale(1.05); }
+  .limit-slider-thumb .num { font-size: 15px; line-height: 1; }
+  .limit-slider-thumb .unit { font-size: 8px; opacity: .8; margin-top: 2px; letter-spacing: 1px; }
+
+  .limit-presets {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    margin-top: 10px;
+  }
+  .limit-preset {
+    padding: 8px 4px;
+    background: rgba(0,0,0,.4); border: 1px solid var(--border);
+    border-radius: 9px; cursor: pointer; font-family: inherit;
+    font-size: 10px; letter-spacing: .5px; color: var(--text);
+    transition: all .15s;
+    font-variant-numeric: tabular-nums;
+  }
+  .limit-preset:hover { border-color: var(--neon); color: var(--neon); }
+  .limit-preset.active { background: var(--neon-dim); color: var(--neon); border-color: var(--neon); }
+
+  /* ============ CHARGE MODAL ============ */
+  .charge-options {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 9px;
+    margin-bottom: 12px;
+  }
+  .charge-opt {
+    padding: 14px 10px;
+    background: rgba(0,0,0,.4); border: 1px solid var(--border);
+    border-radius: 12px; cursor: pointer; font-family: inherit;
+    color: var(--text); transition: all .15s;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    text-align: center;
+  }
+  .charge-opt:hover { border-color: var(--neon); color: var(--neon); }
+  .charge-opt .big {
+    font-size: 18px; font-weight: 700; color: var(--neon);
+    font-variant-numeric: tabular-nums;
+  }
+  .charge-opt .lbl {
+    font-size: 9px; letter-spacing: 1.2px; color: var(--muted);
+    text-transform: uppercase;
+  }
+  .charge-opt .price {
+    font-size: 10px; color: var(--text); margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ============ TOAST ============ */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #0e1014; border: 1px solid var(--neon); color: var(--neon);
+    padding: 11px 20px; border-radius: 999px; font-size: 11px;
+    letter-spacing: 1px; z-index: 300; opacity: 0;
+    transition: transform .25s cubic-bezier(.2,.8,.2,1), opacity .25s;
+    box-shadow: 0 0 24px var(--neon-dim);
+    max-width: 90vw; text-align: center;
+    font-family: inherit;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.err { border-color: var(--danger); color: var(--danger); box-shadow: 0 0 24px rgba(255,59,107,.25); }
+
+  /* ============ LANG ============ */
+  .lang-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lang-item {
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    cursor: pointer; transition: all .15s; font-size: 11px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .lang-item:hover, .lang-item.active {
+    border-color: var(--neon); background: var(--neon-dim); color: var(--neon);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ TOPBAR ============ -->
+  <div class="topbar">
+    <div class="logo">CLAN<b>DAI</b> · AI</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btn-theme" title="Theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="13.5" cy="6.5" r="2.5"/>
+          <circle cx="19" cy="13" r="2.5"/>
+          <circle cx="6" cy="12" r="2.5"/>
+          <circle cx="10" cy="19" r="2.5"/>
+          <path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z" opacity=".3"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btn-lang" title="Language">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btn-clear" title="Clear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ ENERGY BAR (THICK) ============ -->
+  <div class="energy-wrap">
+    <div class="energy-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
+        <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/>
+      </svg>
+    </div>
+    <div class="energy-bar-thick">
+      <div class="energy-fill-thick" id="energy-fill"></div>
+      <div class="energy-text">
+        <span id="energy-text">78%</span>
+        <small id="energy-kwh">· 12 480 / 16 000 kWh</small>
+      </div>
+    </div>
+    <button class="charge-btn" id="btn-charge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/>
+      </svg>
+      <span data-i18n="charge">ЗАРЯД</span>
+    </button>
+  </div>
+
+  <!-- ============ TABS ============ -->
+  <div class="views-tabs">
+    <button class="view-tab active" data-view="chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span data-i18n="tab_chat">ЧАТ</span>
+    </button>
+    <button class="view-tab" data-view="notes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      <span data-i18n="tab_notes">ЗАДАЧИ</span>
+    </button>
+    <button class="view-tab" data-view="workflow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+      </svg>
+      <span data-i18n="tab_flow">ПРОЦЕСС</span>
+    </button>
+    <button class="view-tab" data-view="finance">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="20" x2="12" y2="10"/>
+        <line x1="18" y1="20" x2="18" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="16"/>
+      </svg>
+      <span data-i18n="tab_fin">ФИНАНСЫ</span>
+    </button>
+  </div>
+
+  <!-- ============ VIEW 1: CHAT ============ -->
+  <div class="view active" id="view-chat">
+    <div class="ai-stage">
+      <div class="ai-entity" id="ai-entity">
+        <div class="ai-aura"></div>
+        <div class="ai-ring r1"></div>
+        <div class="ai-ring r2"></div>
+        <div class="ai-ring r3"></div>
+        <div class="ai-core">
+          <div class="ai-eyes">
+            <div class="ai-eye"></div>
+            <div class="ai-eye"></div>
+          </div>
+        </div>
+      </div>
+      <div class="ai-label" id="ai-label" data-i18n="ai_idle">СЛУШАЮ</div>
+    </div>
+
+    <div class="chat-messages" id="chat-messages"></div>
+
+    <div class="chat-input">
+      <button class="chip-btn" id="btn-attach" title="Attach">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <input type="text" id="chat-text" placeholder="Сообщение..." data-i18n-ph="msg_ph" />
+      <button class="chip-btn" id="btn-mic" title="Voice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="2" width="6" height="12" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0M12 19v3"/>
+        </svg>
+      </button>
+      <button class="chip-btn send" id="btn-send" title="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ VIEW 2: NOTES ============ -->
+  <div class="view" id="view-notes">
+    <div class="section-title">
+      <span data-i18n="notes_title">ЗАДАЧИ · AI</span>
+      <span><b id="notes-count">5</b> <span data-i18n="notes_active">активных</span></span>
+    </div>
+    <div class="notes-grid" id="notes-grid"></div>
+    <button class="fab" id="notes-add" title="Add">+</button>
+  </div>
+
+  <!-- ============ VIEW 3: WORKFLOW ============ -->
+  <div class="view" id="view-workflow">
+    <div class="section-title">
+      <span data-i18n="flow_title">ПРОЦЕСС · РЕАЛЬНОЕ ВРЕМЯ</span>
+      <span class="live" style="color: var(--orange); font-size: 9px; letter-spacing: 1.5px; display: inline-flex; align-items: center; gap: 5px;">
+        <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 8px var(--orange); animation: pulse 1.4s infinite;"></span>
+        LIVE
+      </span>
+    </div>
+    <div class="timeline" id="timeline"></div>
+    <div class="context-chat">
+      <svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4z"/>
+      </svg>
+      <input type="text" id="context-input" placeholder="Скорректировать задачу..." data-i18n-ph="ctx_ph" />
+      <button id="context-send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ VIEW 4: FINANCE ============ -->
+  <div class="view" id="view-finance">
+    <div class="finance-head">
+      <button class="period-tab" data-p="day" data-i18n="p_day">День</button>
+      <button class="period-tab active" data-p="week" data-i18n="p_week">Неделя</button>
+      <button class="period-tab" data-p="month" data-i18n="p_month">Месяц</button>
+      <button class="period-tab" data-p="year" data-i18n="p_year">Год</button>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label" id="metric-period-label">ДОХОД · ЗА НЕДЕЛЮ</div>
+      <div class="metric-value up" id="metric-main">+$1 284.50</div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-mini in">
+        <div class="label" data-i18n="m_income">ДОХОД</div>
+        <div class="val" id="metric-income">+$2 140.00</div>
+      </div>
+      <div class="metric-mini out">
+        <div class="label" data-i18n="m_expense">РАСХОД</div>
+        <div class="val" id="metric-expense">-$855.50</div>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <span data-i18n="tx_history">ИСТОРИЯ ТРАНЗАКЦИЙ</span>
+      <span id="tx-count">12</span>
+    </div>
+    <div class="tx-history" id="tx-history"></div>
+  </div>
+
+  <!-- ============ BOTTOM BAR ============ -->
+  <div class="bottom-bar">
+    <button class="user-btn" id="btn-user">
+      <div class="user-avatar">A</div>
+      <div class="user-info">
+        <div class="name" data-i18n="you">ВЫ</div>
+        <div class="limit" id="user-limit-text">Лимит: $500.00</div>
+      </div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="color: var(--muted);">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </button>
+    <div class="status-pill">
+      <span class="d"></span>
+      <span id="status-text" data-i18n="online">ОНЛАЙН</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ MODALS ============ -->
+
+<!-- LANG -->
+<div class="modal-bg" id="modal-lang">
+  <div class="modal">
+    <h3 data-i18n="lang_title">Язык</h3>
+    <div class="lang-list" id="lang-list"></div>
+    <button class="btn-full btn-ghost" id="lang-close" data-i18n="close">Закрыть</button>
+  </div>
+</div>
+
+<!-- THEME -->
+<div class="modal-bg" id="modal-theme">
+  <div class="modal">
+    <h3 data-i18n="theme_title">ЦВЕТ ИНТЕРФЕЙСА</h3>
+    <div class="theme-grid" id="theme-grid"></div>
+    <button class="btn-full btn-ghost" id="theme-close" data-i18n="close">Закрыть</button>
+  </div>
+</div>
+
+<!-- CHARGE -->
+<div class="modal-bg" id="modal-charge">
+  <div class="modal">
+    <h3 data-i18n="charge_title">ЗАРЯДИТЬ ЭНЕРГИЮ</h3>
+    <div class="charge-options" id="charge-options"></div>
+    <button class="btn-full btn-ghost" id="charge-close" data-i18n="close">Закрыть</button>
+  </div>
+</div>
+
+<!-- USER LIMIT -->
+<div class="modal-bg" id="modal-limit">
+  <div class="modal">
+    <h3 data-i18n="limit_title">ЛИМИТ РАСХОДОВ AI</h3>
+    <div class="limit-display">
+      <div class="limit-value" id="limit-value">$500 <small id="limit-value-txt">/ неделя</small></div>
+      <div class="limit-hint" data-i18n="limit_hint">СКОЛЬКО АГЕНТУ РАЗРЕШЕНО ТРАТИТЬ</div>
+    </div>
+
+    <div class="limit-slider" id="limit-slider">
+      <div class="limit-slider-pattern"></div>
+      <div class="limit-slider-fill" id="limit-fill"></div>
+      <div class="limit-slider-thumb" id="limit-thumb">
+        <div class="num" id="limit-num">500</div>
+        <div class="unit">USD</div>
+      </div>
+    </div>
+
+    <div class="limit-presets" id="limit-presets">
+      <button class="limit-preset" data-v="100">$100</button>
+      <button class="limit-preset" data-v="500">$500</button>
+      <button class="limit-preset" data-v="1000">$1k</button>
+      <button class="limit-preset" data-v="5000">$5k</button>
+    </div>
+
+    <div class="field" style="margin-top:14px;">
+      <label data-i18n="period">ПЕРИОД</label>
+      <div class="finance-head" id="limit-period-tabs" style="margin:0;">
+        <button class="period-tab active" data-p="day">День</button>
+        <button class="period-tab" data-p="week">Неделя</button>
+        <button class="period-tab" data-p="month">Месяц</button>
+      </div>
+    </div>
+
+    <button class="btn-full" id="limit-save" data-i18n="save">Сохранить лимит</button>
+    <button class="btn-full btn-ghost" id="limit-close" data-i18n="close">Закрыть</button>
+  </div>
+</div>
+
+<!-- EDIT NOTE -->
+<div class="modal-bg" id="modal-note">
+  <div class="modal">
+    <h3 data-i18n="edit_note">РЕДАКТИРОВАНИЕ ЗАДАЧИ</h3>
+    <div class="field">
+      <label data-i18n="note_title">НАЗВАНИЕ</label>
+      <input id="note-title-input" maxlength="80" />
+    </div>
+    <div class="field">
+      <label data-i18n="note_body">ОПИСАНИЕ / ЗАМЕТКА</label>
+      <textarea id="note-body-input" rows="4" maxlength="400" placeholder="Добавьте детали..."></textarea>
+    </div>
+    <div class="field">
+      <label data-i18n="note_status">СТАТУС</label>
+      <div class="finance-head" id="note-status-tabs" style="margin:0;">
+        <button class="period-tab" data-s="pending">Ожидает</button>
+        <button class="period-tab" data-s="in_work">В работе</button>
+        <button class="period-tab" data-s="done">Готово</button>
+      </div>
+    </div>
+    <button class="btn-full" id="note-save" data-i18n="save_note">Сохранить</button>
+    <button class="btn-full btn-ghost" id="note-delete" style="color:var(--danger);border-color:rgba(255,59,107,.4);" data-i18n="delete">Удалить</button>
+    <button class="btn-full btn-ghost" id="note-close" data-i18n="cancel">Отмена</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   CLANDAI · AI ASSISTANT v2
+   ========================================================= */
+
+const LANG_LIST = [
+  { code:'ru', name:'Русский', flag:'🇷🇺' },
+  { code:'en', name:'English', flag:'🇬🇧' },
+  { code:'zh', name:'中文',    flag:'🇨🇳' },
+  { code:'es', name:'Español', flag:'🇪🇸' },
+];
+
+const THEMES = {
+  neon:   { name:'NEON',   color:'#00ffaa' },
+  cyan:   { name:'CYAN',   color:'#00d9ff' },
+  pink:   { name:'PINK',   color:'#ff2bd6' },
+  purple: { name:'PURPLE', color:'#a855f7' },
+  orange: { name:'ORANGE', color:'#ff9a3c' },
+  red:    { name:'RED',    color:'#ff3b6b' },
+};
+
+const I18N = {
+  ru: {
+    tab_chat:'ЧАТ', tab_notes:'ЗАДАЧИ', tab_flow:'ПРОЦЕСС', tab_fin:'ФИНАНСЫ',
+    ai_idle:'СЛУШАЮ', ai_thinking:'ОБРАБАТЫВАЮ',
+    msg_ph:'Сообщение...',
+    notes_title:'ЗАДАЧИ · AI', notes_active:'активных',
+    flow_title:'ПРОЦЕСС · РЕАЛЬНОЕ ВРЕМЯ',
+    ctx_ph:'Скорректировать задачу...',
+    lang_title:'Язык', close:'Закрыть', cancel:'Отмена',
+    accept:'ПРИНЯТЬ', in_work:'В РАБОТЕ', done:'ГОТОВО', pending:'ОЖИДАЕТ',
+    ai_tag:'AI', you_tag:'ВЫ',
+    cleared:'История очищена', copied:'Скопировано',
+    charge:'ЗАРЯД',
+    theme_title:'ЦВЕТ ИНТЕРФЕЙСА',
+    charge_title:'ЗАРЯДИТЬ ЭНЕРГИЮ',
+    limit_title:'ЛИМИТ РАСХОДОВ AI',
+    limit_hint:'СКОЛЬКО АГЕНТУ РАЗРЕШЕНО ТРАТИТЬ',
+    save:'Сохранить', save_note:'Сохранить', delete:'Удалить',
+    edit_note:'РЕДАКТИРОВАНИЕ ЗАДАЧИ',
+    note_title:'НАЗВАНИЕ', note_body:'ОПИСАНИЕ / ЗАМЕТКА', note_status:'СТАТУС',
+    you:'ВЫ', online:'ОНЛАЙН',
+    limit_prefix:'Лимит',
+    per_day:'/ день', per_week:'/ неделя', per_month:'/ месяц',
+    edit:'ПРАВКА',
+    paused:'ПАУЗА', resume:'Продолжить', pause:'Пауза', skip:'Пропустить', stop:'Стоп',
+    restart:'Заново', details:'Детали',
+    p_day:'День', p_week:'Неделя', p_month:'Месяц', p_year:'Год',
+    m_income:'ДОХОД', m_expense:'РАСХОД',
+    metric_income:'ДОХОД', metric_expense:'РАСХОД',
+    tx_history:'ИСТОРИЯ ТРАНЗАКЦИЙ',
+    charged:'Заряжено +', limit_set:'Лимит сохранён',
+    note_saved:'Задача сохранена', note_deleted:'Задача удалена',
+  },
+  en: {
+    tab_chat:'CHAT', tab_notes:'TASKS', tab_flow:'FLOW', tab_fin:'FINANCE',
+    ai_idle:'LISTENING', ai_thinking:'PROCESSING',
+    msg_ph:'Message...',
+    notes_title:'TASKS · AI', notes_active:'active',
+    flow_title:'FLOW · REALTIME',
+    ctx_ph:'Correct a task...',
+    lang_title:'Language', close:'Close', cancel:'Cancel',
+    accept:'ACCEPT', in_work:'IN WORK', done:'DONE', pending:'PENDING',
+    ai_tag:'AI', you_tag:'YOU',
+    cleared:'History cleared', copied:'Copied',
+    charge:'CHARGE',
+    theme_title:'INTERFACE COLOR',
+    charge_title:'CHARGE ENERGY',
+    limit_title:'AI SPENDING LIMIT',
+    limit_hint:'HOW MUCH THE AGENT MAY SPEND',
+    save:'Save', save_note:'Save', delete:'Delete',
+    edit_note:'EDIT TASK',
+    note_title:'TITLE', note_body:'DESCRIPTION / NOTE', note_status:'STATUS',
+    you:'YOU', online:'ONLINE',
+    limit_prefix:'Limit',
+    per_day:'/ day', per_week:'/ week', per_month:'/ month',
+    edit:'EDIT',
+    paused:'PAUSED', resume:'Resume', pause:'Pause', skip:'Skip', stop:'Stop',
+    restart:'Restart', details:'Details',
+    p_day:'Day', p_week:'Week', p_month:'Month', p_year:'Year',
+    m_income:'INCOME', m_expense:'EXPENSE',
+    metric_income:'INCOME', metric_expense:'EXPENSE',
+    tx_history:'TRANSACTION HISTORY',
+    charged:'Charged +', limit_set:'Limit saved',
+    note_saved:'Task saved', note_deleted:'Task deleted',
+  },
+};
+
+function t(k) { const L = I18N[state.lang] || I18N.ru; return L[k] || I18N.en[k] || k; }
+
+/* ============ STATE ============ */
+const state = {
+  lang: localStorage.getItem('ai_lang') || 'ru',
+  theme: localStorage.getItem('ai_theme') || 'neon',
+  view: 'chat',
+  thinking: false,
+  energy: 78,
+  energyMax: 16000,
+  energyKwh: 12480,
+  messages: [],
+  notes: [
+    { id:'n1', title:'Проанализировать отчёт Q3', body:'Собрать метрики за квартал и вывести ключевые тренды.', tag:'ai', status:'pending' },
+    { id:'n2', title:'Составить план встречи', body:'', tag:'ai', status:'pending' },
+    { id:'n3', title:'Проверить почту', body:'Важные письма от партнёров.', tag:'you', status:'pending' },
+    { id:'n4', title:'Собрать данные по рынку', body:'Источники: Bloomberg, Reuters.', tag:'ai', status:'in_work' },
+    { id:'n5', title:'Позвонить партнёру', body:'', tag:'you', status:'done' },
+  ],
+  workflow: [
+    { id:'w1', title:'Сбор данных', desc:'Загружено 2 400 точек данных', status:'done', progress:100, expanded:false },
+    { id:'w2', title:'Анализ и обработка', desc:'Обработка тональности текста...', status:'active', progress:62, expanded:true },
+    { id:'w3', title:'Генерация отчёта', desc:'Ожидание завершения анализа', status:'queued', progress:0, expanded:false },
+    { id:'w4', title:'Финальная проверка', desc:'Ручная верификация результата', status:'queued', progress:0, expanded:false },
+  ],
+  nextNoteId: 6,
+  period: 'week',
+  limit: { value: 500, period: 'week', max: 5000 },
+  activeNoteId: null,
+
+  finance: {
+    day:   { income: 320.00, expense: 145.50,  txs: [
+      { name:'Coffee House', time:'12:41', amount:12.40, type:'out' },
+      { name:'Оплата от клиента', time:'10:15', amount:320.00, type:'in' },
+      { name:'Yandex Taxi', time:'08:02', amount:5.80, type:'out' },
+      { name:'Подписка Netflix', time:'вчера', amount:15.99, type:'out' },
+      { name:'Возврат Ozon', time:'вчера', amount:34.50, type:'in' },
+    ]},
+    week:  { income: 2140.00, expense: 855.50, txs: [
+      { name:'Зарплата — Acme Inc', time:'Пн · 09:15', amount:1200.00, type:'in' },
+      { name:'Оплата от клиента', time:'Вт · 14:20', amount:640.00, type:'in' },
+      { name:'Дивиденды', time:'Ср · 11:00', amount:300.00, type:'in' },
+      { name:'Apple Store', time:'Чт · 11:22', amount:899.00, type:'out' },
+      { name:'Ресторан', time:'Пт · 20:40', amount:87.40, type:'out' },
+      { name:'Uber', time:'Сб · 22:10', amount:24.10, type:'out' },
+      { name:'Кофейня', time:'Вс · 12:41', amount:12.40, type:'out' },
+      { name:'Yandex Taxi', time:'Вс · 08:02', amount:5.80, type:'out' },
+    ]},
+    month: { income: 8420.00, expense: 3210.75, txs: [
+      { name:'Зарплата', time:'01 · 09:00', amount:3200.00, type:'in' },
+      { name:'Дивиденды', time:'05 · 11:30', amount:5600.00, type:'in' },
+      { name:'Аренда офиса', time:'03 · 10:00', amount:1200.00, type:'out' },
+      { name:'Air France', time:'12 · 14:00', amount:890.00, type:'out' },
+      { name:'Hotel Ritz', time:'18 · 16:00', amount:1240.00, type:'out' },
+      { name:'Подписки (5 сервисов)', time:'20 · 03:00', amount:68.95, type:'out' },
+      { name:'Рестораны', time:'за месяц', amount:211.80, type:'out' },
+    ]},
+    year:  { income: 95400.00, expense: 42150.30, txs: [
+      { name:'Зарплата (год)', time:'2025', amount:62400.00, type:'in' },
+      { name:'Дивиденды', time:'2025', amount:24000.00, type:'in' },
+      { name:'Фриланс', time:'2025', amount:9000.00, type:'in' },
+      { name:'Недвижимость', time:'2025', amount:18200.00, type:'out' },
+      { name:'Транспорт', time:'2025', amount:6800.00, type:'out' },
+      { name:'Развлечения', time:'2025', amount:4100.00, type:'out' },
+      { name:'Прочее', time:'2025', amount:13050.30, type:'out' },
+    ]},
+  },
+};
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+function vibrate(ms=8) { if (navigator.vibrate) navigator.vibrate(ms); }
+
+/* ============ APPLY I18N ============ */
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  document.documentElement.lang = state.lang;
+  $('#ai-label').textContent = t(state.thinking ? 'ai_thinking' : 'ai_idle');
+  $('#status-text').textContent = t('online');
+  renderNotes();
+  renderWorkflow();
+  renderFinance();
+  renderUserLimit();
+  renderPeriodTabs();
+}
+
+/* ============ THEME ============ */
+function applyTheme(name) {
+  const th = THEMES[name] || THEMES.neon;
+  const c = th.color;
+  document.documentElement.style.setProperty('--neon', c);
+  document.documentElement.style.setProperty('--neon-dim', c + '55');
+  document.documentElement.style.setProperty('--border', c + '2e');
+  state.theme = name;
+  localStorage.setItem('ai_theme', name);
+  renderThemeGrid();
+}
+function renderThemeGrid() {
+  const wrap = $('#theme-grid');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  Object.entries(THEMES).forEach(([key, th]) => {
+    const el = document.createElement('div');
+    el.className = 'theme-swatch' + (state.theme === key ? ' active' : '');
+    el.style.background = `linear-gradient(135deg, ${th.color}, ${th.color}88)`;
+    el.style.color = th.color;
+    el.textContent = th.name;
+    el.onclick = () => {
+      applyTheme(key);
+      vibrate(10);
+      toast('🎨 ' + th.name);
+    };
+    wrap.appendChild(el);
+  });
+}
+$('#btn-theme').onclick = () => { renderThemeGrid(); $('#modal-theme').classList.add('show'); };
+$('#theme-close').onclick = () => $('#modal-theme').classList.remove('show');
+$('#modal-theme').addEventListener('click', e => { if (e.target.id === 'modal-theme') e.target.classList.remove('show'); });
+
+/* ============ TOAST ============ */
+let toastTimer;
+function toast(msg, err=false) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = 'toast', 2200);
+}
+
+/* ============ VIEW SWITCH ============ */
+function switchView(name) {
+  state.view = name;
+  $$('.view-tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  $$('.view').forEach(v => v.classList.remove('active'));
+  $('#view-' + name).classList.add('active');
+  vibrate(6);
+}
+$$('.view-tab').forEach(b => b.onclick = () => switchView(b.dataset.view));
+
+/* ============ ENERGY ============ */
+function renderEnergy() {
+  const fill = $('#energy-fill');
+  const pct = state.energy;
+  fill.style.width = pct + '%';
+  fill.classList.remove('low','mid');
+  if (pct < 25) fill.classList.add('low');
+  else if (pct < 55) fill.classList.add('mid');
+  $('#energy-text').textContent = Math.round(pct) + '%';
+  const kwh = Math.round((pct/100) * state.energyMax);
+  state.energyKwh = kwh;
+  $('#energy-kwh').textContent = `· ${kwh.toLocaleString('ru-RU')} / ${state.energyMax.toLocaleString('ru-RU')} kWh`;
+}
+function drainEnergy(amt=0.6) {
+  state.energy = Math.max(0, state.energy - amt);
+  renderEnergy();
+}
+setInterval(() => {
+  if (state.thinking) drainEnergy(0.7);
+  else state.energy = Math.min(100, state.energy + 0.35);
+  renderEnergy();
+}, 3000);
+
+/* Charge modal */
+const CHARGE_PACKS = [
+  { kwh: 500,  price: 4.99 },
+  { kwh: 2000, price: 17.99 },
+  { kwh: 5000, price: 39.99 },
+  { kwh: 10000,price: 69.99 },
+];
+function renderChargeOptions() {
+  const wrap = $('#charge-options');
+  wrap.innerHTML = '';
+  CHARGE_PACKS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'charge-opt';
+    b.innerHTML = `
+      <div class="big">+${p.kwh.toLocaleString('ru-RU')} kWh</div>
+      <div class="lbl" data-i18n="charge">заряд</div>
+      <div class="price">$${p.price.toFixed(2)}</div>
+    `;
+    b.onclick = () => {
+      state.energy = Math.min(100, state.energy + (p.kwh / state.energyMax) * 100);
+      renderEnergy();
+      $('#modal-charge').classList.remove('show');
+      toast('⚡ +' + p.kwh + ' kWh');
+      vibrate([10, 30, 10]);
+    };
+    wrap.appendChild(b);
+  });
+}
+$('#btn-charge').onclick = () => { renderChargeOptions(); $('#modal-charge').classList.add('show'); };
+$('#charge-close').onclick = () => $('#modal-charge').classList.remove('show');
+$('#modal-charge').addEventListener('click', e => { if (e.target.id === 'modal-charge') e.target.classList.remove('show'); });
+
+/* ============ AI THINKING ============ */
+function setThinking(on) {
+  state.thinking = on;
+  $('#ai-entity').classList.toggle('thinking', on);
+  $('#ai-label').classList.toggle('thinking', on);
+  $('#ai-label').textContent = t(on ? 'ai_thinking' : 'ai_idle');
+}
+
+/* ============ CHAT ============ */
+const AI_RESPONSES = {
+  ru: [
+    'Понял. Обрабатываю запрос...',
+    'Могу помочь с анализом, генерацией и планированием. Уточните задачу.',
+    'Создал задачу в разделе «Задачи». Проверьте.',
+    'Запустил процесс. Следите во вкладке «Процесс».',
+    'Готово. Есть ещё что-то?',
+  ],
+  en: [
+    'Got it. Processing your request...',
+    'I can help with analysis, generation and planning. Please clarify.',
+    'Created a task in the Tasks section. Please review.',
+    'Process started. Track it in the Flow tab.',
+    'Done. Anything else?',
+  ],
+};
+
+function appendMsg(role, text, typing=false) {
+  const wrap = $('#chat-messages');
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  if (typing) {
+    el.innerHTML = `<div class="bubble"><span class="typing"><span></span><span></span><span></span></span></div>`;
+  } else {
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.textContent = text;
+    el.appendChild(b);
+  }
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+  return el;
+}
+
+function sendMessage(text) {
+  text = (text || '').trim();
+  if (!text) return;
+  appendMsg('me', text);
+  state.messages.push({ role:'me', text });
+  $('#chat-text').value = '';
+  vibrate(10);
+
+  setThinking(true);
+  const typingEl = appendMsg('bot', '', true);
+  const delay = 700 + Math.random() * 700;
+
+  setTimeout(() => {
+    typingEl.remove();
+    const arr = AI_RESPONSES[state.lang] || AI_RESPONSES.ru;
+    const reply = arr[Math.floor(Math.random() * arr.length)];
+    appendMsg('bot', reply);
+    state.messages.push({ role:'bot', text: reply });
+    setThinking(false);
+    vibrate([15, 30, 15]);
+
+    if (/задач|task|создал|created/i.test(reply)) {
+      state.notes.unshift({
+        id: 'n' + (state.nextNoteId++),
+        title: text.slice(0, 40),
+        body: '',
+        tag: 'ai',
+        status: 'pending',
+      });
+      renderNotes();
+    }
+  }, delay);
+}
+
+$('#btn-send').onclick = () => sendMessage($('#chat-text').value);
+$('#chat-text').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(e.target.value); });
+$('#btn-attach').onclick = () => {
+  appendMsg('me', '📎 файл');
+  setTimeout(() => {
+    setThinking(true);
+    const typingEl = appendMsg('bot', '', true);
+    setTimeout(() => {
+      typingEl.remove();
+      appendMsg('bot', state.lang === 'ru' ? 'Файл получен. Анализирую...' : 'File received. Analyzing...');
+      setThinking(false);
+    }, 900);
+  }, 200);
+};
+$('#btn-mic').onclick = () => {
+  appendMsg('me', '🎤 голосовое');
+  setTimeout(() => sendMessage('Голосовое сообщение'), 300);
+};
+
+/* ============ NOTES ============ */
+function renderNotes() {
+  const wrap = $('#notes-grid');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  state.notes.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'note-card' + (n.tag === 'ai' ? ' ai' : '') + (n.status === 'done' ? ' done' : '');
+    const tagLabel = n.tag === 'ai' ? t('ai_tag') : t('you_tag');
+    const statusLabel = n.status === 'done' ? t('done') : n.status === 'in_work' ? t('in_work') : '';
+    const statusCls = n.status === 'done' ? 'done' : n.status === 'in_work' ? 'wip' : '';
+    el.innerHTML = `
+      <div>
+        <div class="note-title">${escapeHtml(n.title)}</div>
+        ${n.body ? `<div class="note-body">${escapeHtml(n.body)}</div>` : ''}
+        <div class="note-meta">
+          <span class="note-tag ${n.tag === 'ai' ? 'ai' : ''}">${tagLabel}</span>
+          ${statusLabel ? `<span class="note-tag ${statusCls}">${statusLabel}</span>` : ''}
+        </div>
+      </div>
+      <div class="note-actions">
+        <button class="edit-btn" data-id="${n.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4z"/>
+          </svg>
+          ${t('edit')}
+        </button>
+      </div>
+    `;
+    el.querySelector('.edit-btn').onclick = (e) => {
+      e.stopPropagation();
+      openNoteEditor(n.id);
+    };
+    el.onclick = () => openNoteEditor(n.id);
+    wrap.appendChild(el);
+  });
+  const active = state.notes.filter(n => n.status !== 'done').length;
+  const cntEl = $('#notes-count');
+  if (cntEl) cntEl.textContent = active;
+}
+
+function openNoteEditor(id) {
+  const n = state.notes.find(x => x.id === id);
+  if (!n) return;
+  state.activeNoteId = id;
+  $('#note-title-input').value = n.title;
+  $('#note-body-input').value = n.body || '';
+  $$('#note-status-tabs .period-tab').forEach(b => b.classList.toggle('active', b.dataset.s === n.status));
+  $('#modal-note').classList.add('show');
+}
+
+$$('#note-status-tabs .period-tab').forEach(b => {
+  b.onclick = () => {
+    $$('#note-status-tabs .period-tab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    vibrate(5);
+  };
+});
+
+$('#note-save').onclick = () => {
+  const n = state.notes.find(x => x.id === state.activeNoteId);
+  if (!n) return;
+  n.title = $('#note-title-input').value.trim() || n.title;
+  n.body = $('#note-body-input').value.trim();
+  const statusTab = document.querySelector('#note-status-tabs .period-tab.active');
+  if (statusTab) n.status = statusTab.dataset.s;
+  renderNotes();
+  $('#modal-note').classList.remove('show');
+  toast('✓ ' + t('note_saved'));
+  vibrate(10);
+};
+
+$('#note-delete').onclick = () => {
+  state.notes = state.notes.filter(x => x.id !== state.activeNoteId);
+  renderNotes();
+  $('#modal-note').classList.remove('show');
+  toast('🗑 ' + t('note_deleted'), true);
+  vibrate(15);
+};
+
+$('#note-close').onclick = () => $('#modal-note').classList.remove('show');
+$('#modal-note').addEventListener('click', e => { if (e.target.id === 'modal-note') e.target.classList.remove('show'); });
+
+$('#notes-add').onclick = () => {
+  const n = {
+    id: 'n' + (state.nextNoteId++),
+    title: state.lang === 'ru' ? 'Новая задача' : 'New task',
+    body: '',
+    tag: 'you',
+    status: 'pending',
+  };
+  state.notes.unshift(n);
+  renderNotes();
+  openNoteEditor(n.id);
+};
+
+/* ============ WORKFLOW ============ */
+function renderWorkflow() {
+  const wrap = $('#timeline');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  state.workflow.forEach(w => {
+    const el = document.createElement('div');
+    el.className = 'timeline-item ' +
+      (w.status === 'done' ? 'done' : w.status === 'active' ? 'active' : w.status === 'paused' ? 'paused' : '') +
+      (w.expanded ? ' expanded' : '') +
+      (!w.expanded ? ' hidden-detail' : '');
+    let dotContent = '';
+    if (w.status === 'done') dotContent = '✓';
+    else if (w.status === 'active') dotContent = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+    else if (w.status === 'paused') dotContent = '❚❚';
+    else dotContent = '·';
+
+    el.innerHTML = `
+      <div class="timeline-dot">${dotContent}</div>
+      <div class="timeline-content">
+        <div class="timeline-head">
+          <h4>${escapeHtml(w.title)}</h4>
+          <svg class="expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div class="timeline-detail">
+          <p>${escapeHtml(w.desc)}</p>
+          ${w.status === 'active' ? `
+            <div class="wave">${Array(8).fill('<span></span>').join('')}</div>
+          ` : ''}
+          ${w.status === 'paused' ? `
+            <div class="wave paused">${Array(8).fill('<span></span>').join('')}</div>
+          ` : ''}
+          ${w.status === 'active' || w.status === 'paused' ? `
+            <div class="timeline-progress">
+              <div class="timeline-progress-fill" style="width:${w.progress}%"></div>
+            </div>
+            <div class="timeline-meta">
+              <span class="live" style="color: ${w.status === 'paused' ? 'var(--muted)' : 'var(--orange)'}">
+                ${w.status === 'paused' ? t('paused') : (state.lang === 'ru' ? 'выполняется' : 'running')}
+              </span>
+              <span>${w.progress}%</span>
+            </div>
+            <div class="timeline-controls">
+              ${w.status === 'active' ? `
+                <button class="ctrl-btn warn" data-act="pause" data-id="${w.id}">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  ${t('pause')}
+                </button>
+              ` : ''}
+              ${w.status === 'paused' ? `
+                <button class="ctrl-btn" data-act="resume" data-id="${w.id}">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+                  ${t('resume')}
+                </button>
+              ` : ''}
+              <button class="ctrl-btn" data-act="skip" data-id="${w.id}">
+                ${t('skip')} →
+              </button>
+              <button class="ctrl-btn danger" data-act="stop" data-id="${w.id}">
+                ${t('stop')}
+              </button>
+            </div>
+          ` : ''}
+          ${w.status === 'done' ? `
+            <div class="timeline-meta">
+              <span style="color: var(--neon);">✓ ${t('done')}</span>
+              <button class="ctrl-btn" data-act="restart" data-id="${w.id}" style="margin-left:auto;">
+                ↻ ${t('restart')}
+              </button>
+            </div>
+          ` : ''}
+          ${w.status === 'queued' ? `
+            <div class="timeline-controls">
+              <button class="ctrl-btn" data-act="start" data-id="${w.id}">
+                ▶ ${state.lang === 'ru' ? 'запустить' : 'start'}
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+    el.querySelector('.timeline-head').onclick = () => {
+      w.expanded = !w.expanded;
+      renderWorkflow();
+      vibrate(5);
+    };
+    wrap.appendChild(el);
+  });
+
+  wrap.querySelectorAll('.ctrl-btn').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const act = b.dataset.act;
+      const id = b.dataset.id;
+      const w = state.workflow.find(x => x.id === id);
+      if (!w) return;
+      if (act === 'pause') { w.status = 'paused'; toast('⏸ ' + t('paused')); }
+      else if (act === 'resume') { w.status = 'active'; toast('▶ ' + t('resume')); }
+      else if (act === 'stop') {
+        w.status = 'queued'; w.progress = 0;
+        toast('⏹ ' + t('stop'), true);
+      } else if (act === 'skip') {
+        w.status = 'done'; w.progress = 100;
+        const next = state.workflow.find(x => x.status === 'queued');
+        if (next) next.status = 'active';
+        toast('⏭ ' + t('skip'));
+      } else if (act === 'restart') {
+        w.status = 'active'; w.progress = 0;
+        toast('↻ ' + t('restart'));
+      } else if (act === 'start') {
+        w.status = 'active';
+        toast('▶ start');
+      }
+      renderWorkflow();
+      vibrate(10);
+    };
+  });
+
+  // Auto-progress active task
+  const active = state.workflow.find(w => w.status === 'active');
+  if (active && active.progress < 100) {
+    setTimeout(() => {
+      if (active.status !== 'active') return;
+      active.progress = Math.min(100, active.progress + Math.ceil(Math.random()*3));
+      if (active.progress >= 100) {
+        active.status = 'done';
+        const next = state.workflow.find(w => w.status === 'queued');
+        if (next) next.status = 'active';
+        vibrate([10, 30, 10]);
+      }
+      renderWorkflow();
+    }, 900);
+  }
+}
+
+$('#context-send').onclick = () => {
+  const v = $('#context-input').value.trim();
+  if (!v) return;
+  $('#context-input').value = '';
+  const active = state.workflow.find(w => w.status === 'active');
+  if (active) {
+    active.desc = v.slice(0, 60);
+    renderWorkflow();
+  }
+  toast('✓ ' + (state.lang === 'ru' ? 'Задача скорректирована' : 'Task corrected'));
+  vibrate(10);
+};
+$('#context-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('#context-send').click(); });
+
+/* ============ FINANCE ============ */
+function renderPeriodTabs() {
+  const labels = { day: t('p_day'), week: t('p_week'), month: t('p_month'), year: t('p_year') };
+  $$('.period-tab').forEach(b => {
+    if (b.dataset.p && labels[b.dataset.p]) {
+      if (!b.closest('#note-status-tabs') && !b.closest('#limit-period-tabs')) {
+        b.textContent = labels[b.dataset.p];
+      }
+    }
+  });
+}
+
+function renderFinance() {
+  const period = state.period;
+  const data = state.finance[period];
+  const diff = data.income - data.expense;
+  const sign = diff >= 0 ? '+' : '−';
+  const cls = diff >= 0 ? 'up' : 'down';
+  const periodLabels = {
+    day: t('p_day').toUpperCase(),
+    week: t('p_week').toUpperCase(),
+    month: t('p_month').toUpperCase(),
+    year: t('p_year').toUpperCase(),
+  };
+
+  const mainEl = $('#metric-main');
+  mainEl.textContent = sign + money(Math.abs(diff));
+  mainEl.className = 'metric-value ' + cls;
+
+  $('#metric-period-label').textContent = (state.lang === 'ru' ? 'ЧИСТЫЙ ПОТОК' : 'NET FLOW') + ' · ' + periodLabels[period];
+
+  $('#metric-income').textContent = '+' + money(data.income);
+  $('#metric-expense').textContent = '−' + money(data.expense);
+
+  const wrap = $('#tx-history');
+  wrap.innerHTML = data.txs.map(tx => `
+    <div class="tx-row ${tx.type}">
+      <div class="tx-avatar">${tx.type === 'in' ? '↓' : '↑'}</div>
+      <div class="tx-info">
+        <div class="tx-name">${escapeHtml(tx.name)}</div>
+        <div class="tx-time">${escapeHtml(tx.time)}</div>
+      </div>
+      <div class="tx-amount ${tx.type}">${tx.type === 'in' ? '+' : '−'}${money(tx.amount)}</div>
+    </div>
+  `).join('');
+  $('#tx-count').textContent = data.txs.length;
+}
+
+$$('.period-tab').forEach(b => {
+  if (b.closest('#limit-period-tabs') || b.closest('#note-status-tabs')) return;
+  b.onclick = () => {
+    $$('.period-tab').forEach(x => {
+      if (!x.closest('#limit-period-tabs') && !x.closest('#note-status-tabs')) x.classList.remove('active');
+    });
+    b.classList.add('active');
+    state.period = b.dataset.p;
+    renderFinance();
+    vibrate(6);
+  };
+});
+
+/* ============ USER LIMIT ============ */
+function renderUserLimit() {
+  const perMap = { day: t('per_day'), week: t('per_week'), month: t('per_month') };
+  $('#user-limit-text').textContent = t('limit_prefix') + ': $' + state.limit.value.toLocaleString('ru-RU') + ' ' + perMap[state.limit.period];
+  $('#limit-value').innerHTML = '$' + state.limit.value.toLocaleString('ru-RU') +
+    ' <small>' + perMap[state.limit.period] + '</small>';
+  $('#limit-num').textContent = state.limit.value.toLocaleString('ru-RU');
+  updateLimitSlider();
+}
+
+function updateLimitSlider() {
+  const track = $('#limit-slider');
+  const thumb = $('#limit-thumb');
+  const fill = $('#limit-fill');
+  if (!track) return;
+  const pct = state.limit.value / state.limit.max;
+  const w = track.clientWidth;
+  const tw = thumb.offsetWidth;
+  const pad = 6;
+  const maxLeft = w - tw - pad * 2;
+  const left = pad + pct * maxLeft;
+  thumb.style.left = left + 'px';
+  fill.style.width = (left + tw/2) + 'px';
+  $$('#limit-presets .limit-preset').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.v) === state.limit.value);
+  });
+}
+
+$$('#limit-presets .limit-preset').forEach(b => {
+  b.onclick = () => {
+    state.limit.value = parseInt(b.dataset.v);
+    renderUserLimit();
+    vibrate(6);
+  };
+});
+
+let limitDragging = false;
+function onLimitDown(e) {
+  limitDragging = true;
+  $('#limit-thumb').classList.add('dragging');
+  e.preventDefault();
+  window.addEventListener('pointermove', onLimitMove);
+  window.addEventListener('pointerup', onLimitUp);
+  onLimitMove(e);
+}
+function onLimitMove(e) {
+  if (!limitDragging) return;
+  const track = $('#limit-slider');
+  const rect = track.getBoundingClientRect();
+  const tw = 74;
+  const pad = 6;
+  const maxLeft = rect.width - tw - pad*2;
+  let x = e.clientX - rect.left - tw/2 - pad;
+  x = Math.max(0, Math.min(maxLeft, x));
+  const pct = x / maxLeft;
+  const rawVal = pct * state.limit.max;
+  // Round to nearest 50
+  state.limit.value = Math.max(50, Math.round(rawVal / 50) * 50);
+  renderUserLimit();
+  if (navigator.vibrate && Math.random() > 0.6) navigator.vibrate(3);
+}
+function onLimitUp() {
+  if (!limitDragging) return;
+  limitDragging = false;
+  $('#limit-thumb').classList.remove('dragging');
+  window.removeEventListener('pointermove', onLimitMove);
+  window.removeEventListener('pointerup', onLimitUp);
+}
+$('#limit-slider').addEventListener('pointerdown', onLimitDown);
+
+$('#btn-user').onclick = () => {
+  renderUserLimit();
+  $$('#limit-period-tabs .period-tab').forEach(b => b.classList.toggle('active', b.dataset.p === state.limit.period));
+  $('#modal-limit').classList.add('show');
+};
+$$('#limit-period-tabs .period-tab').forEach(b => {
+  b.onclick = () => {
+    $$('#limit-period-tabs .period-tab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    state.limit.period = b.dataset.p;
+    renderUserLimit();
+  };
+});
+$('#limit-save').onclick = () => {
+  $('#modal-limit').classList.remove('show');
+  toast('✓ ' + t('limit_set'));
+  vibrate(10);
+};
+$('#limit-close').onclick = () => $('#modal-limit').classList.remove('show');
+$('#modal-limit').addEventListener('click', e => { if (e.target.id === 'modal-limit') e.target.classList.remove('show'); });
+
+/* ============ LANG ============ */
+function renderLangList() {
+  const wrap = $('#lang-list');
+  wrap.innerHTML = '';
+  LANG_LIST.forEach(l => {
+    const el = document.createElement('div');
+    el.className = 'lang-item' + (l.code === state.lang ? ' active' : '');
+    el.innerHTML = `<span style="font-size:15px;">${l.flag}</span> ${l.name}`;
+    el.onclick = () => {
+      state.lang = l.code;
+      localStorage.setItem('ai_lang', l.code);
+      applyTranslations();
+      renderLangList();
+      renderChargeOptions();
+      $('#modal-lang').classList.remove('show');
+      toast('🌐 ' + l.name);
+    };
+    wrap.appendChild(el);
+  });
+}
+$('#btn-lang').onclick = () => { renderLangList(); $('#modal-lang').classList.add('show'); };
+$('#lang-close').onclick = () => $('#modal-lang').classList.remove('show');
+$('#modal-lang').addEventListener('click', e => { if (e.target.id === 'modal-lang') e.target.classList.remove('show'); });
+
+/* ============ CLEAR ============ */
+$('#btn-clear').onclick = () => {
+  $('#chat-messages').innerHTML = '';
+  state.messages = [];
+  toast('✓ ' + t('cleared'));
+  vibrate(10);
+};
+
+/* ============ HELPERS ============ */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function money(n) {
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/* ============ INIT ============ */
+(function init() {
+  applyTheme(state.theme);
+  applyTranslations();
+  renderEnergy();
+  renderNotes();
+  renderWorkflow();
+  renderFinance();
+  renderUserLimit();
+  renderChargeOptions();
+
+  // Seed chat
+  const hello = state.lang === 'ru'
+    ? 'Привет! Я Dola. Пиши что угодно — я помогу, создам задачи и покажу процесс работы.'
+    : 'Hi! I am Dola. Write anything — I will help, create tasks and show my workflow.';
+  appendMsg('bot', hello);
+  state.messages.push({ role:'bot', text: hello });
+
+  // Resize redraws
+  window.addEventListener('resize', () => {
+    updateLimitSlider();
+  });
+})();
+</script>
+</body>
+</html>

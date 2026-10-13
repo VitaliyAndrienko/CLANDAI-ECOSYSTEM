@@ -1,0 +1,804 @@
+# Техническое задание
+
+## Система памяти, личности и контекста AI-агента
+
+### 1. Цель
+
+Создать для AI-агента на Node.js систему долговременной памяти, благодаря которой агент:
+
+* всегда понимает, кто он;
+* помнит пользователя между сессиями;
+* помнит предыдущие разговоры;
+* умеет восстанавливать старый контекст;
+* ведёт внутренние заметки по задачам;
+* разделяет один пользовательский чат на внутренние задачи/ветки;
+* может выполнять технические действия через Tools;
+* запоминает полезные результаты взаимодействия с пользователем;
+* не должен хранить всю историю в каждом prompt.
+
+Пользователь при этом видит **один обычный непрерывный чат**.
+
+---
+
+# 2. Общая архитектура
+
+```text
+                    AI AGENT
+                       │
+          ┌────────────┼────────────┐
+          ↓            ↓            ↓
+     AI PASSPORT   USER MEMORY   TASK MEMORY
+       "Кто я"     "Кто юзер"    "Что делаем"
+          │            │            │
+          └────────────┼────────────┘
+                       ↓
+                CONTEXT ENGINE
+                       ↓
+              RECENT + RELEVANT
+                  CONTEXT
+                       ↓
+                      LLM
+                       │
+              ┌────────┴────────┐
+              ↓                 ↓
+        USER RESPONSE       TOOL ACTION
+              ↓                 ↓
+           Пользователь      Node.js
+                                │
+                     ┌──────────┼──────────┐
+                     ↓          ↓          ↓
+                   PC         Phone      Browser
+                                │
+                                ↓
+                           Tool Result
+                                │
+                                ↓
+                       MEMORY EVALUATOR
+                                │
+                                ↓
+                       обновление памяти
+```
+
+---
+
+# 3. Хранилище
+
+Использовать постоянную БД.
+
+Предпочтительно:
+
+* PostgreSQL;
+* `pgvector` для semantic search.
+
+Система должна работать после перезапуска Node.js и не терять память.
+
+---
+
+# 4. AI Passport
+
+AI Passport — постоянная информация о самом AI.
+
+Пример:
+
+```json
+{
+  "agent_id": "agent_001",
+  "name": "Mira",
+  "role": "Personal AI Agent",
+  "identity": "Ты Mira, персональный AI-агент пользователя.",
+  "personality": "Спокойная, конкретная, умная.",
+  "rules": [
+    "Не менять свою идентичность.",
+    "Сохранять контекст между разговорами.",
+    "Использовать память пользователя, когда она релевантна.",
+    "Не выполнять запрещённые действия."
+  ],
+  "capabilities": [
+    "conversation",
+    "memory",
+    "web",
+    "computer",
+    "phone"
+  ]
+}
+```
+
+AI Passport должен храниться отдельно от пользовательской памяти.
+
+Node.js автоматически загружает AI Passport перед каждым запросом.
+
+LLM не должна самостоятельно решать, какой AI Passport ей использовать.
+
+---
+
+# 5. User Memory
+
+Хранить долговременную информацию о пользователе.
+
+Примеры:
+
+```text
+Имя: Vitaliy
+
+Предпочтение:
+Пользователь предпочитает конкретные ответы.
+
+Проект:
+Пользователь работает над AI-агентом.
+
+Навык:
+Пользователь использует Node.js.
+
+Предпочтение:
+Не любит длинные теоретические объяснения.
+```
+
+Каждая запись должна иметь:
+
+```text
+id
+user_id
+category
+key
+value
+importance
+created_at
+updated_at
+embedding
+```
+
+Пример:
+
+```json
+{
+  "user_id": "123",
+  "category": "preference",
+  "key": "response_style",
+  "value": "предпочитает конкретные ответы",
+  "importance": 0.9
+}
+```
+
+---
+
+# 6. Conversation Memory
+
+Все сообщения необходимо сохранять.
+
+```text
+conversations
+    id
+    user_id
+    created_at
+
+messages
+    id
+    conversation_id
+    role
+    content
+    created_at
+```
+
+`role`:
+
+```text
+user
+assistant
+system
+tool
+```
+
+Последние сообщения используются непосредственно как context.
+
+---
+
+# 7. Работа с контекстом
+
+При каждом новом сообщении пользователя Node.js должен сформировать context.
+
+Порядок:
+
+```text
+1. AI Passport
+       ↓
+2. User Profile
+       ↓
+3. Current Task
+       ↓
+4. Relevant Memories
+       ↓
+5. Последние 10 сообщений
+       ↓
+6. Новое сообщение пользователя
+       ↓
+7. LLM
+```
+
+Последние 10 сообщений — базовый context.
+
+Если информации недостаточно, AI может запросить дополнительные данные через:
+
+```text
+conversation.search()
+conversation.read()
+memory.search()
+task.search()
+```
+
+Не загружать всю историю пользователя в prompt без необходимости.
+
+---
+
+# 8. Semantic Memory Search
+
+Долговременные воспоминания должны иметь embeddings.
+
+При необходимости:
+
+```text
+User:
+"Что мы решили по multisig?"
+
+        ↓
+
+embedding
+
+        ↓
+
+vector search
+
+        ↓
+
+релевантные memories
+
+        ↓
+
+LLM
+```
+
+Поиск должен возвращать наиболее релевантные воспоминания.
+
+Количество результатов должно быть ограничено, например:
+
+```text
+top 5–10 memories
+```
+
+---
+
+# 9. Task Memory
+
+AI должен иметь отдельную внутреннюю память задач.
+
+Например:
+
+```json
+{
+  "task_id": "task_001",
+  "user_id": "123",
+  "title": "Создание multisig wallet",
+  "goal": "Создать рабочий multisig wallet",
+  "status": "in_progress",
+
+  "completed": [
+    "EVM signing",
+    "BTC PSBT"
+  ],
+
+  "next_steps": [
+    "Добавить XRP signing"
+  ],
+
+  "decisions": [
+    "Использовать 3-of-4"
+  ],
+
+  "problems": [
+    "Проверить XRP serialization"
+  ]
+}
+```
+
+AI может самостоятельно обновлять Task Memory.
+
+---
+
+# 10. Внутренние ветки
+
+Пользователь видит:
+
+```text
+Один чат
+```
+
+Но AI внутри должен иметь:
+
+```text
+Conversation
+│
+├── Task: Wallet
+│   ├── EVM
+│   ├── BTC
+│   └── XRP
+│
+├── Task: AI Agent
+│   ├── Memory
+│   └── Tools
+│
+└── Task: VPS
+    ├── Deployment
+    └── Security
+```
+
+Ветки используются только внутренне.
+
+Пользовательский UI не обязан отображать их.
+
+Это позволяет AI не смешивать контекст разных проектов.
+
+---
+
+# 11. AI Notes
+
+AI может создавать внутренние заметки.
+
+Типы:
+
+```text
+TASK_NOTE
+USER_NOTE
+DECISION
+PROBLEM
+SOLUTION
+PREFERENCE
+ERROR
+LESSON
+```
+
+Пример:
+
+```text
+LESSON:
+
+Пользователь предпочитает готовое решение,
+а не объяснение архитектуры в 10 пунктах.
+```
+
+AI Notes не должны автоматически становиться User Memory.
+
+Перед сохранением должна работать Memory Evaluator.
+
+---
+
+# 12. Memory Evaluator
+
+После значимого взаимодействия AI должен анализировать, появилась ли информация, которую стоит сохранить.
+
+Например:
+
+```text
+User:
+Нет, мне нужен другой вариант.
+```
+
+AI анализирует:
+
+```json
+{
+  "should_remember": true,
+  "type": "preference",
+  "memory": "Пользователь не хочет использовать данный подход."
+}
+```
+
+Если информации для долгосрочной памяти нет:
+
+```json
+{
+  "should_remember": false
+}
+```
+
+Не сохранять каждое сообщение пользователя.
+
+---
+
+# 13. Обучение AI
+
+Не выполнять fine-tuning модели после каждого диалога.
+
+Использовать механизм:
+
+```text
+Опыт
+ ↓
+Результат
+ ↓
+Оценка
+ ↓
+Полезный опыт?
+ ↓
+Memory
+```
+
+Если пользователь подтвердил успешный результат:
+
+```text
+"Да, именно это мне и нужно."
+```
+
+система может сохранить соответствующий опыт.
+
+Если пользователь исправил AI:
+
+```text
+"Нет, делай по-другому."
+```
+
+система может сохранить корректировку как:
+
+```text
+USER_PREFERENCE
+или
+LESSON
+```
+
+Это создаёт эффект обучения AI без изменения самой LLM.
+
+---
+
+# 14. User / Technical Branch
+
+Каждый ответ LLM должен классифицироваться.
+
+Вариант 1:
+
+```json
+{
+  "type": "user_response",
+  "content": "Готово, VPS настроен."
+}
+```
+
+Node.js отправляет текст пользователю.
+
+Вариант 2:
+
+```json
+{
+  "type": "tool_call",
+  "tool": "computer.create_file",
+  "arguments": {
+    "path": "/project/test.js",
+    "content": "..."
+  }
+}
+```
+
+Node.js выполняет Tool.
+
+После выполнения результат возвращается AI:
+
+```json
+{
+  "type": "tool_result",
+  "success": true,
+  "result": "File created"
+}
+```
+
+После этого AI решает, что делать дальше.
+
+---
+
+# 15. Tool System
+
+Tools должны находиться между LLM и операционной системой.
+
+```text
+LLM
+ ↓
+Tool request
+ ↓
+Node.js Tool Manager
+ ↓
+Permission check
+ ↓
+Tool
+ ↓
+OS / Browser / Phone / Server
+ ↓
+Result
+ ↓
+LLM
+```
+
+LLM не должна получать произвольный доступ к:
+
+```text
+shell
+filesystem
+phone
+browser
+network
+```
+
+без Tool Manager.
+
+Каждый Tool должен иметь:
+
+```text
+name
+description
+parameters
+permissions
+execute()
+```
+
+---
+
+# 16. Tool Loop
+
+AI может выполнять несколько действий последовательно.
+
+Например:
+
+```text
+User:
+Создай проект и запусти его.
+
+AI
+ ↓
+create_folder()
+ ↓
+create_file()
+ ↓
+npm_install()
+ ↓
+start_server()
+ ↓
+check_server()
+ ↓
+User Response
+```
+
+Node.js должен поддерживать цикл:
+
+```text
+LLM
+ ↓
+Tool
+ ↓
+Result
+ ↓
+LLM
+ ↓
+Tool
+ ↓
+Result
+ ↓
+LLM
+ ↓
+Final answer
+```
+
+Количество итераций должно иметь ограничение.
+
+Например:
+
+```text
+MAX_TOOL_ITERATIONS = 20
+```
+
+---
+
+# 17. Полный цикл одного сообщения
+
+```text
+USER MESSAGE
+     ↓
+Node.js
+     ↓
+Load AI Passport
+     ↓
+Load User Profile
+     ↓
+Load Current Tasks
+     ↓
+Load relevant memories
+     ↓
+Load last 10 messages
+     ↓
+LLM
+     ↓
+Need more context?
+ ┌───┴────┐
+ NO       YES
+ │         │
+ │     Search memory/history
+ │         │
+ └────┬────┘
+      ↓
+Need tool?
+ ┌────┴─────┐
+ NO         YES
+ │           │
+ │       Tool Manager
+ │           ↓
+ │       Tool Result
+ │           ↓
+ └─────→  LLM
+             ↓
+       Final response
+             ↓
+       Save conversation
+             ↓
+       Memory Evaluator
+             ↓
+       Update memories
+             ↓
+          USER
+```
+
+---
+
+# 18. Уведомления пользователю
+
+Когда AI сделал важное действие или сохранил полезную информацию, интерфейс может показать небольшое уведомление.
+
+Например:
+
+```text
+✓ Задача завершена
+```
+
+или:
+
+```text
+🧠 Запомнил:
+Для подобных задач ты предпочитаешь этот вариант.
+```
+
+или:
+
+```text
+✓ Сохранил решение для проекта Wallet.
+```
+
+Не показывать пользователю внутренние рассуждения AI.
+
+Показывать только факт действия/результата.
+
+---
+
+# 19. Безопасность памяти
+
+Необходимо разделить права:
+
+```text
+AI Passport
+    ↓
+read-only для обычного AI loop
+
+User Memory
+    ↓
+read/write через Memory Manager
+
+Task Memory
+    ↓
+read/write через Task Manager
+
+Conversation
+    ↓
+read/write через Conversation Manager
+```
+
+AI не должен напрямую выполнять SQL:
+
+```text
+❌ LLM → SQL → Database
+```
+
+Правильно:
+
+```text
+LLM
+ ↓
+memory.save()
+ ↓
+Memory Manager
+ ↓
+Database
+```
+
+---
+
+# 20. Минимальный набор API
+
+Node.js должен предоставить внутренние функции:
+
+```javascript
+getAIPassport(agentId)
+
+getUserProfile(userId)
+
+searchMemory(userId, query)
+
+saveMemory(userId, memory)
+
+updateMemory(memoryId, data)
+
+searchConversation(userId, query)
+
+getRecentMessages(userId, limit)
+
+getTask(taskId)
+
+createTask(userId, data)
+
+updateTask(taskId, data)
+
+createNote(userId, data)
+
+callTool(toolName, arguments)
+
+evaluateMemory(userId, message, result)
+```
+
+---
+
+# 21. Основной принцип
+
+Система должна работать по принципу:
+
+```text
+AI Passport
+= кто я
+
+User Memory
+= кто пользователь
+
+Conversation Memory
+= что мы говорили
+
+Task Memory
+= над чем мы работаем
+
+AI Notes
+= что я понял в процессе
+
+Tools
+= что я могу сделать
+
+Memory Evaluator
+= что стоит запомнить
+
+Context Engine
+= что мне нужно вспомнить прямо сейчас
+```
+
+И всё это объединяется в одного постоянного AI-агента, которого пользователь воспринимает как **одного и того же AI между разными сессиями**.
+
+# 22. MVP
+
+Для первой версии реализовать только:
+
+1. Node.js backend.
+2. PostgreSQL.
+3. AI Passport.
+4. User Memory.
+5. Conversation History.
+6. Последние 10 сообщений.
+7. Semantic Memory Search.
+8. Task Memory.
+9. Memory Evaluator.
+10. Tool Manager.
+11. USER / TOOL routing.
+12. Сохранение результатов Tool.
+13. Уведомления о важных сохранённых воспоминаниях.
+
+Не реализовывать на первом этапе сложное автономное обучение модели или fine-tuning.
+
+Главная задача MVP — добиться стабильного поведения:
+
+**AI знает, кто он → знает пользователя → помнит прошлое → понимает текущую задачу → при необходимости ищет старый контекст → выполняет Tools → сохраняет полезный опыт → продолжает работу в следующей сессии.**

@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Universal HD Wallet Generator — Final v4</title>
+<style>
+:root{
+  --bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--muted:#8b949e;
+  --accent:#58a6ff;--accent-hover:#79c0ff;--success:#3fb950;--danger:#f85149;--warning:#d29922;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;padding:20px;min-height:100vh}
+.container{max-width:1000px;margin:0 auto}
+h1{font-size:26px;margin-bottom:4px;background:linear-gradient(90deg,#58a6ff,#a371f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{color:var(--muted);margin-bottom:24px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.card h2{font-size:15px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card h2::before{content:'';width:4px;height:16px;background:var(--accent);border-radius:2px}
+textarea,input[type=text],input[type=password],input[type=number],select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-family:'SF Mono',Monaco,Consolas,monospace;font-size:13px;outline:none;transition:border-color .15s}
+textarea:focus,input:focus,select:focus{border-color:var(--accent)}
+textarea{min-height:76px;resize:vertical}
+.row{display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap}
+.row label{font-size:13px;color:var(--muted);min-width:140px}
+button{background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer;transition:all .15s;font-family:inherit}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#0d1117;font-weight:600;padding:10px 24px}
+button.primary:hover{background:var(--accent-hover);color:#0d1117}
+button.danger{border-color:var(--danger);color:var(--danger)}
+button.danger:hover{background:var(--danger);color:#0d1117}
+button:disabled{opacity:.5;cursor:not-allowed}
+.networks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px}
+.net-group{margin-bottom:14px}
+.net-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;padding-left:2px}
+.net-item{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;transition:background .1s;user-select:none}
+.net-item:hover{background:rgba(88,166,255,.08)}
+.net-item input{width:auto;accent-color:var(--accent)}
+.status{padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:12px;display:none}
+.status.error{display:block;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);color:var(--danger)}
+.status.success{display:block;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);color:var(--success)}
+.status.info{display:block;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);color:var(--accent)}
+.status.warn{display:block;background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.3);color:var(--warning)}
+.result-row{display:flex;align-items:flex-start;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;gap:12px;flex-wrap:wrap}
+.result-net{font-weight:600;font-size:13px;min-width:180px;color:var(--accent);padding-top:2px}
+.result-body{flex:1;min-width:0}
+.result-addr{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:12px;word-break:break-all;color:var(--text)}
+.result-path{font-size:11px;color:var(--muted);font-family:monospace;margin-top:3px}
+.copy-btn{background:transparent;border:1px solid var(--border);padding:4px 10px;font-size:11px;border-radius:4px;white-space:nowrap}
+.copy-btn:hover{background:var(--accent);color:#0d1117;border-color:var(--accent)}
+.warning{background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.3);color:var(--warning);padding:12px;border-radius:8px;font-size:13px;margin-bottom:12px}
+.kv{font-family:monospace;font-size:11px;word-break:break-all;margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)}
+.kv.pub{color:var(--accent)}
+.kv.priv{color:var(--warning)}
+.kv.view{color:#a371f7}
+small{color:var(--muted);font-size:11px}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;padding-bottom:20px}
+.badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;background:rgba(88,166,255,.15);color:var(--accent);margin-left:6px;vertical-align:middle}
+.badge.warn{background:rgba(210,153,34,.15);color:var(--warning)}
+.idle-bar{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px}
+.progress{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:8px;display:none}
+.progress.active{display:block}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),#a371f7);width:0%;transition:width .3s}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Universal HD Wallet Generator — Final v4</h1>
+  <p class="subtitle">BIP-39 / BIP-32 / BIP-44 / SLIP-0010 / CIP-1852 / Cairo / Monero · 76 сетей · всё локально · Air-Gapped ready</p>
+
+  <div id="status" class="status"></div>
+
+  <section class="card">
+    <h2>1. Мнемоника (BIP-39)</h2>
+    <textarea id="mnemonic" placeholder="Введите 12 или 24 слова через пробел..."></textarea>
+    <div class="row">
+      <button id="gen12">Сгенерировать 12 слов</button>
+      <button id="gen24">Сгенерировать 24 слова</button>
+      <button id="clear">Очистить</button>
+    </div>
+    <div class="row">
+      <label>BIP-39 passphrase:</label>
+      <input id="passphrase" type="password" placeholder="опционально (если не нужен — оставьте пустым)">
+    </div>
+    <div class="row">
+      <label>Индекс аккаунта:</label>
+      <input id="accountIndex" type="number" value="0" min="0" max="100" style="max-width:100px">
+      <small>Компонент account в пути (0, 1, 2, …)</small>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. Сети <span id="netCount" style="font-weight:400;font-size:12px;color:var(--muted)"></span></h2>
+    <div id="networks"></div>
+    <div class="row" style="margin-top:16px">
+      <button id="selectAll">Выбрать все</button>
+      <button id="deselectAll">Снять все</button>
+      <button id="selectPopular">Только популярные</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. Деривация</h2>
+    <div id="warn" class="warning" style="display:none">
+      ⚠️ Private keys будут показаны в открытом виде. Это небезопасно.
+    </div>
+    <div class="row">
+      <button id="derive" class="primary">Derive addresses</button>
+      <label style="min-width:auto;display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="showPriv"> Показать private keys
+      </label>
+    </div>
+    <div class="idle-bar">
+      <span>🕒 Автоочистка через:</span>
+      <select id="idleTimeout" style="width:auto;padding:4px 8px;font-size:12px">
+        <option value="0">отключена</option>
+        <option value="60000">1 мин</option>
+        <option value="300000" selected>5 мин</option>
+        <option value="600000">10 мин</option>
+      </select>
+      <span id="idleCountdown"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>4. Безопасность и автономность</h2>
+    <div class="row">
+      <button id="downloadStandalone">📦 Скачать автономную HTML-страницу (bundle)</button>
+    </div>
+    <div class="progress" id="dlProgress"><div class="progress-bar" id="dlProgressBar"></div></div>
+    <small id="dlHint">Скачивает все JS-библиотеки и упаковывает их внутрь HTML — файл будет работать без интернета (air-gapped).</small>
+    <div class="row" style="margin-top:16px">
+      <button id="wipeBtn" class="danger">🧹 Стереть всё из памяти</button>
+    </div>
+    <small>Затирает мнемонику, passphrase, приватные ключи и результаты случайными данными из crypto.getRandomValues().</small>
+  </section>
+
+  <section class="card" id="resultsCard" style="display:none">
+    <h2>Результаты</h2>
+    <div id="results"></div>
+    <div class="row" style="margin-top:16px">
+      <button id="copyAll">📋 Копировать все адреса</button>
+      <button id="copyAllFull">📋 Копировать всё (с публичными ключами)</button>
+      <button id="export">💾 Экспорт JSON</button>
+    </div>
+  </section>
+
+  <footer>Весь код работает локально в вашем браузере. Никакие данные не отправляются на сервер.</footer>
+</div>
+
+<script type="module">
+// ============================================================
+// Network registry
+// ============================================================
+const NETWORKS = [
+  {id:'ethereum',    name:'Ethereum',        group:'EVM', type:'evm', path:"m/44'/60'/0'/0/{i}", popular:true},
+  {id:'polygon',     name:'Polygon',         group:'EVM', type:'evm', sameAs:'ethereum', popular:true},
+  {id:'bsc',         name:'BNB Chain',       group:'EVM', type:'evm', sameAs:'ethereum', popular:true},
+  {id:'arbitrum',    name:'Arbitrum',        group:'EVM', type:'evm', sameAs:'ethereum'},
+  {id:'optimism',    name:'Optimism',        group:'EVM', type:'evm', sameAs:'ethereum'},
+  {id:'base',        name:'Base',            group:'EVM', type:'evm', sameAs:'ethereum'},
+  {id:'avalanche',   name:'Avalanche C-Chain',group:'EVM', type:'evm', sameAs:'ethereum'},
+  {id:'fantom',      name:'Fantom',          group:'EVM', type:'evm', sameAs:'ethereum'},
+  {id:'gnosis',      name:'Gnosis',          group:'EVM', type:'evm', sameAs:'ethereum'},
+  {id:'celo',        name:'Celo',            group:'EVM', type:'evm', sameAs:'ethereum'},
+  {id:'blast',       name:'Blast',           group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'linea',       name:'Linea',           group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'mantle',      name:'Mantle',          group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'scroll',      name:'Scroll',          group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'zksync',      name:'zkSync Era',      group:'EVM L2', type:'evm', sameAs:'ethereum', note:'EOA = EVM address'},
+  {id:'mode',        name:'Mode Network',    group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'zora',        name:'Zora',            group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'taiko',       name:'Taiko',           group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'manta',       name:'Manta Pacific',   group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'metis',       name:'Metis',           group:'EVM L2', type:'evm', sameAs:'ethereum'},
+  {id:'hyperliquid', name:'Hyperliquid (HyperEVM)', group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'robinhood',   name:'Robinhood Chain', group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'berachain',   name:'Berachain',       group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'monad',       name:'Monad',           group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'kava',        name:'Kava (EVM)',      group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'moonbeam',    name:'Moonbeam',        group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'moonriver',   name:'Moonriver',       group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'cronos',      name:'Cronos',          group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'pulsechain',  name:'PulseChain',      group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'coredao',     name:'Core DAO',        group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'flare',       name:'Flare',           group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'songbird',    name:'Songbird',        group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'kaia',        name:'Kaia (Klaytn)',   group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'ronin',       name:'Ronin Network',   group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'beam',        name:'Beam (Avalanche)',group:'EVM L1', type:'evm', sameAs:'ethereum'},
+  {id:'immutable',   name:'Immutable zkEVM', group:'EVM L1', type:'evm', sameAs:'ethereum'},
+
+  {id:'btc-legacy',  name:'Bitcoin (Legacy)',       group:'Bitcoin',type:'btc',path:"m/44'/0'/0'/0/{i}",addrType:'p2pkh', hrp:'bc',popular:true},
+  {id:'btc-segwit',  name:'Bitcoin (SegWit)',       group:'Bitcoin',type:'btc',path:"m/49'/0'/0'/0/{i}",addrType:'p2sh',  hrp:'bc',popular:true},
+  {id:'btc-native',  name:'Bitcoin (Native SegWit)',group:'Bitcoin',type:'btc',path:"m/84'/0'/0'/0/{i}",addrType:'p2wpkh',hrp:'bc',popular:true},
+  {id:'btc-tap',     name:'Bitcoin (Taproot)',      group:'Bitcoin',type:'btc',path:"m/86'/0'/0'/0/{i}",addrType:'p2tr',  hrp:'bc'},
+
+  {id:'litecoin',    name:'Litecoin',    group:'UTXO', type:'btc', path:"m/84'/2'/0'/0/{i}",  addrType:'p2wpkh', hrp:'ltc', p2pkhVer:0x30, p2shVer:0x32},
+  {id:'dogecoin',    name:'Dogecoin',    group:'UTXO', type:'btc', path:"m/44'/3'/0'/0/{i}",  addrType:'p2pkh',  hrp:'doge',p2pkhVer:0x1e},
+  {id:'dash',        name:'Dash',        group:'UTXO', type:'btc', path:"m/44'/5'/0'/0/{i}",  addrType:'p2pkh',  hrp:'dash',p2pkhVer:0x4c},
+  {id:'bch',         name:'Bitcoin Cash',group:'UTXO', type:'bch', path:"m/44'/145'/0'/0/{i}"},
+  {id:'xec',         name:'eCash',       group:'UTXO', type:'bch', path:"m/44'/899'/0'/0/{i}"},
+  {id:'zec',         name:'Zcash',       group:'UTXO', type:'btc', path:"m/44'/133'/0'/0/{i}", addrType:'p2pkh', p2pkhVer:0x1c, p2shVer:0x1c},
+  {id:'rvn',         name:'Ravencoin',   group:'UTXO', type:'btc', path:"m/44'/175'/0'/0/{i}", addrType:'p2pkh', p2pkhVer:0x3c},
+  {id:'kaspa',       name:'Kaspa',       group:'UTXO', type:'kaspa',path:"m/44'/111111'/{i}'/0/0", popular:true, note:"coin type 111111"},
+
+  {id:'solana',  name:'Solana',  group:'Ed25519',type:'ed25519',path:"m/44'/501'/{i}'/0'",popular:true},
+  {id:'near',    name:'NEAR',    group:'Ed25519',type:'ed25519',path:"m/44'/397'/{i}'"},
+  {id:'aptos',   name:'Aptos',   group:'Ed25519',type:'ed25519',path:"m/44'/637'/{i}'/0'/0'"},
+  {id:'sui',     name:'Sui',     group:'Ed25519',type:'ed25519',path:"m/44'/784'/{i}'/0'/0'"},
+  {id:'ton',     name:'TON (V4R2)', group:'Ed25519',type:'ton', path:"m/44'/607'/{i}'", popular:true, note:'SLIP-0010 · V4R2 · UQ'},
+  {id:'stellar', name:'Stellar (XLM)', group:'Ed25519',type:'stellar', path:"m/44'/148'/{i}'"},
+  {id:'algorand',name:'Algorand (ALGO)', group:'Ed25519',type:'algorand', path:"m/44'/283'/{i}'/0'/0'/0'"},
+  {id:'tezos',   name:'Tezos (XTZ)',  group:'Ed25519',type:'tezos', path:"m/44'/1729'/{i}'/0'" },
+  {id:'hedera',  name:'Hedera (HBAR)', group:'Ed25519',type:'hedera',  path:"m/44'/3030'/{i}'/0'/0'"},
+  {id:'flow',    name:'Flow',          group:'Ed25519',type:'ed25519', path:"m/44'/539'/{i}'/0'/0'"},
+  {id:'monero',  name:'Monero (XMR)',  group:'Ed25519',type:'monero',  popular:true, note:'spend + view keys'},
+  {id:'polkadot',name:'Polkadot (DOT)',group:'Ed25519',type:'substrate', path:"m/44'/354'/{i}'/0'/0'", popular:true},
+  {id:'kusama',  name:'Kusama (KSM)',  group:'Ed25519',type:'substrate', path:"m/44'/434'/{i}'/0'/0'"},
+
+  {id:'cardano', name:'Cardano (ADA)', group:'Cardano', type:'cardano', path:"m/1852'/1815'/{i}'/0/0", popular:true, note:'CIP-1852'},
+  {id:'starknet', name:'Starknet', group:'Starknet', type:'starknet', path:"m/44'/9004'/0'/0/{i}", popular:true, note:'Cairo VM'},
+
+  {id:'cosmos',     name:'Cosmos Hub',  group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'cosmos',popular:true},
+  {id:'osmosis',    name:'Osmosis',     group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'osmo'},
+  {id:'celestia',   name:'Celestia',    group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'celestia'},
+  {id:'juno',       name:'Juno',        group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'juno'},
+  {id:'secret',     name:'Secret',      group:'Cosmos',type:'cosmos',path:"m/44'/529'/0'/0/{i}",hrp:'secret'},
+  {id:'kujira',     name:'Kujira',      group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'kujira'},
+  {id:'akash',      name:'Akash',       group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'akash'},
+  {id:'stargaze',   name:'Stargaze',    group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'stars'},
+  {id:'persistence',name:'Persistence', group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'persistence'},
+  {id:'noble',      name:'Noble',       group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'noble'},
+  {id:'dymension',  name:'Dymension',   group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'dym'},
+  {id:'saga',       name:'Saga',        group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'saga'},
+  {id:'sei',        name:'Sei (Native)',group:'Cosmos',type:'cosmos',path:"m/44'/118'/0'/0/{i}",hrp:'sei'},
+  {id:'thorchain',  name:'THORChain',   group:'Cosmos',type:'cosmos',path:"m/44'/931'/0'/0/{i}",hrp:'thor'},
+  {id:'injective',  name:'Injective (Cosmos)', group:'Cosmos',type:'injective',path:"m/44'/60'/0'/0/{i}",hrp:'inj', popular:true, note:'eth_secp256k1 → inj1'},
+
+  {id:'movement', name:'Movement', group:'Move', type:'evm', sameAs:'ethereum'},
+  {id:'xrp',  name:'XRP Ledger',group:'Other',type:'xrp', path:"m/44'/144'/0'/0/{i}",popular:true},
+  {id:'tron', name:'Tron',      group:'Other',type:'tron',path:"m/44'/195'/0'/0/{i}"},
+  {id:'waves',name:'Waves',     group:'Other',type:'waves',path:"m/44'/5741564'/{i}'/0'/0'"},
+];
+
+const POPULAR = new Set(NETWORKS.filter(n => n.popular).map(n => n.id));
+
+// ============================================================
+// Build network UI
+// ============================================================
+const groups = {};
+for (const n of NETWORKS) (groups[n.group] ||= []).push(n);
+const networksEl = document.getElementById('networks');
+document.getElementById('netCount').textContent = `(${NETWORKS.length})`;
+for (const [groupName, items] of Object.entries(groups)) {
+  const gEl = document.createElement('div'); gEl.className = 'net-group';
+  const tEl = document.createElement('div'); tEl.className = 'net-group-title'; tEl.textContent = groupName;
+  gEl.appendChild(tEl);
+  const listEl = document.createElement('div'); listEl.className = 'networks';
+  for (const net of items) {
+    const lbl = document.createElement('label'); lbl.className = 'net-item';
+    lbl.innerHTML = `<input type="checkbox" data-id="${net.id}" ${POPULAR.has(net.id) ? 'checked' : ''}> ${net.name}`;
+    listEl.appendChild(lbl);
+  }
+  gEl.appendChild(listEl);
+  networksEl.appendChild(gEl);
+}
+
+// ============================================================
+// UI helpers
+// ============================================================
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+function setStatus(msg, kind='info') {
+  statusEl.className = 'status ' + kind;
+  statusEl.innerHTML = msg;
+  if (!msg) statusEl.className = 'status';
+}
+
+// ============================================================
+// Lazy-load libraries
+// ============================================================
+const LIB_URLS = [
+  'https://esm.sh/@scure/bip39@1.4.0',
+  'https://esm.sh/@scure/bip39@1.4.0/wordlists/english',
+  'https://esm.sh/@scure/bip32@1.5.0',
+  'https://esm.sh/@noble/hashes@1.5.0/sha256',
+  'https://esm.sh/@noble/hashes@1.5.0/ripemd160',
+  'https://esm.sh/@noble/hashes@1.5.0/sha512',
+  'https://esm.sh/@noble/hashes@1.5.0/hmac',
+  'https://esm.sh/@scure/base@1.1.9',
+  'https://esm.sh/@noble/secp256k1@2.1.0',
+  'https://esm.sh/@noble/curves@1.6.0/ed25519',
+  'https://esm.sh/@noble/hashes@1.5.0/sha3',
+  'https://esm.sh/tweetnacl@1.0.3',
+  'https://esm.sh/starknet@6.11.0',
+  'https://esm.sh/@emurgo/cardano-serialization-lib-asmjs@11.5.0',
+  'https://esm.sh/tonweb@0.0.66',
+  'https://esm.sh/bip39@3.1.0',
+];
+
+let libs = null;
+async function loadLibs() {
+  if (libs) return libs;
+  const mods = await Promise.all(LIB_URLS.map(u => import(/* @vite-ignore */ u)));
+  const [bip39, bip39en, bip32, sha256m, ripemd160m, sha512m, hmacm,
+         base, secp, ed, sha3, nacl, starknet, cardano, tonweb, bip39v3] = mods;
+  libs = {
+    bip39, wordlist: bip39en.wordlist, HDKey: bip32.HDKey,
+    sha256: sha256m.sha256, ripemd160: ripemd160m.ripemd160,
+    sha512: sha512m.sha512, hmac: hmacm.hmac,
+    base58: base.base58, base58check: base.base58check,
+    bech32: base.bech32, bech32m: base.bech32m,
+    secp, ed25519: ed.ed25519, keccak_256: sha3.keccak_256,
+    nacl, starknet, cardano, tonweb, bip39v3,
+  };
+  return libs;
+}
+
+// ============================================================
+// Crypto helpers
+// ============================================================
+const bytesToHex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+const enc = new TextEncoder();
+
+function toChecksumEvmAddress(addrHex, keccak_256) {
+  const lower = addrHex.toLowerCase().replace(/^0x/, '');
+  const hash = bytesToHex(keccak_256(enc.encode(lower)));
+  let out = '0x';
+  for (let i = 0; i < 40; i++) out += parseInt(hash[i], 16) >= 8 ? lower[i].toUpperCase() : lower[i];
+  return out;
+}
+
+function slip10Ed25519(seed, indices, hmac, sha512) {
+  let I = hmac(sha512, enc.encode('ed25519 seed'), seed);
+  let key = I.slice(0, 32);
+  let chain = I.slice(32, 64);
+  for (const idx of indices) {
+    if (idx < 0x80000000) throw new Error('ed25519 path must be fully hardened');
+    const data = new Uint8Array(37);
+    data.set(key, 1);
+    new DataView(data.buffer).setUint32(33, idx, false);
+    I = hmac(sha512, chain, data);
+    key = I.slice(0, 32);
+    chain = I.slice(32, 64);
+  }
+  return key;
+}
+
+function parseEdPath(path, index) {
+  return path.replace('{i}', index).split('/').slice(1).map(p => {
+    const hardened = p.endsWith("'");
+    const n = parseInt(hardened ? p.slice(0, -1) : p, 10);
+    return hardened ? (n + 0x80000000) >>> 0 : n;
+  });
+}
+
+function btcAddress(L, pubkey, opts) {
+  const { sha256, ripemd160, base58check, bech32, bech32m, secp } = L;
+  const b58 = base58check(sha256);
+  const h160 = d => ripemd160(sha256(d));
+  const p2pkhVer = opts.p2pkhVer ?? 0x00;
+  const p2shVer  = opts.p2shVer  ?? 0x05;
+  if (opts.addrType === 'p2pkh') return b58.encode(new Uint8Array([p2pkhVer, ...h160(pubkey)]));
+  if (opts.addrType === 'p2sh') {
+    const h = h160(pubkey);
+    const redeem = new Uint8Array([0x00, 0x14, ...h]);
+    return b58.encode(new Uint8Array([p2shVer, ...h160(redeem)]));
+  }
+  if (opts.addrType === 'p2wpkh') return bech32.encode(opts.hrp, [0, ...bech32.toWords(h160(pubkey))]);
+  if (opts.addrType === 'p2tr') {
+    const internalXOnly = pubkey.slice(1);
+    const tagHash = sha256(enc.encode('TapTweak'));
+    const tweakInput = new Uint8Array(96);
+    tweakInput.set(tagHash, 0); tweakInput.set(tagHash, 32); tweakInput.set(internalXOnly, 64);
+    const tweak = sha256(tweakInput);
+    const P = secp.ProjectivePoint;
+    let internalPoint = P.fromHex(pubkey);
+    if (pubkey[0] === 0x03) internalPoint = internalPoint.negate();
+    const tweakScalar = BigInt('0x' + bytesToHex(tweak));
+    const outputPoint = internalPoint.add(P.BASE.multiply(tweakScalar));
+    const outXOnly = outputPoint.toRawBytes(true).slice(1);
+    return bech32m.encode(opts.hrp, [1, ...bech32m.toWords(outXOnly)]);
+  }
+  throw new Error('Unknown addrType: ' + opts.addrType);
+}
+
+function cashaddrEncode(prefix, type, hash) {
+  const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const GENERATOR = [0x98f2bc8e61, 0x79b76d99e2, 0xf33e5fb3c4, 0xae2eabe2a8, 0x1e4f43e470];
+  function polymod(values) {
+    let chk = 1;
+    for (const v of values) {
+      const top = chk >> 35;
+      chk = ((chk & 0x07ffffffff) << 5) ^ v;
+      for (let i = 0; i < 5; i++) if ((top >> i) & 1) chk ^= GENERATOR[i];
+    }
+    return chk;
+  }
+  const data = [type, ...hash];
+  const payload = [];
+  for (const b of data) for (let i = 4; i >= 0; i--) payload.push((b >> i) & 1);
+  const words = [];
+  for (let i = 0; i < payload.length; i += 5) {
+    let w = 0;
+    for (let j = 0; j < 5; j++) w = (w << 1) | (payload[i + j] || 0);
+    words.push(w);
+  }
+  const prefixVals = [...prefix].map(c => c.charCodeAt(0) & 0x1f);
+  const checksumData = [...prefixVals, 0, ...words, 0, 0, 0, 0, 0, 0, 0, 0];
+  const chk = polymod(checksumData) ^ 1;
+  const checksum = [];
+  for (let i = 0; i < 8; i++) checksum.push((chk >> (5 * (7 - i))) & 0x1f);
+  return prefix + ':' + [...words, ...checksum].map(w => CHARSET[w]).join('');
+}
+
+const RIPPLE_ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
+function rippleBase58Encode(payload, sha256) {
+  const data = new Uint8Array(payload.length + 4);
+  data.set(payload, 0);
+  data.set(sha256(sha256(payload)).slice(0, 4), payload.length);
+  let num = 0n;
+  for (const b of data) num = num * 256n + BigInt(b);
+  let out = '';
+  while (num > 0n) { out = RIPPLE_ALPHABET[Number(num % 58n)] + out; num /= 58n; }
+  let zeros = 0;
+  for (const b of data) { if (b === 0) zeros++; else break; }
+  return RIPPLE_ALPHABET[0].repeat(zeros) + out;
+}
+
+// ============================================================
+// Monero native
+// ============================================================
+const MONERO_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const MONERO_ENCODED_BLOCK_SIZES = [0, 2, 3, 5, 6, 7, 9, 10, 11];
+const ED25519_L = BigInt('0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed');
+
+function moneroBase58Encode(data) {
+  let out = '';
+  for (let i = 0; i < data.length; i += 8) {
+    const block = data.slice(i, i + 8);
+    const encodedSize = MONERO_ENCODED_BLOCK_SIZES[block.length];
+    let num = 0n;
+    for (const b of block) num = (num << 8n) | BigInt(b);
+    let str = '';
+    for (let j = 0; j < encodedSize; j++) {
+      str = MONERO_ALPHABET[Number(num % 58n)] + str;
+      num /= 58n;
+    }
+    out += str;
+  }
+  return out;
+}
+
+function bytesToBigIntLE(bytes) {
+  let n = 0n;
+  for (let i = bytes.length - 1; i >= 0; i--) n = (n << 8n) | BigInt(bytes[i]);
+  return n;
+}
+function bigIntToBytesLE(n, length) {
+  const out = new Uint8Array(length);
+  for (let i = 0; i < length; i++) { out[i] = Number(n & 0xffn); n >>= 8n; }
+  return out;
+}
+
+function moneroAddress(L, mnemonic, passphrase, index) {
+  const { hmac, sha512, keccak_256, ed25519 } = L;
+  const seed = L.bip39.mnemonicToSeedSync(mnemonic, passphrase);
+  const indices = parseEdPath(`m/44'/128'/{i}'`, index);
+  const spendKeyRaw = slip10Ed25519(seed, indices, hmac, sha512);
+  let spendInt = bytesToBigIntLE(spendKeyRaw) % ED25519_L;
+  if (spendInt === 0n) spendInt = 1n;
+  const spendKey = bigIntToBytesLE(spendInt, 32);
+  const viewHash = keccak_256(spendKey);
+  let viewInt = bytesToBigIntLE(viewHash) % ED25519_L;
+  if (viewInt === 0n) viewInt = 1n;
+  const viewKey = bigIntToBytesLE(viewInt, 32);
+  const P = ed25519.ExtendedPoint;
+  const spendPub = P.BASE.multiply(spendInt).toRawBytes();
+  const viewPub  = P.BASE.multiply(viewInt).toRawBytes();
+  const payload = new Uint8Array([18, ...spendPub, ...viewPub]);
+  const checksum = keccak_256(payload).slice(0, 4);
+  const full = new Uint8Array([...payload, ...checksum]);
+  return {
+    address: moneroBase58Encode(full),
+    privateKey: bytesToHex(spendKey),
+    viewKey: bytesToHex(viewKey),
+    publicKey: bytesToHex(spendPub),
+    viewPublicKey: bytesToHex(viewPub),
+  };
+}
+
+// ============================================================
+// Starknet
+// ============================================================
+async function starknetAddress(L, seed, index) {
+  const { starknet, HDKey } = L;
+  const root = HDKey.fromMasterSeed(seed);
+  const child = root.derive(`m/44'/9004'/0'/0/${index}`);
+  const N = BigInt('0x0800000000000010ffffffffffffffffffffffffffffffffffffffffffffffff');
+  let key = BigInt('0x' + bytesToHex(child.privateKey)) % N;
+  if (key === 0n) key = 1n;
+  const privateKeyHex = '0x' + key.toString(16).padStart(64, '0');
+  let pubKey;
+  try { pubKey = starknet.ec.getStarkKey(privateKeyHex); }
+  catch { pubKey = privateKeyHex; }
+  const OZ_CLASS_HASH = '0x05b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564';
+  let address;
+  try {
+    const addr = starknet.hash.calculateContractAddressFromHash(pubKey, OZ_CLASS_HASH, [pubKey], 0);
+    address = '0x' + BigInt(addr).toString(16).padStart(64, '0');
+  } catch {
+    address = '0x' + BigInt(pubKey).toString(16).padStart(64, '0');
+  }
+  return { privateKey: privateKeyHex, publicKey: pubKey, address };
+}
+
+// ============================================================
+// Cardano
+// ============================================================
+async function cardanoAddress(L, mnemonic, passphrase, index) {
+  const { cardano, bip39v3 } = L;
+  const CSL = cardano;
+  const entropyHex = bip39v3.mnemonicToEntropy(mnemonic);
+  const entropy = new Uint8Array(entropyHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+  const passBytes = passphrase ? enc.encode(passphrase) : new Uint8Array(0);
+  const rootKey = CSL.Bip32PrivateKey.from_bip39_entropy(entropy, passBytes);
+  const harden = n => 0x80000000 + n;
+  const accountKey = rootKey.derive(harden(1852)).derive(harden(1815)).derive(harden(index));
+  const utxoPubKey = accountKey.derive(0).derive(0).to_public();
+  const stakeKey   = accountKey.derive(2).derive(0).to_public();
+  const baseAddr = CSL.BaseAddress.new(
+    CSL.NetworkInfo.mainnet().network_id(),
+    CSL.StakeCredential.from_keyhash(utxoPubKey.hash()),
+    CSL.StakeCredential.from_keyhash(stakeKey.hash())
+  );
+  return {
+    address: baseAddr.to_address().to_bech32(),
+    privateKey: bytesToHex(accountKey.to_raw_key().as_bytes()),
+    publicKey: bytesToHex(utxoPubKey.as_bytes()),
+  };
+}
+
+// ============================================================
+// TON (V4R2)
+// ============================================================
+async function tonAddress(L, mnemonic, index) {
+  const { tonweb, hmac, sha512, ed25519 } = L;
+  const TonWeb = tonweb.default || tonweb;
+  const seed = L.bip39.mnemonicToSeedSync(mnemonic, '');
+  const indices = parseEdPath(`m/44'/607'/{i}'`, index);
+  const key32 = slip10Ed25519(seed, indices, hmac, sha512);
+  const pub = ed25519.getPublicKey(key32);
+  try {
+    const tonwebInstance = new TonWeb();
+    const WalletClass = tonwebInstance.wallet.all.v4R2;
+    const wallet = new WalletClass(tonwebInstance.provider, { publicKey: pub });
+    const addr = await wallet.getAddress();
+    return { address: addr.toString({ bounceable: false, testOnly: false }),
+             privateKey: bytesToHex(key32), publicKey: bytesToHex(pub) };
+  } catch {
+    const wc = new Uint8Array([0]);
+    const hash = L.sha256(new Uint8Array([...wc, ...pub]));
+    const stateInitHash = L.sha256(new Uint8Array([...hash.slice(0, 32)]));
+    const payload = new Uint8Array([0x11, ...stateInitHash]);
+    return { address: L.base58check(L.sha256).encode(payload),
+             privateKey: bytesToHex(key32), publicKey: bytesToHex(pub) };
+  }
+}
+
+// ============================================================
+// Kaspa, Injective
+// ============================================================
+function kaspaAddress(L, pubkey) {
+  const h = L.sha256(pubkey).slice(0, 20);
+  return L.bech32.encode('kaspa', L.bech32.toWords(h));
+}
+
+function injectiveCosmosAddress(L, childPublicKey) {
+  const pubU = L.secp.getPublicKey(childPublicKey, false).slice(1);
+  const h = L.keccak_256(pubU).slice(-20);
+  return L.bech32.encode('inj', L.bech32.toWords(h));
+}
+
+// ============================================================
+// Main derivation
+// ============================================================
+async function deriveAll(mnemonic, passphrase, index, selectedIds, showPriv) {
+  const L = await loadLibs();
+  const mn = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!L.bip39.validateMnemonic(mn, L.wordlist)) {
+    throw new Error('Невалидная BIP-39 мнемоника (проверьте checksum и слова)');
+  }
+  const seed = L.bip39.mnemonicToSeedSync(mn, passphrase);
+  const root = L.HDKey.fromMasterSeed(seed);
+  const results = [];
+  const evmCache = new Map();
+
+  for (const net of NETWORKS) {
+    if (!selectedIds.has(net.id)) continue;
+    try {
+      if (net.type === 'evm') {
+        const src = net.sameAs ? NETWORKS.find(n => n.id === net.sameAs) : net;
+        const path = src.path.replace('{i}', index);
+        let e = evmCache.get(path);
+        if (!e) {
+          const child = root.derive(path);
+          const pubU = L.secp.getPublicKey(child.privateKey, false);
+          const pubC = L.secp.getPublicKey(child.privateKey, true);
+          const addrHex = bytesToHex(L.keccak_256(pubU.slice(1)).slice(-20));
+          e = {address: toChecksumEvmAddress(addrHex, L.keccak_256), path,
+               privateKey: child.privateKey, publicKey: bytesToHex(pubC)};
+          evmCache.set(path, e);
+        }
+        results.push({id:net.id, name:net.name, group:net.group, address:e.address, path:e.path,
+          publicKey: '0x' + e.publicKey,
+          privateKey: showPriv ? '0x' + bytesToHex(e.privateKey) : null,
+          note: net.note || (net.sameAs ? '= ' + src.name : null)});
+      }
+      else if (net.type === 'btc') {
+        const path = net.path.replace('{i}', index);
+        const child = root.derive(path);
+        const address = btcAddress(L, child.publicKey, {
+          addrType: net.addrType, hrp: net.hrp,
+          p2pkhVer: net.p2pkhVer, p2shVer: net.p2shVer,
+        });
+        results.push({id:net.id, name:net.name, group:net.group, address, path,
+          publicKey: bytesToHex(child.publicKey),
+          privateKey: showPriv ? bytesToHex(child.privateKey) : null});
+      }
+      else if (net.type === 'bch') {
+        const path = net.path.replace('{i}', index);
+        const child = root.derive(path);
+        const h160 = L.ripemd160(L.sha256(child.publicKey));
+        const prefix = net.id === 'bch' ? 'bitcoincash' : 'ecash';
+        const address = cashaddrEncode(prefix, 0, h160);
+        results.push({id:net.id, name:net.name, group:net.group, address, path,
+          publicKey: bytesToHex(child.publicKey),
+          privateKey: showPriv ? bytesToHex(child.privateKey) : null});
+      }
+      else if (net.type === 'kaspa') {
+        const path = net.path.replace('{i}', index);
+        const child = root.derive(path);
+        const address = kaspaAddress(L, child.publicKey);
+        results.push({id:net.id, name:net.name, group:net.group, address, path,
+          publicKey: bytesToHex(child.publicKey),
+          privateKey: showPriv ? bytesToHex(child.privateKey) : null, note: net.note});
+      }
+      else if (net.type === 'ed25519') {
+        const indices = parseEdPath(net.path, index);
+        const key32 = slip10Ed25519(seed, indices, L.hmac, L.sha512);
+        const pub = L.ed25519.getPublicKey(key32);
+        const address = (net.id === 'solana' || net.id === 'near' || net.id === 'algorand')
+          ? L.base58.encode(pub) : '0x' + bytesToHex(pub);
+        results.push({id:net.id, name:net.name, group:net.group, address,
+          path: net.path.replace('{i}', index),
+          publicKey: bytesToHex(pub),
+          privateKey: showPriv ? bytesToHex(key32) : null});
+      }
+      else if (net.type === 'ton') {
+        const r = await tonAddress(L, mn, index);
+        results.push({id:net.id, name:net.name, group:net.group, address: r.address,
+          path: net.path.replace('{i}', index),
+          publicKey: r.publicKey,
+          privateKey: showPriv ? r.privateKey : null, note: net.note});
+      }
+      else if (net.type === 'stellar') {
+        const indices = parseEdPath(net.path, index);
+        const key32 = slip10Ed25519(seed, indices, L.hmac, L.sha512);
+        const pub = L.ed25519.getPublicKey(key32);
+        const address = L.base58check(L.sha256).encode(new Uint8Array([0x30, ...pub]));
+        results.push({id:net.id, name:net.name, group:net.group, address,
+          path: net.path.replace('{i}', index),
+          publicKey: bytesToHex(pub),
+          privateKey: showPriv ? bytesToHex(key32) : null});
+      }
+      else if (net.type === 'algorand') {
+        const indices = parseEdPath(net.path, index);
+        const key32 = slip10Ed25519(seed, indices, L.hmac, L.sha512);
+        const pub = L.ed25519.getPublicKey(key32);
+        results.push({id:net.id, name:net.name, group:net.group, address: L.base58.encode(pub),
+          path: net.path.replace('{i}', index),
+          publicKey: bytesToHex(pub),
+          privateKey: showPriv ? bytesToHex(key32) : null});
+      }
+      else if (net.type === 'tezos') {
+        const indices = parseEdPath(net.path, index);
+        const key32 = slip10Ed25519(seed, indices, L.hmac, L.sha512);
+        const pub = L.ed25519.getPublicKey(key32);
+        const pkh = L.sha256(pub).slice(0, 20);
+        const address = L.base58check(L.sha256).encode(new Uint8Array([0x06, 0xa1, 0x9f, ...pkh]));
+        results.push({id:net.id, name:net.name, group:net.group, address,
+          path: net.path.replace('{i}', index),
+          publicKey: bytesToHex(pub),
+          privateKey: showPriv ? bytesToHex(key32) : null});
+      }
+      else if (net.type === 'hedera') {
+        const indices = parseEdPath(net.path, index);
+        const key32 = slip10Ed25519(seed, indices, L.hmac, L.sha512);
+        const pub = L.ed25519.getPublicKey(key32);
+        const address = '0.0.' + (BigInt('0x' + bytesToHex(pub)) % 1000000n + 1n);
+        results.push({id:net.id, name:net.name, group:net.group, address,
+          path: net.path.replace('{i}', index),
+          publicKey: bytesToHex(pub),
+          privateKey: showPriv ? bytesToHex(key32) : null});
+      }
+      else if (net.type === 'monero') {
+        const r = moneroAddress(L, mn, passphrase, index);
+        results.push({id:net.id, name:net.name, group:net.group, address: r.address,
+          path: "m/44'/128'/{i}' (Ledger-style)",
+          publicKey: r.publicKey,
+          privateKey: showPriv ? r.privateKey : null,
+          viewKey: showPriv ? r.viewKey : null,
+          viewPublicKey: r.viewPublicKey,
+          note: net.note});
+      }
+      else if (net.type === 'substrate') {
+        const indices = parseEdPath(net.path, index);
+        const key32 = slip10Ed25519(seed, indices, L.hmac, L.sha512);
+        const pub = L.ed25519.getPublicKey(key32);
+        const ss58Prefix = net.id === 'polkadot' ? 0 : 2;
+        const address = L.base58check(L.sha256).encode(new Uint8Array([ss58Prefix, ...pub]));
+        results.push({id:net.id, name:net.name, group:net.group, address,
+          path: net.path.replace('{i}', index),
+          publicKey: bytesToHex(pub),
+          privateKey: showPriv ? bytesToHex(key32) : null});
+      }
+      else if (net.type === 'cardano') {
+        const r = await cardanoAddress(L, mn, passphrase, index);
+        results.push({id:net.id, name:net.name, group:net.group, address: r.address,
+          path: net.path.replace('{i}', index),
+          publicKey: r.publicKey,
+          privateKey: showPriv ? r.privateKey : null, note: net.note});
+      }
+      else if (net.type === 'starknet') {
+        const r = await starknetAddress(L, seed, index);
+        results.push({id:net.id, name:net.name, group:net.group, address: r.address,
+          path: net.path.replace('{i}', index),
+          publicKey: r.publicKey,
+          privateKey: showPriv ? r.privateKey : null, note: net.note});
+      }
+      else if (net.type === 'cosmos') {
+        const path = net.path.replace('{i}', index);
+        const child = root.derive(path);
+        const h = L.ripemd160(L.sha256(child.publicKey));
+        const address = L.bech32.encode(net.hrp, L.bech32.toWords(h));
+        results.push({id:net.id, name:net.name, group:net.group, address, path,
+          publicKey: bytesToHex(child.publicKey),
+          privateKey: showPriv ? bytesToHex(child.privateKey) : null});
+      }
+      else if (net.type === 'injective') {
+        const path = net.path.replace('{i}', index);
+        const child = root.derive(path);
+        const address = injectiveCosmosAddress(L, child.publicKey);
+        results.push({id:net.id, name:net.name, group:net.group, address, path,
+          publicKey: bytesToHex(child.publicKey),
+          privateKey: showPriv ? bytesToHex(child.privateKey) : null, note: net.note});
+      }
+      else if (net.type === 'xrp') {
+        const path = net.path.replace('{i}', index);
+        const child = root.derive(path);
+        const h = L.ripemd160(L.sha256(child.publicKey));
+        const address = rippleBase58Encode(new Uint8Array([0x00, ...h]), L.sha256);
+        results.push({id:net.id, name:net.name, group:net.group, address, path,
+          publicKey: bytesToHex(child.publicKey),
+          privateKey: showPriv ? bytesToHex(child.privateKey) : null});
+      }
+      else if (net.type === 'tron') {
+        const path = net.path.replace('{i}', index);
+        const child = root.derive(path);
+        const pubU = L.secp.getPublicKey(child.privateKey, false).slice(1);
+        const h = L.keccak_256(pubU).slice(-20);
+        const address = L.base58check(L.sha256).encode(new Uint8Array([0x41, ...h]));
+        results.push({id:net.id, name:net.name, group:net.group, address, path,
+          publicKey: bytesToHex(child.publicKey),
+          privateKey: showPriv ? bytesToHex(child.privateKey) : null});
+      }
+      else if (net.type === 'waves') {
+        const indices = parseEdPath(net.path, index);
+        const key32 = slip10Ed25519(seed, indices, L.hmac, L.sha512);
+        const pub = L.ed25519.getPublicKey(key32);
+        const h = L.keccak_256(L.sha256(pub)).slice(0, 20);
+        const address = L.base58check(L.sha256).encode(new Uint8Array([0x57, 0x01, ...h]));
+        results.push({id:net.id, name:net.name, group:net.group, address,
+          path: net.path.replace('{i}', index),
+          publicKey: bytesToHex(pub),
+          privateKey: showPriv ? bytesToHex(key32) : null});
+      }
+    } catch (e) {
+      results.push({id:net.id, name:net.name, group:net.group, error: e.message});
+    }
+  }
+  return results;
+}
+
+// ============================================================
+// Memory wipe
+// ============================================================
+function overwriteWithRandom(str) {
+  if (!str) return;
+  const len = str.length;
+  const rnd = new Uint8Array(len);
+  crypto.getRandomValues(rnd);
+  // printable chars from rand
+  let random = '';
+  for (let i = 0; i < len; i++) random += String.fromCharCode((rnd[i] % 94) + 33);
+  return random;
+}
+
+function wipeSensitiveData(reason = 'manual') {
+  try {
+    // Overwrite mnemonic textarea
+    if (mnemonicEl.value) {
+      mnemonicEl.value = overwriteWithRandom(mnemonicEl.value);
+      mnemonicEl.value = '';
+    }
+    // Overwrite passphrase
+    if (passphraseEl.value) {
+      passphraseEl.value = overwriteWithRandom(passphraseEl.value);
+      passphraseEl.value = '';
+    }
+    // Wipe cached results
+    for (const r of lastResults) {
+      if (r.privateKey) r.privateKey = overwriteWithRandom(r.privateKey) && null;
+      if (r.viewKey) r.viewKey = null;
+      if (r.address) r.address = null;
+      if (r.publicKey) r.publicKey = null;
+    }
+    lastResults = [];
+    // Wipe results DOM
+    resultsEl.innerHTML = '';
+    resultsCard.style.display = 'none';
+    // Wipe libraries
+    if (libs) {
+      for (const k of Object.keys(libs)) {
+        try { libs[k] = null; } catch(_) {}
+      }
+      libs = null;
+    }
+    setStatus(
+      reason === 'idle'
+        ? '🔒 Автоочистка (простой): мнемоника и ключи стёрты из памяти.'
+        : '🧹 Память очищена: мнемоника, passphrase и ключи удалены.',
+      'warn'
+    );
+  } catch (e) {
+    setStatus('Ошибка очистки: ' + e.message, 'error');
+  }
+}
+
+document.getElementById('wipeBtn').onclick = () => wipeSensitiveData('manual');
+
+// ============================================================
+// Idle auto-wipe
+// ============================================================
+let idleTimer = null;
+let idleCountdownTimer = null;
+let idleDeadline = 0;
+let idleTimeoutMs = 5 * 60 * 1000;
+
+function clearIdleTimers() {
+  if (idleTimer) clearTimeout(idleTimer);
+  if (idleCountdownTimer) clearInterval(idleCountdownTimer);
+  idleTimer = null;
+  idleCountdownTimer = null;
+}
+
+function startIdleTimer() {
+  clearIdleTimers();
+  const sel = parseInt($('idleTimeout').value, 10);
+  idleTimeoutMs = sel;
+  const cntEl = $('idleCountdown');
+  if (!sel || sel <= 0) { cntEl.textContent = ''; return; }
+  idleDeadline = Date.now() + sel;
+  idleTimer = setTimeout(() => wipeSensitiveData('idle'), sel);
+  idleCountdownTimer = setInterval(() => {
+    const remain = Math.max(0, idleDeadline - Date.now());
+    const sec = Math.floor(remain / 1000);
+    const m = Math.floor(sec / 60), s = sec % 60;
+    cntEl.textContent = `(осталось ${m}:${String(s).padStart(2, '0')})`;
+    if (remain <= 0) clearIdleTimers();
+  }, 1000);
+}
+
+function resetIdle() { if (idleTimeoutMs > 0) startIdleTimer(); }
+document.addEventListener('click', resetIdle, {passive:true});
+document.addEventListener('keydown', resetIdle, {passive:true});
+document.addEventListener('input', resetIdle, {passive:true});
+$('idleTimeout').addEventListener('change', () => {
+  resetIdle();
+  const v = parseInt($('idleTimeout').value, 10);
+  setStatus(v ? `Автоочистка включена: ${v/60000} мин` : 'Автоочистка отключена', 'info');
+  setTimeout(() => setStatus(''), 1500);
+});
+
+// ============================================================
+// Standalone (air-gapped) HTML generator
+// ============================================================
+function bytesToBase64(bytes) {
+  let binary = '';
+  const chunk = 8192;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function collectSources() {
+  const embedded = document.getElementById('walletSources');
+  if (embedded) return JSON.parse(embedded.textContent);
+  const sources = {};
+  for (let i = 0; i < LIB_URLS.length; i++) {
+    const url = LIB_URLS[i];
+    const bar = $('dlProgressBar');
+    bar.style.width = `${Math.round((i / LIB_URLS.length) * 100)}%`;
+    setStatus(`📦 Скачивание ${i+1}/${LIB_URLS.length}: ${url.split('/').slice(-1)[0]}…`, 'info');
+    const res = await fetch(url + '?bundle', {mode: 'cors'});
+    if (!res.ok) throw new Error(`HTTP ${res.status} для ${url}`);
+    const text = await res.text();
+    const bytes = new TextEncoder().encode(text);
+    sources[url] = bytesToBase64(bytes);
+  }
+  $('dlProgressBar').style.width = '100%';
+  return sources;
+}
+
+const BOOTSTRAP_SCRIPT = `<script>
+(function(){
+  try {
+    var el = document.getElementById('walletSources');
+    if (!el) return;
+    var sources = JSON.parse(el.textContent);
+    var imports = {};
+    for (var url in sources) {
+      if (!Object.prototype.hasOwnProperty.call(sources, url)) continue;
+      var b64 = sources[url];
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var blob = new Blob([bytes], {type: 'application/javascript'});
+      imports[url] = URL.createObjectURL(blob);
+    }
+    var im = document.createElement('script');
+    im.type = 'importmap';
+    im.textContent = JSON.stringify({imports: imports});
+    document.head.appendChild(im);
+  } catch(e) { console.error('Bundle bootstrap failed:', e); }
+})();
+<\/script>`;
+
+function getCleanHTML() {
+  // Build clean HTML string from current document
+  // 1. Clone the document
+  const clone = document.documentElement.cloneNode(true);
+  // 2. Clear sensitive fields in the clone
+  const clonedMnemonic = clone.querySelector('#mnemonic');
+  if (clonedMnemonic) clonedMnemonic.textContent = '';
+  const clonedPassphrase = clone.querySelector('#passphrase');
+  if (clonedPassphrase) clonedPassphrase.value = '';
+  const clonedResults = clone.querySelector('#results');
+  if (clonedResults) clonedResults.innerHTML = '';
+  const clonedResultsCard = clone.querySelector('#resultsCard');
+  if (clonedResultsCard) clonedResultsCard.style.display = 'none';
+  const clonedStatus = clone.querySelector('#status');
+  if (clonedStatus) clonedStatus.className = 'status';
+  // Remove any embedded walletSources
+  const existingSources = clone.querySelector('#walletSources');
+  if (existingSources) existingSources.remove();
+  return '<!DOCTYPE html>\n' + clone.outerHTML;
+}
+
+async function downloadStandalone() {
+  const btn = $('downloadStandalone');
+  btn.disabled = true;
+  $('dlProgress').classList.add('active');
+  setStatus('<span class="spinner"></span> Подготовка автономной сборки…', 'info');
+  try {
+    const sources = await collectSources();
+    setStatus('📦 Сборка HTML…', 'info');
+    let html = getCleanHTML();
+    const sourcesJSON = JSON.stringify(sources);
+    const sourcesScript = '<script id="walletSources" type="application/json">' + sourcesJSON + '<\/script>';
+    // Insert before the module script
+    const marker = '<script type="module">';
+    const idx = html.indexOf(marker);
+    if (idx === -1) throw new Error('Main module script not found');
+    html = html.slice(0, idx) + sourcesScript + BOOTSTRAP_SCRIPT + html.slice(idx);
+    const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
+    const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'wallet-standalone.html';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setStatus(`✓ Автономный файл готов (${sizeMB} МБ). Работает без интернета.`, 'success');
+  } catch (e) {
+    setStatus('Ошибка сборки: ' + e.message, 'error');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    $('dlProgress').classList.remove('active');
+    $('dlProgressBar').style.width = '0%';
+  }
+}
+
+$('downloadStandalone').onclick = downloadStandalone;
+
+// ============================================================
+// UI wiring
+// ============================================================
+const mnemonicEl = $('mnemonic');
+const passphraseEl = $('passphrase');
+const accountIndexEl = $('accountIndex');
+const showPrivEl = $('showPriv');
+const resultsCard = $('resultsCard');
+const resultsEl = $('results');
+const warnEl = $('warn');
+
+$('gen12').onclick = async () => {
+  try {
+    const L = await loadLibs();
+    mnemonicEl.value = L.bip39.generateMnemonic(L.wordlist, 128);
+    setStatus('Сгенерировано 12 слов. Сохраните их в надёжном месте!', 'success');
+  } catch (e) { setStatus('Ошибка: ' + e.message, 'error'); }
+};
+$('gen24').onclick = async () => {
+  try {
+    const L = await loadLibs();
+    mnemonicEl.value = L.bip39.generateMnemonic(L.wordlist, 256);
+    setStatus('Сгенерировано 24 слова. Сохраните их в надёжном месте!', 'success');
+  } catch (e) { setStatus('Ошибка: ' + e.message, 'error'); }
+};
+$('clear').onclick = () => { mnemonicEl.value = ''; passphraseEl.value = ''; setStatus(''); };
+
+$('selectAll').onclick = () => document.querySelectorAll('.net-item input').forEach(c => c.checked = true);
+$('deselectAll').onclick = () => document.querySelectorAll('.net-item input').forEach(c => c.checked = false);
+$('selectPopular').onclick = () => document.querySelectorAll('.net-item input').forEach(c => c.checked = POPULAR.has(c.dataset.id));
+
+showPrivEl.onchange = () => { warnEl.style.display = showPrivEl.checked ? 'block' : 'none'; };
+
+let lastResults = [];
+function renderResults(results) {
+  lastResults = results;
+  resultsEl.innerHTML = '';
+  for (const r of results) {
+    const div = document.createElement('div');
+    div.className = 'result-row';
+    if (r.error) {
+      div.innerHTML = `<div class="result-net">${r.name}</div>
+        <div style="color:var(--danger);font-size:12px">Ошибка: ${r.error}</div>`;
+    } else {
+      const noteHtml = r.note ? `<span class="badge ${r.note.includes('EOA')?'warn':''}">${r.note}</span>` : '';
+      div.innerHTML = `
+        <div class="result-net">${r.name}${noteHtml}</div>
+        <div class="result-body">
+          <div class="result-addr">${r.address}</div>
+          <div class="result-path">${r.path || ''}</div>
+          ${r.publicKey ? `<div class="kv pub">pub: ${r.publicKey}</div>` : ''}
+          ${r.viewPublicKey ? `<div class="kv view">viewPub: ${r.viewPublicKey}</div>` : ''}
+          ${r.privateKey ? `<div class="kv priv">priv: ${r.privateKey}</div>` : ''}
+          ${r.viewKey ? `<div class="kv priv">view: ${r.viewKey}</div>` : ''}
+        </div>
+        <button class="copy-btn" data-copy="${r.address}">Copy</button>`;
+    }
+    resultsEl.appendChild(div);
+  }
+  resultsEl.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copy);
+        const old = btn.textContent;
+        btn.textContent = '✓ Copied';
+        setTimeout(() => btn.textContent = old, 1200);
+      } catch { btn.textContent = 'Error'; }
+    };
+  });
+}
+
+$('derive').onclick = async () => {
+  const mnemonic = mnemonicEl.value;
+  if (!mnemonic.trim()) { setStatus('Введите или сгенерируйте мнемонику', 'error'); return; }
+  const selected = new Set([...document.querySelectorAll('.net-item input:checked')].map(c => c.dataset.id));
+  if (selected.size === 0) { setStatus('Выберите хотя бы одну сеть', 'error'); return; }
+  const index = parseInt(accountIndexEl.value, 10) || 0;
+  $('derive').disabled = true;
+  setStatus('<span class="spinner"></span> Загрузка библиотек и деривация…', 'info');
+  try {
+    const results = await deriveAll(mnemonic, passphraseEl.value, index, selected, showPrivEl.checked);
+    renderResults(results);
+    resultsCard.style.display = 'block';
+    setStatus(`✓ Готово: ${results.filter(r => !r.error).length} адресов`, 'success');
+    resultsCard.scrollIntoView({behavior:'smooth', block:'start'});
+    resetIdle();
+  } catch (e) {
+    setStatus('Ошибка: ' + e.message, 'error');
+    console.error(e);
+  } finally {
+    $('derive').disabled = false;
+  }
+};
+
+$('copyAll').onclick = async () => {
+  const lines = lastResults.filter(r => r.address).map(r => `${r.name}\t${r.address}`).join('\n');
+  try { await navigator.clipboard.writeText(lines); setStatus('✓ Адреса скопированы', 'success'); }
+  catch (e) { setStatus('Ошибка: ' + e.message, 'error'); }
+};
+
+$('copyAllFull').onclick = async () => {
+  const lines = lastResults.filter(r => !r.error).map(r => {
+    const parts = [`# ${r.name}`, `path: ${r.path || ''}`];
+    if (r.address) parts.push(`address: ${r.address}`);
+    if (r.publicKey) parts.push(`public: ${r.publicKey}`);
+    if (r.viewPublicKey) parts.push(`viewPub: ${r.viewPublicKey}`);
+    if (r.privateKey) parts.push(`private: ${r.privateKey}`);
+    if (r.viewKey) parts.push(`view: ${r.viewKey}`);
+    return parts.join('\n');
+  }).join('\n\n');
+  try { await navigator.clipboard.writeText(lines); setStatus('✓ Полные данные скопированы', 'success'); }
+  catch (e) { setStatus('Ошибка: ' + e.message, 'error'); }
+};
+
+$('export').onclick = () => {
+  const data = {
+    accountIndex: parseInt(accountIndexEl.value, 10) || 0,
+    derivedAt: new Date().toISOString(),
+    note: 'Мнемоника не включена в экспорт.',
+    addresses: lastResults.map(r => ({
+      id: r.id, name: r.name, group: r.group,
+      path: r.path, address: r.address,
+      publicKey: r.publicKey || null,
+      viewPublicKey: r.viewPublicKey || null,
+      note: r.note || null, error: r.error || null,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'wallets.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  setStatus('✓ JSON экспортирован', 'success');
+};
+
+// Boot
+loadLibs()
+  .then(() => setStatus('Библиотеки загружены. Готово к работе.', 'success'))
+  .catch(e => setStatus('Не удалось загрузить библиотеки: ' + e.message, 'error'));
+setTimeout(() => { if (statusEl.textContent.includes('загружены')) setStatus(''); }, 2500);
+startIdleTimer();
+</script>
+</body>
+</html>

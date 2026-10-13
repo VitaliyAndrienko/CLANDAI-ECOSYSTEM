@@ -1,0 +1,5440 @@
+Да. Ниже даю **полное ТЗ на следующую ревизию v6.1**, уже с учетом всей нашей последней архитектуры и тех критических исправлений, которые нужно внести.
+
+Главная идея: **никаких DEX-adapters, никакой simulation в transaction path, whitelist на уровне контракта, лимиты на уровне контракта + отдельная risk-policy токенов, approve не считается расходом, Yellow/Red имеют cumulative lifetime limit.**
+
+Также я закладываю безопасную модель generic execution: Guard не пытается понимать миллионы функций DeFi. Он контролирует **какому контракту Wallet временно разрешает какие токены и в каком количестве**, выполняет вызов и после него отзывает временный allowance. Это существенно лучше, чем просто `wallet.call(target, calldata)` с постоянными approvals. Solidity отдельно предупреждает, что arbitrary external calls фактически дают вызываемому контракту полномочия proxy-аккаунта, поэтому здесь нельзя оставлять бесконтрольный allowance. ([Solidity Documentation][1])
+
+# ТЕХНИЧЕСКОЕ ЗАДАНИЕ
+
+# Smart Wallet Security System v6.2
+
+## 0. ЦЕЛЬ
+
+Разработать следующую ревизию системы Smart Wallet + Security Guard.
+
+Система должна защищать средства пользователя от:
+
+* malicious smart contracts;
+* unlimited `approve`;
+* unlimited Permit2 approvals;
+* malicious `permit`;
+* повторного использования ранее выданного allowance;
+* подмены target contract;
+* превышения лимитов;
+* drain дешевых/неликвидных токенов;
+* эксплуатации токенов без надежной цены;
+* компрометации frontend;
+* компрометации отдельного DeFi-протокола;
+* повторного использования разрешения после его окончания;
+* ошибочного или злонамеренного увеличения лимитов;
+* migration-ошибок;
+* reentrancy;
+* обхода Guard через прямые вызовы Wallet.
+
+Система должна быть:
+
+* non-custodial;
+* on-chain enforceable;
+* без backend как security authority;
+* без external API внутри transaction path;
+* без simulation внутри transaction path;
+* без DEX-specific adapters;
+* без необходимости знать ABI каждого DeFi-протокола;
+* максимально gas-efficient;
+* modular;
+* пригодной для независимого аудита.
+
+---
+
+# 1. ГЛАВНЫЙ ПРИНЦИП
+
+Guard НЕ должен пытаться понимать логику каждого DeFi-протокола.
+
+Нельзя строить архитектуру:
+
+```text
+UniswapAdapter
+CurveAdapter
+AaveAdapter
+GMXAdapter
+BalancerAdapter
+PendleAdapter
+...
+```
+
+Количество протоколов потенциально неограниченно.
+
+Вместо этого используется универсальная модель:
+
+```text
+Smart Wallet
+      │
+      ▼
+SmartWalletGuard
+      │
+      ├── PolicyRegistry
+      ├── OwnerRegistry
+      ├── SubscriptionRegistry
+      └── MigrationHub
+      │
+      ▼
+Target Contract
+```
+
+Guard контролирует:
+
+1. кто инициировал операцию;
+2. какой target;
+3. разрешен ли target;
+4. какой лимит установлен для target;
+5. какой lifetime budget уже потрачен;
+6. какие токены участвуют;
+7. какой risk category у токена;
+8. сколько токена разрешено использовать;
+9. какой процент текущего баланса может быть использован;
+10. deadline;
+11. signatures;
+12. временный allowance;
+13. native value;
+14. blacklist;
+15. migration state;
+16. subscription permissions.
+
+Guard НЕ обязан понимать внутреннюю бизнес-логику target contract.
+
+---
+
+# 2. КЛЮЧЕВОЕ ОГРАНИЧЕНИЕ
+
+В версии v6.2 НЕ использовать transaction simulation.
+
+Нельзя:
+
+```text
+eth_call
+Tenderly
+BlockSec
+GoPlus Simulation
+backend simulation
+RPC simulation
+```
+
+внутри исполнения транзакции.
+
+Причина:
+
+* дополнительная задержка;
+* зависимость от RPC;
+* дополнительная инфраструктура;
+* дополнительные точки отказа;
+* непредсказуемый UX;
+* security logic становится зависимой от внешнего сервиса.
+
+Transaction path должен работать только на:
+
+* calldata;
+* on-chain policy;
+* on-chain token configuration;
+* current balances;
+* signatures;
+* local state;
+* blockchain state.
+
+---
+
+# 3. ВАЖНАЯ ОГОВОРКА ПО GENERIC EXECUTION
+
+Без simulation Guard не может доказать, что внутренний вызов протокола фактически потратил именно заявленное количество каждого токена.
+
+Поэтому безопасность должна обеспечиваться не попыткой "понять calldata", а временными allowance.
+
+Пример:
+
+Пользователь хочет обменять:
+
+```text
+100 USDC
+```
+
+через:
+
+```text
+Target = Uniswap Router
+```
+
+Guard:
+
+1. проверяет policy;
+2. проверяет USDC risk policy;
+3. проверяет lifetime budget;
+4. проверяет max balance share;
+5. проверяет signatures;
+6. SmartWallet временно дает target allowance ровно:
+
+```text
+100 USDC
+```
+
+7. SmartWallet вызывает target;
+8. target может использовать максимум предоставленных 100 USDC;
+9. после вызова SmartWallet отзывает allowance;
+10. Guard фиксирует фактическую/разрешенную операцию согласно модели accounting.
+
+Нельзя оставлять:
+
+```text
+approve(target, type(uint256).max)
+```
+
+после операции.
+
+---
+
+# 4. КАТЕГОРИИ ТОКЕНОВ
+
+Система использует три категории.
+
+```solidity
+enum TokenRisk {
+    GREEN,
+    YELLOW,
+    RED
+}
+```
+
+## GREEN
+
+Токен имеет надежную on-chain цену.
+
+Для GREEN используется:
+
+```text
+USD lifetime limit
++
+max % current token balance
+```
+
+Например:
+
+```text
+USDC
+GREEN
+
+Contract limit:
+$1,000
+
+Current balance:
+$2,000
+
+Max balance share:
+20%
+```
+
+Максимальная операция:
+
+```text
+min(
+    remaining USD budget,
+    20% current balance
+)
+```
+
+---
+
+# 5. YELLOW
+
+Токен имеет:
+
+* низкую ликвидность;
+* нестабильную цену;
+* недостаточно надежный price source;
+* ограниченную рыночную историю;
+* потенциально manipulable price.
+
+Для YELLOW нельзя полагаться только на USD.
+
+Используется:
+
+```text
+absolute token amount lifetime limit
++
+max % current balance
+```
+
+Например:
+
+```text
+TOKEN X
+YELLOW
+
+maxAmount:
+10,000 TOKEN
+
+maxBalanceShare:
+20%
+```
+
+---
+
+# 6. RED
+
+RED:
+
+* нет надежной цены;
+* неизвестный токен;
+* новый токен;
+* отсутствует валидный price configuration;
+* невозможно надежно определить USD value.
+
+Используется:
+
+```text
+absolute token amount lifetime limit
++
+max % current balance
+```
+
+RED должен быть максимально строгим.
+
+---
+
+# 7. UNKNOWN TOKEN
+
+Если токен отсутствует в TokenRiskRegistry:
+
+```text
+UNKNOWN => RED
+```
+
+Никогда:
+
+```text
+UNKNOWN => GREEN
+```
+
+Нельзя автоматически доверять новому токену.
+
+---
+
+# 8. ПОЛЬЗОВАТЕЛЬ НЕ ВЫБИРАЕТ RISK CATEGORY
+
+Пользователь НЕ должен вручную выбирать:
+
+```text
+GREEN
+YELLOW
+RED
+```
+
+Категория определяется системой.
+
+Например:
+
+```text
+USDC -> GREEN
+WETH -> GREEN
+ABC -> YELLOW
+XYZ -> RED
+UNKNOWN -> RED
+```
+
+Изменение категории должно происходить governance-путем.
+
+---
+
+# 9. PRICE CONFIGURATION
+
+Для GREEN используется on-chain configuration.
+
+Пример:
+
+```solidity
+struct TokenPriceConfig {
+    uint256 price;
+    uint8 decimals;
+    uint64 updatedAt;
+    uint64 maxAge;
+    bool enabled;
+}
+```
+
+Обязательно проверять:
+
+```text
+enabled == true
+```
+
+и:
+
+```text
+block.timestamp <= updatedAt + maxAge
+```
+
+Если цена устарела:
+
+```text
+GREEN
+```
+
+не должна продолжать автоматически считаться надежной.
+
+В таком случае токен переводится в strict behavior:
+
+```text
+GREEN price stale
+        ↓
+YELLOW/RED-like enforcement
+```
+
+Точная реализация может хранить категорию отдельно, но expired price НЕ должен использоваться как валидная цена.
+
+---
+
+# 10. TOKEN POLICY
+
+Создать отдельный TokenRiskRegistry.
+
+Пример:
+
+```solidity
+struct TokenRiskConfig {
+    TokenRisk risk;
+    bool enabled;
+
+    uint256 price;
+    uint8 priceDecimals;
+
+    uint64 priceUpdatedAt;
+    uint64 priceMaxAge;
+}
+```
+
+Не помещать тяжелую token-risk логику в Guard.
+
+Guard должен только обращаться к registry.
+
+---
+
+# 11. CONTRACT WHITELIST
+
+Whitelist должен быть:
+
+```text
+contract-level
+```
+
+а не:
+
+```text
+contract + token
+```
+
+То есть пользователь добавляет:
+
+```text
+0xUniswapRouter
+```
+
+а не:
+
+```text
+0xUniswapRouter + USDC
+0xUniswapRouter + ETH
+0xUniswapRouter + WETH
+...
+```
+
+Это существенно упрощает UX.
+
+---
+
+# 12. CONTRACT POLICY
+
+Использовать:
+
+```solidity
+struct ContractPolicy {
+    bool enabled;
+
+    uint256 usdLimit;
+    uint256 usdSpent;
+
+    uint256 maxTokenShareBps;
+
+    uint64 deadline;
+
+    bool blocked;
+}
+```
+
+Но структуру можно изменить для gas/storage optimization.
+
+---
+
+# 13. CONTRACT POLICY SEMANTICS
+
+Пример:
+
+```text
+Target:
+Uniswap Router
+
+Limit:
+$1,000
+
+Spent:
+$350
+
+Remaining:
+$650
+
+Max token share:
+20%
+
+Deadline:
+30 days
+```
+
+Пока:
+
+```text
+usdSpent < usdLimit
+```
+
+операции могут проходить без дополнительного elevation, если остальные условия соблюдены.
+
+---
+
+# 14. LIMIT = LIFETIME BUDGET
+
+Лимиты должны быть cumulative.
+
+Нельзя:
+
+```text
+maxAmount = 100 USDC
+```
+
+понимать как:
+
+```text
+100 USDC per transaction
+```
+
+Это должно означать:
+
+```text
+100 USDC lifetime budget
+```
+
+Например:
+
+```text
+maxAmount = 100
+
+transaction #1 = 30
+spent = 30
+
+transaction #2 = 20
+spent = 50
+
+transaction #3 = 50
+spent = 100
+
+remaining = 0
+```
+
+Следующая операция:
+
+```text
+REVERT
+```
+
+если пользователь не изменил policy.
+
+---
+
+# 15. TOKEN AMOUNT POLICY
+
+Для YELLOW/RED:
+
+```solidity
+struct TokenAmountPolicy {
+    uint256 maxAmount;
+    uint256 amountSpent;
+    uint256 maxBalanceShareBps;
+}
+```
+
+Проверка:
+
+```text
+requestedAmount <= maxAmount - amountSpent
+```
+
+и:
+
+```text
+requestedAmount <= currentBalance * maxBalanceShareBps / 10_000
+```
+
+Обе проверки обязательны.
+
+---
+
+# 16. ПОЧЕМУ НУЖНЫ ДВА ЛИМИТА
+
+Нельзя использовать только:
+
+```text
+20% balance
+```
+
+Потому что:
+
+```text
+1000
+→ 800
+→ 640
+→ 512
+→ 409
+→ ...
+```
+
+При повторных операциях можно постепенно вывести почти весь баланс.
+
+Поэтому:
+
+```text
+Lifetime amount
++
+Per-transaction balance share
+```
+
+обязательны одновременно.
+
+---
+
+# 17. GREEN ACCOUNTING
+
+Для GREEN:
+
+```text
+USD lifetime budget
+```
+
+и:
+
+```text
+maxBalanceShareBps
+```
+
+Пример:
+
+```text
+USDC price = $1
+
+USD limit = $1,000
+USD spent = $300
+
+Remaining = $700
+```
+
+Если баланс:
+
+```text
+$5,000
+```
+
+и:
+
+```text
+maxBalanceShare = 20%
+```
+
+то transaction maximum:
+
+```text
+$1,000
+```
+
+Но lifetime remaining:
+
+```text
+$700
+```
+
+Следовательно:
+
+```text
+max allowed = $700
+```
+
+---
+
+# 18. YELLOW/RED ACCOUNTING
+
+Для YELLOW/RED не использовать USD как единственный security boundary.
+
+Например:
+
+```text
+TOKEN balance = 1,000,000
+maxBalanceShare = 10%
+maxAmount = 100,000
+amountSpent = 20,000
+```
+
+Remaining lifetime:
+
+```text
+80,000
+```
+
+Current per-tx max:
+
+```text
+100,000
+```
+
+Следовательно:
+
+```text
+max allowed = 80,000
+```
+
+---
+
+# 19. APPROVE НЕ ЯВЛЯЕТСЯ SPEND
+
+Это КРИТИЧЕСКОЕ правило.
+
+Если пользователь делает:
+
+```solidity
+approve(target, 100 USDC)
+```
+
+это НЕ означает:
+
+```text
+spent = 100
+```
+
+Allowance ≠ actual spend.
+
+Поэтому:
+
+```text
+approve()
+```
+
+не должен увеличивать:
+
+```text
+usdSpent
+amountSpent
+```
+
+---
+
+# 20. APPROVE POLICY
+
+Unlimited approve:
+
+```solidity
+approve(target, type(uint256).max)
+```
+
+должен быть запрещен.
+
+Также запрещать:
+
+```text
+uint256 max
+Permit unlimited
+Permit2 unlimited
+infinite expiration
+```
+
+если это не специально разрешенный системный механизм.
+
+Для пользовательского target:
+
+```text
+amount == 0
+```
+
+может означать revoke.
+
+---
+
+# 21. EXACT APPROVE
+
+Допустимо:
+
+```text
+approve(target, 15 USDC)
+```
+
+если:
+
+```text
+15 <= permitted amount
+```
+
+Например:
+
+```text
+Contract lifetime limit:
+$1000
+
+Spent:
+$350
+
+Remaining:
+$650
+```
+
+Пользователь может дать:
+
+```text
+approve 15 USDC
+```
+
+но это НЕ увеличивает spent.
+
+---
+
+# 22. PROBLEM WITH PERSISTENT APPROVAL
+
+Если:
+
+```text
+approve(target, 1000 USDC)
+```
+
+остается после операции, Guard уже не контролирует последующие `transferFrom`.
+
+Поэтому generic execution должен использовать:
+
+```text
+temporary allowance
+```
+
+а не permanent allowance.
+
+---
+
+# 23. TEMPORARY ALLOWANCE MODEL
+
+Рекомендуемый flow:
+
+```text
+Guard
+ ↓
+validate policy
+ ↓
+validate signatures
+ ↓
+SmartWallet.approveTokenByGuard(
+    token,
+    target,
+    amount
+)
+ ↓
+SmartWallet.callTarget(
+    target,
+    value,
+    calldata
+)
+ ↓
+SmartWallet.revokeTokenAllowanceByGuard(
+    token,
+    target
+)
+```
+
+Важно:
+
+`approveTokenByGuard()` должен исполняться SmartWallet.
+
+Не:
+
+```text
+Guard -> token.approve()
+```
+
+Потому что тогда:
+
+```text
+msg.sender == Guard
+```
+
+и allowance будет:
+
+```text
+Guard -> target
+```
+
+а не:
+
+```text
+SmartWallet -> target
+```
+
+---
+
+# 24. SMART WALLET APPROVAL PRIMITIVE
+
+Добавить:
+
+```solidity
+function approveTokenByGuard(
+    address token,
+    address spender,
+    uint256 amount
+) external onlyGuard;
+```
+
+Требования:
+
+* `onlyGuard`;
+* token != zero;
+* spender != zero;
+* spender != address(this);
+* no arbitrary caller;
+* no delegatecall;
+* forceApprove для USDT-like tokens;
+* amount должен быть конечным;
+* unlimited amount запрещен на уровне Wallet primitive, если это не системная функция;
+* event.
+
+---
+
+# 25. REVOKE PRIMITIVE
+
+Добавить:
+
+```solidity
+function revokeTokenAllowanceByGuard(
+    address token,
+    address spender
+) external onlyGuard;
+```
+
+Делает:
+
+```solidity
+forceApprove(spender, 0)
+```
+
+Wallet должен использовать этот primitive после generic call.
+
+---
+
+# 26. ATOMICITY
+
+Операция:
+
+```text
+temporary approve
++
+target call
++
+revoke
+```
+
+должна находиться в одной транзакции.
+
+Если target call revert:
+
+```text
+вся транзакция revert
+```
+
+и approval тоже откатывается.
+
+Если call успешен:
+
+```text
+revoke
+```
+
+должен выполняться до завершения.
+
+---
+
+# 27. REENTRANCY
+
+Generic execution должен быть:
+
+```solidity
+nonReentrant
+```
+
+или использовать эквивалентную безопасную архитектуру.
+
+Особенно опасны:
+
+```text
+Wallet -> Target
+Target -> Token
+Token -> Target
+Target -> Wallet
+```
+
+Нельзя разрешать target самостоятельно повторно вызывать Wallet primitives.
+
+Wallet primitives должны быть:
+
+```text
+onlyGuard
+```
+
+---
+
+# 28. НИКАКОГО DELEGATECALL
+
+Wallet/Guard не должен предоставлять пользователю generic:
+
+```solidity
+delegatecall(target, data)
+```
+
+Delegatecall принципиально запрещен.
+
+Разрешен только:
+
+```text
+CALL
+```
+
+в заранее разрешенный target.
+
+---
+
+# 29. GENERIC EXECUTE
+
+Создать:
+
+```solidity
+executeContract(
+    address target,
+    uint256 value,
+    bytes calldata data,
+    TokenSpend[] calldata spends,
+    OperationAuth calldata auth
+)
+```
+
+Точная сигнатура может быть изменена ради gas optimization.
+
+---
+
+# 30. TokenSpend
+
+Например:
+
+```solidity
+struct TokenSpend {
+    address token;
+    uint256 amount;
+}
+```
+
+Операция явно заявляет:
+
+```text
+USDC: 100
+WETH: 0.1
+```
+
+Guard проверяет policy для каждого token.
+
+---
+
+# 31. TARGET
+
+Target должен быть:
+
+```text
+approved
+AND
+not blocked
+AND
+not blacklisted
+AND
+policy enabled
+AND
+deadline valid
+```
+
+Если target неизвестен:
+
+```text
+REVERT
+```
+
+---
+
+# 32. TARGET POLICY = 0
+
+Если пользователь выставил:
+
+```text
+limit = 0
+```
+
+это НЕ означает:
+
+```text
+contract blocked
+```
+
+Это означает:
+
+```text
+каждая spend operation требует elevation
+```
+
+То есть:
+
+```text
+2/3 Hot
++
+Special Local Authorization
+```
+
+---
+
+# 33. SPECIAL LOCAL AUTHORIZATION
+
+Нужен отдельный механизм повышенной авторизации.
+
+Смысл:
+
+```text
+2/3 Hot
++
+special local key
+```
+
+Special key:
+
+* хранится локально;
+* защищается device password;
+* никогда не отправляется backend;
+* не хранится plaintext on-chain;
+* используется для high-risk operation authorization.
+
+---
+
+# 34. ПАРОЛЬ
+
+Пароль НЕ должен быть on-chain security secret.
+
+Правильная модель:
+
+```text
+device password
+       ↓
+local key unlock
+       ↓
+special signature
+       ↓
+Guard
+```
+
+Guard получает:
+
+```text
+signature
+```
+
+но не пароль.
+
+---
+
+# 35. NORMAL OPERATION
+
+Обычная операция:
+
+```text
+2/3 Hot
+```
+
+если она находится внутри policy.
+
+Например:
+
+```text
+Contract:
+Uniswap
+
+Limit:
+$1000
+
+Spent:
+$300
+
+Operation:
+$100
+
+Risk:
+GREEN
+
+Balance share:
+10%
+```
+
+Если все policy checks проходят:
+
+```text
+2/3 Hot
+```
+
+достаточно.
+
+---
+
+# 36. HIGH-RISK OPERATION
+
+Если policy не позволяет автоматическое выполнение:
+
+```text
+2/3 Hot
++
+Special Key
+```
+
+Например:
+
+```text
+limit = 0
+```
+
+Любая операция требует:
+
+```text
+2/3 Hot + Special Key
+```
+
+---
+
+# 37. LIMIT INCREASE
+
+Если пользователь хочет увеличить:
+
+```text
+$1000 → $5000
+```
+
+это отдельная critical policy operation.
+
+Она не должна происходить просто потому, что frontend отправил:
+
+```text
+newLimit = 5000
+```
+
+Требуются соответствующие signatures согласно governance policy.
+
+---
+
+# 38. NEAR LIMIT WARNING
+
+Frontend должен показывать:
+
+```text
+Contract limit almost reached
+```
+
+Например:
+
+```text
+Spent:
+$920
+
+Limit:
+$1000
+
+Remaining:
+$80
+```
+
+UI:
+
+```text
+Increase limit
+Block contract
+Set limit = 0
+```
+
+Это UX, не security authority.
+
+On-chain Guard всё равно проверяет limit самостоятельно.
+
+---
+
+# 39. BLOCK CONTRACT
+
+Если:
+
+```text
+blocked = true
+```
+
+любая обычная operation:
+
+```text
+REVERT
+```
+
+Даже если:
+
+```text
+usdSpent < usdLimit
+```
+
+и:
+
+```text
+deadline valid
+```
+
+---
+
+# 40. CONTRACT DEADLINE
+
+Policy должна иметь:
+
+```solidity
+uint64 deadline;
+```
+
+Если:
+
+```text
+block.timestamp > deadline
+```
+
+операция запрещается.
+
+Deadline не должен быть:
+
+```text
+0 = forever
+```
+
+если policy этого явно не предусматривает.
+
+Для security-sensitive whitelist желательно иметь finite deadline.
+
+---
+
+# 41. BLACKLIST
+
+Blacklists должны иметь priority выше whitelist.
+
+Порядок:
+
+```text
+BLACKLIST
+   ↓
+REVERT
+```
+
+даже если:
+
+```text
+WHITELIST = true
+```
+
+---
+
+# 42. TOKEN BLACKLIST
+
+Token blacklist должен блокировать spend.
+
+Например:
+
+```text
+Token:
+ABC
+
+blocked = true
+```
+
+Любая generic operation:
+
+```text
+ABC
+```
+
+revert.
+
+---
+
+# 43. CONTRACT BLACKLIST
+
+Если target:
+
+```text
+blacklisted
+```
+
+любая операция через него запрещена.
+
+---
+
+# 44. NATIVE TOKEN
+
+Native asset:
+
+```solidity
+address(0)
+```
+
+или существующая:
+
+```solidity
+NATIVE
+```
+
+константа.
+
+Native transfers должны использовать отдельный narrow primitive:
+
+```solidity
+sendNativeByGuard()
+```
+
+Generic contract call с native value должен:
+
+1. пройти target policy;
+2. иметь explicit native value limit;
+3. пройти signatures;
+4. не иметь возможности превысить configured value budget.
+
+---
+
+# 45. NATIVE VALUE
+
+Если generic target call:
+
+```text
+value > 0
+```
+
+то:
+
+```text
+value
+```
+
+должен быть явно подписан.
+
+Нельзя брать:
+
+```text
+msg.value
+```
+
+как неограниченное значение.
+
+---
+
+# 46. PERMIT2
+
+Permit2 остается частью security architecture.
+
+Permit2 используется для контролируемых token operations.
+
+Но:
+
+```text
+Permit2 unlimited approval
+```
+
+для пользовательских target contracts запрещается.
+
+---
+
+# 47. PERMIT2 EXPIRATION
+
+Для Permit2:
+
+```text
+expiration == 0
+```
+
+для пользовательских allowance должен считаться invalid.
+
+Использовать:
+
+```text
+finite expiration
+```
+
+и:
+
+```text
+expiration >= block.timestamp
+```
+
+---
+
+# 48. PERMIT
+
+Любой permit, который создает unlimited allowance:
+
+```text
+REVERT
+```
+
+если он не относится к специально разрешенному internal/system flow.
+
+---
+
+# 49. APPROVAL VS SPEND
+
+Обязательно разделить:
+
+```text
+approved allowance
+```
+
+и:
+
+```text
+actual budget spent
+```
+
+Не делать:
+
+```solidity
+usdSpent += approveAmount;
+```
+
+Никогда.
+
+---
+
+# 50. ACCOUNTING
+
+Для GREEN:
+
+```text
+usdSpent
+```
+
+Для YELLOW/RED:
+
+```text
+amountSpent[token]
+```
+
+Для contract-level global budget:
+
+```text
+contract.usdSpent
+```
+
+может учитывать только операции, которые действительно расходуют budget.
+
+---
+
+# 51. ВАЖНЫЙ ВОПРОС ACTUAL SPEND
+
+Без simulation Guard не должен притворяться, что он способен точно определить все внутренние token movements.
+
+Поэтому архитектура должна гарантировать:
+
+```text
+maximum possible spend <= explicitly authorized allowance
+```
+
+То есть безопасность достигается через:
+
+```text
+temporary allowance
+```
+
+а не через попытку распарсить каждый внутренний вызов.
+
+---
+
+# 52. ОГРАНИЧЕНИЕ GENERIC CALL
+
+Generic call не должен предоставлять target постоянный доступ к Wallet.
+
+После операции:
+
+```text
+allowance = 0
+```
+
+для каждого token.
+
+---
+
+# 53. ЕСЛИ TARGET НЕ ИСПОЛЬЗОВАЛ ALLOWANCE
+
+Например:
+
+```text
+approve = 100
+actual spend = 70
+```
+
+после call:
+
+```text
+allowance = 0
+```
+
+Оставшиеся:
+
+```text
+30
+```
+
+не остаются доступными target.
+
+---
+
+# 54. ACCOUNTING В ЭТОМ СЛУЧАЕ
+
+Есть два варианта.
+
+Рекомендуемый для первой версии:
+
+```text
+budget accounting based on authorized spend
+```
+
+То есть если пользователь авторизовал:
+
+```text
+100
+```
+
+из lifetime budget резервируется:
+
+```text
+100
+```
+
+даже если target использовал 70.
+
+Причина:
+
+* deterministic;
+* не требуется post-state analysis;
+* не зависит от нестандартных токенов;
+* невозможно получить accounting bypass.
+
+Unused amount не остается allowance.
+
+В будущем можно добавить более сложный actual-spend accounting, но не в v6.2.
+
+---
+
+# 55. RESERVATION MODEL
+
+Для операции:
+
+```text
+requested = 100
+```
+
+до вызова:
+
+```text
+amountSpent += 100
+```
+
+Если операция revert:
+
+```text
+transaction rollback
+```
+
+и:
+
+```text
+amountSpent
+```
+
+также откатывается.
+
+Это автоматически дает atomic accounting.
+
+---
+
+# 56. GREEN RESERVATION
+
+Для GREEN:
+
+```text
+usdSpent += requestedUSD
+```
+
+до target call.
+
+Если target revert:
+
+```text
+rollback
+```
+
+Если success:
+
+```text
+budget consumed
+```
+
+---
+
+# 57. YELLOW/RED RESERVATION
+
+Для YELLOW/RED:
+
+```text
+amountSpent[token] += requestedAmount
+```
+
+до target call.
+
+---
+
+# 58. TOKEN BALANCE SHARE
+
+Проверять balance ДО выдачи allowance:
+
+```solidity
+balance = IERC20(token).balanceOf(wallet)
+```
+
+Проверка:
+
+```text
+amount <= balance * maxBalanceShareBps / 10_000
+```
+
+Не использовать balance Guard.
+
+Использовать:
+
+```text
+SmartWallet balance
+```
+
+---
+
+# 59. ZERO BALANCE
+
+Если:
+
+```text
+balance == 0
+```
+
+любая token spend:
+
+```text
+REVERT
+```
+
+---
+
+# 60. MAX BPS
+
+```solidity
+10_000 = 100%
+```
+
+Нельзя позволять:
+
+```text
+maxBalanceShareBps > 10_000
+```
+
+---
+
+# 61. 100% BALANCE
+
+Даже:
+
+```text
+100%
+```
+
+должно использоваться только если policy governance это разрешает.
+
+Для RED рекомендуется не позволять default 100%.
+
+---
+
+# 62. CONTRACT POLICY + TOKEN POLICY
+
+Итоговая проверка должна быть:
+
+```text
+Target Policy
+      +
+Token Risk Policy
+      +
+Balance Share
+      +
+Lifetime Budget
+      +
+Blacklist
+      +
+Deadline
+      +
+Signatures
+      +
+Subscription
+```
+
+---
+
+# 63. ПОРЯДОК SECURITY CHECKS
+
+Рекомендуемый порядок:
+
+```text
+1. initialized
+2. not migrated
+3. caller/auth validity
+4. nonce
+5. deadline
+6. target != zero
+7. target blacklist
+8. target whitelist
+9. contract policy enabled
+10. contract policy deadline
+11. token blacklist
+12. token risk config
+13. token balance
+14. amount limit
+15. balance-share limit
+16. USD price validity
+17. lifetime remaining
+18. signature threshold
+19. special key if required
+20. reserve budget
+21. temporary approval
+22. target call
+23. revoke allowance
+24. emit event
+```
+
+---
+
+# 64. CHECKS-EFFECTS-INTERACTIONS
+
+Стараться соблюдать:
+
+```text
+Checks
+ ↓
+Effects
+ ↓
+Interactions
+```
+
+Для external calls это особенно важно.
+
+Solidity documentation прямо рекомендует Checks-Effects-Interactions и отдельно предупреждает о рисках reentrancy при внешних вызовах. ([Solidity Documentation][1])
+
+---
+
+# 65. EVENTS
+
+Добавить события минимум:
+
+```solidity
+event ContractPolicyUpdated(...);
+
+event ContractBlocked(...);
+
+event ContractUnblocked(...);
+
+event TokenRiskUpdated(...);
+
+event TokenPriceUpdated(...);
+
+event ContractExecutionStarted(...);
+
+event ContractExecutionCompleted(...);
+
+event TokenAllowanceGranted(...);
+
+event TokenAllowanceRevoked(...);
+
+event BudgetReserved(...);
+
+event SpecialAuthorizationUsed(...);
+```
+
+События не должны содержать секреты.
+
+---
+
+# 66. NONCE
+
+Каждая подписанная операция должна иметь nonce.
+
+Например:
+
+```solidity
+uint256 nonce;
+```
+
+или:
+
+```solidity
+mapping(bytes32 => uint256) nonce;
+```
+
+Нельзя повторно использовать одну и ту же authorization.
+
+---
+
+# 67. EIP-712
+
+Использовать EIP-712 для structured signing.
+
+Подписываемые данные должны включать минимум:
+
+```text
+wallet
+guard
+target
+value
+calldataHash
+token spend list hash
+nonce
+deadline
+policy version / policy hash
+```
+
+Если требуется special key:
+
+```text
+special authorization
+```
+
+также должна быть domain-separated.
+
+---
+
+# 68. CALldata HASH
+
+Нельзя подписывать только:
+
+```text
+target
+```
+
+Пользователь должен авторизовать конкретный calldata:
+
+```solidity
+keccak256(data)
+```
+
+Иначе frontend может заменить:
+
+```text
+swap(...)
+```
+
+на:
+
+```text
+maliciousFunction(...)
+```
+
+при том же target.
+
+---
+
+# 69. TARGET + CALLDATA
+
+Signature должна связывать:
+
+```text
+target
++
+value
++
+calldata
++
+token spends
+```
+
+---
+
+# 70. TOKEN SPEND HASH
+
+Список:
+
+```text
+USDC 100
+WETH 0.1
+```
+
+должен быть частью signed operation.
+
+Нельзя разрешить frontend самостоятельно изменить:
+
+```text
+100 USDC
+```
+
+на:
+
+```text
+10,000 USDC
+```
+
+после подписи.
+
+---
+
+# 71. OWNER MODEL
+
+Сохранить текущую модель:
+
+```text
+5 owners
+```
+
+из которых:
+
+```text
+3 Hot
+2 Cold
+```
+
+---
+
+# 72. NORMAL OPERATION
+
+Normal:
+
+```text
+2/3 Hot
+```
+
+---
+
+# 73. CRITICAL OPERATION
+
+Critical:
+
+```text
+3/5 owners
++
+at least 1 Cold
+```
+
+---
+
+# 74. EMERGENCY
+
+Emergency Sweep:
+
+```text
+2/3 Hot
+```
+
+Cold не требуется.
+
+---
+
+# 75. EMERGENCY SWEEP
+
+Emergency Sweep НЕ должен зависеть от:
+
+```text
+subscription
+whitelist
+approved token
+contract policy
+normal spend limits
+```
+
+Он должен оставаться emergency mechanism.
+
+Но обязательно:
+
+```text
+paused wallet
++
+registered recovery target
++
+recipient blacklist check
++
+token blacklist check
++
+2/3 Hot
+```
+
+---
+
+# 76. EMERGENCY RECOVERY
+
+Emergency recovery key остается:
+
+```text
+full custody key
+```
+
+для соответствующего Wallet.
+
+Это critical security assumption и должно быть явно документировано.
+
+---
+
+# 77. WALLET ISOLATION
+
+Hot Wallet и Cold Wallet остаются отдельными Smart Wallet.
+
+Hot:
+
+```text
+operational funds
+```
+
+Cold:
+
+```text
+high-value reserve
+```
+
+Guard должен знать конкретный wallet binding.
+
+---
+
+# 78. NO DIRECT WALLET BYPASS
+
+Ни одна функция Wallet не должна позволять:
+
+```text
+EOA -> Wallet -> arbitrary target
+```
+
+минуя Guard.
+
+Особенно:
+
+```text
+execute
+call
+approve
+transfer
+delegatecall
+```
+
+---
+
+# 79. WALLET CALL PRIMITIVE
+
+Добавить ограниченный primitive:
+
+```solidity
+function executeTarget(
+    address target,
+    uint256 value,
+    bytes calldata data
+)
+    external
+    onlyGuard
+    returns (bytes memory);
+```
+
+Ограничения:
+
+```text
+target != address(0)
+```
+
+если это необходимо.
+
+Не разрешать:
+
+```text
+delegatecall
+```
+
+---
+
+# 80. RETURN DATA
+
+Generic call должен возвращать:
+
+```text
+success
+returnData
+```
+
+Но Guard не должен доверять revert data как security signal.
+
+Solidity предупреждает, что revert data может быть сформировано/подделано вызываемым контрактом и не должно использоваться как источник доверия. ([Solidity Documentation][2])
+
+---
+
+# 81. CODE EXISTENCE
+
+Перед вызовом target желательно проверить:
+
+```solidity
+target.code.length > 0
+```
+
+если target должен быть contract.
+
+EOA как generic target:
+
+```text
+REVERT
+```
+
+---
+
+# 82. NO ARBITRARY SELF-CALL
+
+Запретить:
+
+```text
+target == wallet
+```
+
+для generic execution, если только конкретный внутренний system call не разрешен отдельно.
+
+---
+
+# 83. NO GUARD SELF-CALL
+
+Также:
+
+```text
+target == guard
+```
+
+запретить в generic execution.
+
+---
+
+# 84. NO REGISTRY SELF-CALL
+
+Generic target не должен позволять через calldata вызвать:
+
+```text
+PolicyRegistry
+OwnerRegistry
+MigrationHub
+SubscriptionRegistry
+```
+
+с целью обхода governance.
+
+---
+
+# 85. SUBSCRIPTION
+
+Сохранить:
+
+```solidity
+enum SubscriptionPlan {
+    FREE,
+    STANDARD,
+    PREMIUM
+}
+```
+
+---
+
+# 86. FREE
+
+FREE:
+
+```text
+app authenticity check
+emergency token sending
+```
+
+---
+
+# 87. STANDARD
+
+STANDARD:
+
+```text
+FREE
++
+cold/warm
++
+fiat/crypto P2P
++
+security against malicious contracts
++
+Permit
++
+Permit2
++
+trading
+```
+
+---
+
+# 88. PREMIUM
+
+PREMIUM:
+
+```text
+STANDARD
++
+backend-only functionality
+```
+
+---
+
+# 89. SUBSCRIPTION SOURCE OF TRUTH
+
+Blockchain state является source of truth.
+
+Backend:
+
+```text
+reader
+```
+
+а не:
+
+```text
+authority
+```
+
+---
+
+# 90. PAYMENT
+
+Subscription payment должен быть atomic.
+
+Модель:
+
+```text
+Wallet
+ ↓
+Permit2
+ ↓
+Service/Treasury
+```
+
+Только exact amount.
+
+Нельзя:
+
+```text
+subscription payment = unlimited transferFrom
+```
+
+---
+
+# 91. MIGRATION
+
+Migration architecture v6.1 сохранить.
+
+MigrationHub является:
+
+```text
+source of truth
+```
+
+для migration state.
+
+Не делать старый Guard главным migration coordinator.
+
+---
+
+# 92. MIGRATION HUB
+
+MigrationHub хранит:
+
+```text
+oldGuard
+newGuard
+migrationDataHash
+executeAfter
+state
+cancellation count
+emergency state
+```
+
+---
+
+# 93. MIGRATION DELAY
+
+Минимальный timelock:
+
+```text
+48 hours
+```
+
+---
+
+# 94. MIGRATION FLOW
+
+```text
+create migration
+       ↓
+48h delay
+       ↓
+validate
+       ↓
+import state
+       ↓
+accept
+       ↓
+activate new Guard
+```
+
+---
+
+# 95. MIGRATION SOURCE
+
+New Guard НЕ должен слепо доверять frontend.
+
+MigrationHub должен быть authoritative source.
+
+---
+
+# 96. MIGRATION BINDING
+
+New Guard должен быть связан с:
+
+```text
+expectedOldGuard
+```
+
+и:
+
+```text
+MigrationHub
+```
+
+---
+
+# 97. MIGRATION STATE
+
+После успешной migration:
+
+```text
+oldGuard.migratedOut = true
+```
+
+и:
+
+```text
+newGuard.migrationAccepted = true
+```
+
+---
+
+# 98. OLD GUARD
+
+После migration old Guard должен блокировать обычные operations.
+
+Исключения — только необходимые migration operations.
+
+---
+
+# 99. PAGINATION
+
+Не делать огромный:
+
+```solidity
+for (...)
+```
+
+по бесконечным token/contract lists.
+
+Для больших enumerable datasets использовать:
+
+```text
+pagination
+```
+
+или:
+
+```text
+snapshot/root-based migration
+```
+
+---
+
+# 100. EIP-170
+
+Текущий Guard находится близко к лимиту runtime bytecode.
+
+Следовательно:
+
+НЕ добавлять в Guard:
+
+* длинные strings;
+* сложные libraries;
+* дополнительные massive structs;
+* огромные loops;
+* ABI-heavy helpers;
+* лишние validation functions.
+
+Все, что можно вынести:
+
+```text
+PolicyRegistry
+OwnerRegistry
+SubscriptionRegistry
+MigrationModule
+TokenRiskRegistry
+```
+
+---
+
+# 101. GUARD RESPONSIBILITY
+
+Guard должен быть максимально тонким.
+
+Он отвечает за:
+
+```text
+authorization
+execution
+policy enforcement
+wallet binding
+nonce
+signatures
+security checks
+```
+
+---
+
+# 102. POLICY REGISTRY RESPONSIBILITY
+
+PolicyRegistry:
+
+```text
+contract policies
+token policies
+limits
+spent accounting
+blacklists
+whitelists
+```
+
+---
+
+# 103. TOKEN RISK REGISTRY
+
+TokenRiskRegistry:
+
+```text
+GREEN/YELLOW/RED
+price
+price freshness
+token enable/disable
+```
+
+---
+
+# 104. OWNER REGISTRY
+
+OwnerRegistry:
+
+```text
+owners
+hot owners
+cold owners
+signatures
+thresholds
+nonce
+wallet binding
+```
+
+---
+
+# 105. SUBSCRIPTION REGISTRY
+
+Subscriptions:
+
+```text
+plan
+expiry
+permission bits
+```
+
+---
+
+# 106. MIGRATION HUB
+
+MigrationHub:
+
+```text
+migration lifecycle
+migration source of truth
+timelock
+cancellation
+old/new Guard binding
+```
+
+---
+
+# 107. MIGRATION MODULE
+
+MigrationModule:
+
+```text
+state import
+validation
+handover
+```
+
+Но не должен становиться вторым полноценным Guard.
+
+---
+
+# 108. ADAPTERS
+
+Полностью удалить из новой архитектуры:
+
+```text
+ISwapAdapter
+SwapAdapter
+adapterPolicy
+addAdapter
+removeAdapter
+spendAdapter
+```
+
+если они больше не нужны.
+
+Не возвращать adapters только ради "удобства".
+
+---
+
+# 109. DEX SUPPORT
+
+DEX должен работать как обычный:
+
+```text
+approved target contract
+```
+
+Например:
+
+```text
+Uniswap Router
+```
+
+не требует:
+
+```text
+UniswapAdapter
+```
+
+---
+
+# 110. AAVE
+
+Aave:
+
+```text
+approved target
+```
+
+а не:
+
+```text
+AaveAdapter
+```
+
+---
+
+# 111. GMX
+
+GMX:
+
+```text
+approved target
+```
+
+а не:
+
+```text
+GMXAdapter
+```
+
+---
+
+# 112. UNKNOWN DEFI
+
+Unknown protocol:
+
+```text
+not whitelisted
+```
+
+=> blocked.
+
+Пользователь сначала добавляет contract.
+
+---
+
+# 113. ПРОТОКОЛ НЕ ПОЛУЧАЕТ PERMANENT ACCESS
+
+Whitelist:
+
+```text
+contract is allowed to be called
+```
+
+не означает:
+
+```text
+contract has unlimited wallet access
+```
+
+---
+
+# 114. FRONTEND
+
+Frontend должен отображать пользователю:
+
+```text
+Target
+Risk
+Requested tokens
+Requested amounts
+Remaining contract budget
+Token remaining budget
+Current balance
+Max balance share
+Deadline
+Required signatures
+Special key requirement
+```
+
+---
+
+# 115. ПРИМЕР UI
+
+```text
+Uniswap
+
+Trusted contract
+
+Contract limit:
+$1,000
+
+Spent:
+$350
+
+Remaining:
+$650
+
+Operation:
+
+USDC
+100
+
+Current balance:
+$2,000
+
+Max balance share:
+20%
+
+Risk:
+GREEN
+
+Required:
+2/3 Hot
+
+[Confirm]
+```
+
+---
+
+# 116. YELLOW UI
+
+```text
+ABC Token
+
+Risk:
+YELLOW
+
+Lifetime limit:
+10,000 ABC
+
+Spent:
+2,000 ABC
+
+Remaining:
+8,000 ABC
+
+Current balance:
+20,000 ABC
+
+Max per operation:
+20%
+
+Requested:
+3,000 ABC
+
+Required:
+2/3 Hot
+```
+
+---
+
+# 117. RED UI
+
+```text
+Unknown Token
+
+Risk:
+RED
+
+Price:
+Unavailable
+
+Lifetime limit:
+1,000,000 XYZ
+
+Spent:
+100,000 XYZ
+
+Remaining:
+900,000 XYZ
+
+Current balance:
+2,000,000 XYZ
+
+Max share:
+10%
+
+Requested:
+100,000 XYZ
+
+Required:
+2/3 Hot
+```
+
+---
+
+# 118. RED + LIMIT 0
+
+```text
+Risk:
+RED
+
+Contract limit:
+0
+
+This operation requires:
+
+2/3 Hot
++
+Special Security Key
+```
+
+---
+
+# 119. UNLIMITED APPROVE UI
+
+Если dApp просит:
+
+```text
+Unlimited USDC approval
+```
+
+Wallet должен показать:
+
+```text
+Unlimited approval blocked.
+
+Maximum allowed:
+X USDC
+```
+
+Пользователь не должен случайно подписывать unlimited approval.
+
+---
+
+# 120. FRONTEND НЕ МОЖЕТ OVERRIDE GUARD
+
+Frontend может сказать:
+
+```text
+allow
+```
+
+Guard может сказать:
+
+```text
+revert
+```
+
+Но frontend никогда не может сказать:
+
+```text
+bypass guard
+```
+
+---
+
+# 121. BACKEND НЕ МОЖЕТ OVERRIDE GUARD
+
+Backend также не может:
+
+```text
+increase limit
+unlock contract
+bypass signatures
+change token risk
+```
+
+без соответствующей on-chain governance transaction.
+
+---
+
+# 122. ADMIN
+
+Административные изменения должны быть:
+
+```text
+signature controlled
+```
+
+и соответствовать:
+
+```text
+normal / critical governance
+```
+
+---
+
+# 123. NO SINGLE ADMIN
+
+Не должно существовать:
+
+```solidity
+onlyOwner
+```
+
+с полным контролем над всеми security settings, если owner = один EOA.
+
+---
+
+# 124. CUSTOM ERRORS
+
+Использовать custom errors вместо длинных revert strings:
+
+```solidity
+error Unauthorized();
+error TargetNotWhitelisted();
+error TargetBlocked();
+error TokenBlocked();
+error LimitExceeded();
+error BalanceShareExceeded();
+error PriceStale();
+error UnlimitedApproval();
+error InvalidSignature();
+error NonceUsed();
+error DeadlineExpired();
+error MigrationActive();
+```
+
+Это также уменьшает bytecode/gas footprint. Solidity рекомендует custom errors как более gas-efficient способ описания ошибок. ([Solidity Documentation][3])
+
+---
+
+# 125. SAFE MATH
+
+Solidity 0.8.x arithmetic checks остаются включенными.
+
+Не использовать:
+
+```solidity
+unchecked
+```
+
+без доказанной необходимости.
+
+Если используется:
+
+```solidity
+unchecked
+```
+
+нужен комментарий с доказательством отсутствия overflow/underflow.
+
+---
+
+# 126. TOKEN CALL SAFETY
+
+Не предполагать, что каждый ERC20 стандартный.
+
+Поддерживать:
+
+```text
+USDT-like approve
+```
+
+через:
+
+```text
+forceApprove
+```
+
+---
+
+# 127. RETURN VALUE
+
+Для token operations корректно обрабатывать:
+
+```text
+false
+```
+
+и:
+
+```text
+no return data
+```
+
+с учетом SafeERC20-like semantics.
+
+---
+
+# 128. FEE-ON-TRANSFER TOKENS
+
+В v6.2 не пытаться строить сложный accounting для fee-on-transfer tokens.
+
+Если token относится к категории:
+
+```text
+unsupported
+```
+
+его можно сделать:
+
+```text
+RED
+```
+
+или полностью blocked.
+
+---
+
+# 129. REBASING TOKENS
+
+Аналогично.
+
+Не полагаться на:
+
+```text
+balance change == transfer amount
+```
+
+для всех ERC20.
+
+---
+
+# 130. MALICIOUS TOKEN
+
+Token contract может быть malicious.
+
+Поэтому:
+
+```text
+RED
+```
+
+и:
+
+```text
+balance-share
++
+lifetime amount
+```
+
+должны оставаться security boundaries.
+
+---
+
+# 131. TOKEN CALLBACKS
+
+Не доверять token contract.
+
+Все external interactions должны быть максимально изолированы.
+
+---
+
+# 132. GAS GRIEFING
+
+Не позволять target:
+
+```text
+неограниченно потреблять gas
+```
+
+если архитектура позволяет ограничить gas.
+
+Но не вводить arbitrary gas forwarding, если это ломает совместимость DeFi.
+
+Минимум:
+
+```text
+target.call(...)
+```
+
+должен быть контролируемым и иметь возможность полностью revert transaction.
+
+---
+
+# 133. RETURN DATA SIZE
+
+Не копировать без необходимости огромный:
+
+```text
+returnData
+```
+
+в память.
+
+Это может использоваться для gas griefing.
+
+При необходимости ограничить размер return data.
+
+---
+
+# 134. ARRAY DOS
+
+Любые user-supplied arrays:
+
+```text
+TokenSpend[]
+```
+
+должны иметь разумный maximum length.
+
+Например:
+
+```text
+MAX_SPENDS = 8
+```
+
+или другое обоснованное значение.
+
+---
+
+# 135. DUPLICATE TOKEN
+
+В одной операции:
+
+```text
+USDC 50
+USDC 50
+```
+
+не должно приводить к неожиданному accounting.
+
+Либо:
+
+```text
+revert duplicate
+```
+
+либо:
+
+```text
+aggregate before validation
+```
+
+Рекомендуется aggregate/reject duplicates.
+
+---
+
+# 136. DUPLICATE TARGET
+
+Target один.
+
+Не должно быть неоднозначности:
+
+```text
+target
++
+multiple internal target
+```
+
+без explicit authorization.
+
+---
+
+# 137. MULTI-TOKEN TRANSACTION
+
+Допускается:
+
+```text
+USDC 100
+WETH 0.1
+DAI 50
+```
+
+в одной generic operation.
+
+Для каждого token:
+
+```text
+risk
+balance
+limit
+share
+blacklist
+```
+
+проверяются отдельно.
+
+---
+
+# 138. CONTRACT USD LIMIT
+
+Если Contract Policy имеет:
+
+```text
+usdLimit
+```
+
+он является aggregate budget.
+
+Например:
+
+```text
+USDC $100
+WETH $200
+DAI $100
+```
+
+=>:
+
+```text
+$400
+```
+
+consumed.
+
+---
+
+# 139. GREEN PRICE CONVERSION
+
+Цена должна использоваться только если:
+
+```text
+enabled
++
+fresh
++
+valid decimals
+```
+
+Не использовать stale price.
+
+---
+
+# 140. PRICE MANIPULATION
+
+Price configuration должен изменяться только governance.
+
+Frontend/backend price не является security authority.
+
+---
+
+# 141. ORACLE
+
+Для v6.2 НЕ обязательно интегрировать сложный oracle.
+
+Можно использовать:
+
+```text
+governance-configured price
+```
+
+при условии:
+
+```text
+price freshness
++
+governance control
+```
+
+В будущем можно добавить Chainlink/DEX TWAP/oracle module без изменения основного Guard.
+
+---
+
+# 142. NO EXTERNAL API
+
+Никаких:
+
+```text
+CoinGecko
+CoinMarketCap
+backend price API
+GoPlus
+```
+
+в transaction path.
+
+---
+
+# 143. OFF-CHAIN UI PRICE
+
+Frontend может показывать красивую цену:
+
+```text
+$1.23
+```
+
+но Guard использует только:
+
+```text
+on-chain configured price
+```
+
+---
+
+# 144. POLICY VERSION
+
+Добавить policy version/hash, если это необходимо для EIP-712.
+
+Например:
+
+```text
+policyNonce
+```
+
+При изменении critical policy старые signed operations должны становиться недействительными.
+
+---
+
+# 145. POLICY NONCE
+
+Для защиты от:
+
+```text
+old signed operation
+```
+
+можно использовать:
+
+```solidity
+uint256 policyNonce;
+```
+
+При critical policy update:
+
+```text
+policyNonce++
+```
+
+---
+
+# 146. SIGNATURE EXPIRATION
+
+Каждая authorization:
+
+```text
+deadline
+```
+
+обязательна.
+
+Нельзя иметь eternal signed transaction.
+
+---
+
+# 147. SIGNATURE DOMAIN
+
+EIP-712 domain должен включать:
+
+```text
+name
+version
+chainId
+verifyingContract
+```
+
+---
+
+# 148. CHAIN REPLAY
+
+Signature другой сети:
+
+```text
+chainId mismatch
+```
+
+=> invalid.
+
+---
+
+# 149. CONTRACT REPLAY
+
+Signature другой Guard:
+
+```text
+verifyingContract mismatch
+```
+
+=> invalid.
+
+---
+
+# 150. WALLET REPLAY
+
+Signature другого wallet:
+
+```text
+wallet mismatch
+```
+
+=> invalid.
+
+---
+
+# 151. MIGRATION REPLAY
+
+Old Guard authorization не должна автоматически работать для new Guard.
+
+Migration должен иметь:
+
+```text
+new domain
+```
+
+или policy nonce/version.
+
+---
+
+# 152. GUARD VERSION
+
+Оставить:
+
+```solidity
+string public constant VERSION = "6.2.0";
+```
+
+или equivalent compact version constant.
+
+---
+
+# 153. FILE ARCHITECTURE
+
+Предлагаемая структура:
+
+```text
+contracts/
+    core/
+        SmartWalletGuard.sol
+        SmartWalletGuardOwnerRegistry.sol
+        SmartWalletGuardPolicyRegistry.sol
+        SmartWalletGuardSubscriptions.sol
+
+    wallet/
+        SmartHotWallet.sol
+        SmartColdWallet.sol
+
+    security/
+        TokenRiskRegistry.sol
+        ContractPolicyRegistry.sol
+
+    migration/
+        SmartWalletMigrationHub.sol
+        SmartWalletMigrationModule.sol
+
+    interfaces/
+        GuardInterfaces.sol
+        GuardOps.sol
+
+    libraries/
+        GuardTypes.sol
+        GuardErrors.sol
+        GuardHash.sol
+```
+
+Названия можно адаптировать под текущую структуру проекта.
+
+---
+
+# 154. НЕ ДУБЛИРОВАТЬ REGISTRY
+
+Если текущий PolicyRegistry уже способен выполнять token/contract policy, не создавать лишние registry без необходимости.
+
+Главный принцип:
+
+```text
+minimum number of contracts
++
+clear responsibility
+```
+
+---
+
+# 155. GUARD BYTECODE
+
+Цель:
+
+```text
+runtime < EIP-170 limit
+```
+
+с запасом.
+
+Желательно:
+
+```text
+> 1 KB
+```
+
+запаса минимум.
+
+Еще лучше:
+
+```text
+2–3 KB
+```
+
+если архитектура позволяет.
+
+---
+
+# 156. COMPILER
+
+Использовать текущий:
+
+```text
+solc 0.8.30
+```
+
+если проект остается на нем.
+
+Optimizer:
+
+```text
+enabled
+```
+
+текущая настройка:
+
+```text
+200 runs
+```
+
+оставить, пока benchmark не покажет необходимость изменения.
+
+---
+
+# 157. VIA IR
+
+Текущий:
+
+```text
+viaIR = true
+```
+
+можно сохранить.
+
+Но после изменений обязательно прогнать полный compilation + known compiler bugs review.
+
+---
+
+# 158. BUILD
+
+Build должен проверять:
+
+```text
+0 compilation errors
+0 unexpected warnings
+runtime bytecode size
+contract sizes
+ABI generation
+```
+
+---
+
+# 159. TESTING — КРИТИЧЕСКИ ВАЖНО
+
+Текущие 38 тестов считаются:
+
+```text
+written
+```
+
+а не:
+
+```text
+passed
+```
+
+пока Foundry/другой test runner реально их не выполнил.
+
+---
+
+# 160. TEST SUITE
+
+Обязательно сделать реальные executable tests.
+
+Минимум:
+
+```text
+Unit tests
+Integration tests
+Security tests
+Fuzz tests
+Invariant tests
+Migration tests
+```
+
+---
+
+# 161. TEST GROUP 1 — BASIC
+
+Проверить:
+
+```text
+initialize
+owners
+wallet binding
+guard binding
+modules
+subscription
+```
+
+---
+
+# 162. TEST GROUP 2 — CONTRACT WHITELIST
+
+Проверить:
+
+```text
+unknown target -> revert
+whitelisted target -> allowed
+blocked target -> revert
+blacklisted target -> revert
+expired policy -> revert
+```
+
+---
+
+# 163. TEST GROUP 3 — GREEN
+
+Тест:
+
+```text
+GREEN
+valid price
+within USD limit
+within balance share
+=> success
+```
+
+---
+
+# 164. GREEN OVER LIMIT
+
+```text
+requested USD > remaining USD
+=> revert
+```
+
+---
+
+# 165. GREEN BALANCE SHARE
+
+```text
+requested > balance * bps
+=> revert
+```
+
+---
+
+# 166. GREEN STALE PRICE
+
+```text
+price stale
+=> strict/revert according to configured design
+```
+
+---
+
+# 167. YELLOW
+
+Проверить:
+
+```text
+maxAmount
+amountSpent
+remaining amount
+balance share
+```
+
+---
+
+# 168. RED
+
+Проверить:
+
+```text
+unknown token
+=> RED
+
+amount limit
++
+balance share
+```
+
+---
+
+# 169. CUMULATIVE TEST
+
+Например:
+
+```text
+limit = 100
+
+tx1 = 30
+tx2 = 30
+tx3 = 40
+tx4 = 1
+```
+
+Ожидание:
+
+```text
+tx1 success
+tx2 success
+tx3 success
+tx4 revert
+```
+
+---
+
+# 170. APPROVE TEST
+
+```text
+approve 100
+```
+
+не должно менять:
+
+```text
+amountSpent
+usdSpent
+```
+
+---
+
+# 171. UNLIMITED APPROVE TEST
+
+```text
+approve(uint256.max)
+```
+
+=> revert.
+
+---
+
+# 172. TEMPORARY ALLOWANCE TEST
+
+Проверить:
+
+```text
+before = 0
+during call = exact amount
+after = 0
+```
+
+---
+
+# 173. MALICIOUS TARGET TEST
+
+Создать:
+
+```solidity
+MaliciousTarget
+```
+
+который пытается:
+
+```text
+transferFrom wallet
+```
+
+больше allowance.
+
+Ожидание:
+
+```text
+cannot exceed temporary allowance
+```
+
+---
+
+# 174. PERSISTENT DRAIN TEST
+
+Проверить сценарий:
+
+```text
+tx1 gives allowance
+tx1 completes
+tx2 malicious target tries transferFrom
+```
+
+Ожидание:
+
+```text
+tx2 fails
+```
+
+---
+
+# 175. REENTRANCY TEST
+
+Malicious target:
+
+```text
+calls wallet again
+```
+
+Ожидание:
+
+```text
+revert
+```
+
+---
+
+# 176. CALLDATA TEST
+
+Подписан:
+
+```text
+function A()
+```
+
+frontend меняет:
+
+```text
+function B()
+```
+
+Ожидание:
+
+```text
+signature invalid
+```
+
+---
+
+# 177. TARGET TEST
+
+Подписан:
+
+```text
+Target A
+```
+
+использован:
+
+```text
+Target B
+```
+
+Ожидание:
+
+```text
+invalid signature
+```
+
+---
+
+# 178. TOKEN AMOUNT TEST
+
+Подписано:
+
+```text
+100 USDC
+```
+
+использовано:
+
+```text
+1000 USDC
+```
+
+Ожидание:
+
+```text
+revert
+```
+
+---
+
+# 179. NONCE TEST
+
+Одна signature:
+
+```text
+execute
+```
+
+повторно:
+
+```text
+execute
+```
+
+Ожидание:
+
+```text
+revert
+```
+
+---
+
+# 180. DEADLINE TEST
+
+```text
+deadline < block.timestamp
+```
+
+=> revert.
+
+---
+
+# 181. BLACKLIST TEST
+
+Whitelist:
+
+```text
+target = true
+```
+
+Blacklist:
+
+```text
+target = true
+```
+
+Ожидание:
+
+```text
+revert
+```
+
+---
+
+# 182. MIGRATION TESTS
+
+Проверить:
+
+```text
+create
+timelock
+cancel
+execute
+accept
+old guard disabled
+new guard active
+```
+
+---
+
+# 183. MIGRATION CANCELLATION
+
+Проверить лимит:
+
+```text
+max cancellations
+```
+
+и emergency path.
+
+---
+
+# 184. MIGRATION DATA INTEGRITY
+
+После migration сравнить:
+
+```text
+owners
+policies
+subscriptions
+token policies
+contract policies
+nonces
+wallet binding
+critical state
+```
+
+---
+
+# 185. EMERGENCY TESTS
+
+Проверить:
+
+```text
+paused
+recovery target
+2/3 hot
+recipient blacklist
+token blacklist
+```
+
+---
+
+# 186. EMERGENCY MUST NOT DEPEND ON NORMAL POLICY
+
+Проверить, что Emergency Sweep работает даже если:
+
+```text
+subscription expired
+token not approved
+contract not whitelisted
+normal policy blocked
+```
+
+при выполнении остальных emergency conditions.
+
+---
+
+# 187. FUZZING
+
+Фаззить:
+
+```text
+amount
+balance
+bps
+USD price
+deadline
+nonce
+token list
+target
+calldata
+```
+
+---
+
+# 188. INVARIANTS
+
+Главные invariants:
+
+### INVARIANT 1
+
+Ни один target не может получить unlimited allowance.
+
+### INVARIANT 2
+
+Ни один target не может использовать Wallet без Guard authorization.
+
+### INVARIANT 3
+
+Old Guard после migration не может выполнять обычные операции.
+
+### INVARIANT 4
+
+Lifetime budget никогда не уменьшается сам по себе.
+
+### INVARIANT 5
+
+`spent <= limit`.
+
+### INVARIANT 6
+
+`maxBalanceShareBps <= 10_000`.
+
+### INVARIANT 7
+
+Unknown token никогда не получает GREEN security treatment автоматически.
+
+### INVARIANT 8
+
+Blacklist всегда сильнее whitelist.
+
+### INVARIANT 9
+
+Одна authorization не может быть replayed.
+
+### INVARIANT 10
+
+Target не может вызвать Wallet primitives напрямую.
+
+---
+
+# 189. DIRECT WALLET ATTACK TEST
+
+Попытка:
+
+```text
+EOA -> Wallet.approveTokenByGuard()
+```
+
+должна:
+
+```text
+revert
+```
+
+---
+
+# 190. GUARD ATTACK TEST
+
+Попытка:
+
+```text
+unauthorized caller -> Guard.execute
+```
+
+должна:
+
+```text
+revert
+```
+
+---
+
+# 191. POLICY REGISTRY ATTACK
+
+Обычный Hot owner не должен самостоятельно изменить critical policy, если governance этого не разрешает.
+
+---
+
+# 192. STORAGE LAYOUT
+
+Если contracts upgradeable:
+
+обязательно проверить:
+
+```text
+storage collision
+```
+
+Если не upgradeable:
+
+явно сохранить immutable architecture.
+
+---
+
+# 193. UPGRADE POLICY
+
+Если система НЕ использует proxy:
+
+это должно быть явно documented.
+
+Если используется proxy:
+
+upgrade authority должна быть multisig/governance controlled.
+
+---
+
+# 194. NO HIDDEN ADMIN
+
+Нельзя иметь скрытую функцию:
+
+```solidity
+setEverything(...)
+```
+
+или:
+
+```solidity
+emergencyOverride(...)
+```
+
+которая фактически обходит весь Guard.
+
+---
+
+# 195. DOCUMENTATION
+
+Для каждого public/external function документировать:
+
+```text
+who can call
+what it changes
+security assumptions
+reentrancy
+events
+failure conditions
+```
+
+---
+
+# 196. NAT SPEC
+
+Использовать NatSpec для public/external functions.
+
+---
+
+# 197. SECURITY COMMENTS
+
+Особенно документировать:
+
+```text
+why generic call is safe
+why temporary approval is required
+why unlimited approve is blocked
+why approve != spend
+why Yellow/Red use token amounts
+why unknown = RED
+why simulation is intentionally absent
+```
+
+---
+
+# 198. ПРОИЗВОДИТЕЛЬНОСТЬ
+
+В transaction path нельзя делать:
+
+```text
+external API
+HTTP
+backend request
+oracle RPC
+simulation
+large unbounded loops
+```
+
+---
+
+# 199. GAS
+
+Оптимизировать:
+
+```text
+storage reads
+storage writes
+struct packing
+custom errors
+immutables
+constants
+calldata
+```
+
+Но НЕ жертвовать security ради нескольких тысяч gas.
+
+---
+
+# 200. STORAGE OPTIMIZATION
+
+Например:
+
+```solidity
+uint64 deadline;
+uint64 priceUpdatedAt;
+uint16 maxBalanceShareBps;
+bool enabled;
+bool blocked;
+```
+
+можно pack в один storage slot, если это не ухудшает читаемость.
+
+---
+
+# 201. ENUMS
+
+Enums допустимы для:
+
+```text
+TokenRisk
+SubscriptionPlan
+MigrationState
+```
+
+---
+
+# 202. ARRAY LIMITS
+
+Любые arrays должны иметь:
+
+```text
+MAX length
+```
+
+если пользователь может контролировать их размер.
+
+---
+
+# 203. TOKEN LIST
+
+Если существует:
+
+```text
+enabledTokens[]
+```
+
+не делать операции, которые могут стать unbounded gas.
+
+Для revoke migration использовать pagination.
+
+---
+
+# 204. CONTRACT LIST
+
+Аналогично:
+
+```text
+approvedContracts[]
+```
+
+должен иметь:
+
+```text
+enumeration
++
+pagination
+```
+
+или другой безопасный механизм.
+
+---
+
+# 205. FRONTEND POLICY
+
+Frontend должен не просто показывать:
+
+```text
+Approve
+```
+
+а показывать:
+
+```text
+Approve 15 USDC to Uniswap
+```
+
+или:
+
+```text
+Unlimited approval BLOCKED
+Maximum permitted approval: 15 USDC
+```
+
+---
+
+# 206. SECURITY UX
+
+Перед подписанием пользователь должен видеть:
+
+```text
+Contract
+Action
+Tokens
+Amounts
+Risk
+Current balance
+Maximum allowed
+Remaining lifetime limit
+Expiration
+Required signatures
+Special key requirement
+```
+
+---
+
+# 207. NO BLIND SIGNING
+
+Wallet не должен показывать пользователю только:
+
+```text
+Sign transaction
+```
+
+если может предоставить security-readable summary.
+
+---
+
+# 208. BUT UI IS NOT SECURITY
+
+Даже если UI показывает:
+
+```text
+$15
+```
+
+Guard должен самостоятельно проверить:
+
+```text
+15
+```
+
+on-chain.
+
+---
+
+# 209. FRONTEND COMPROMISE MODEL
+
+Предположить, что frontend полностью скомпрометирован.
+
+Attacker может:
+
+```text
+изменить UI
+изменить calldata
+подменить target
+подменить amount
+```
+
+Guard всё равно должен остановить unauthorized operation.
+
+---
+
+# 210. BACKEND COMPROMISE MODEL
+
+Предположить, что backend полностью скомпрометирован.
+
+Backend не должен иметь возможности:
+
+```text
+вывести средства
+изменить policy
+подменить signatures
+обойти Guard
+```
+
+---
+
+# 211. DAPP COMPROMISE MODEL
+
+Если Uniswap/другой dApp скомпрометирован:
+
+```text
+target пытается потратить больше allowance
+```
+
+Wallet должен ограничить его временным allowance.
+
+---
+
+# 212. MALICIOUS CALldata
+
+Если malicious frontend формирует:
+
+```text
+approve(max)
+```
+
+Guard:
+
+```text
+REVERT
+```
+
+---
+
+# 213. MALICIOUS TOKEN
+
+Если token malicious:
+
+```text
+RED
+```
+
+или blocked.
+
+---
+
+# 214. LOW-LIQUIDITY TOKEN
+
+Если token low-liquidity:
+
+```text
+YELLOW
+```
+
+или RED.
+
+---
+
+# 215. CHEAP TOKEN ATTACK
+
+Например:
+
+```text
+1,000,000,000 XYZ
+USD value = $1
+```
+
+Нельзя позволить:
+
+```text
+USD limit = $1000
+```
+
+автоматически вывести весь token balance.
+
+Для YELLOW/RED:
+
+```text
+token amount
++
+balance share
+```
+
+обязательны.
+
+---
+
+# 216. ZERO PRICE
+
+Если:
+
+```text
+price = 0
+```
+
+нельзя считать token GREEN.
+
+---
+
+# 217. STALE PRICE
+
+Если:
+
+```text
+updatedAt + maxAge < block.timestamp
+```
+
+цена invalid.
+
+---
+
+# 218. PRICE DECIMALS
+
+Все price calculations должны явно учитывать:
+
+```text
+token decimals
++
+price decimals
+```
+
+Не допускать precision loss, позволяющий обходить limit.
+
+---
+
+# 219. ROUNDING
+
+При переводе token amount → USD:
+
+```text
+round in security-favorable direction
+```
+
+То есть нельзя округлением получить разрешение на большее значение.
+
+---
+
+# 220. USD OVERFLOW
+
+Проверить multiplication:
+
+```text
+amount * price
+```
+
+на overflow.
+
+Использовать safe arithmetic.
+
+---
+
+# 221. MAX TOKEN AMOUNT
+
+Не принимать:
+
+```text
+type(uint256).max
+```
+
+как legitimate user spend.
+
+---
+
+# 222. SPECIAL KEY
+
+Special key используется только для elevation.
+
+Он не должен автоматически давать:
+
+```text
+unlimited Wallet access
+```
+
+---
+
+# 223. SPECIAL KEY SCOPE
+
+Signature special key должна быть scoped на:
+
+```text
+wallet
+target
+calldata
+tokens
+amounts
+nonce
+deadline
+chain
+```
+
+---
+
+# 224. SPECIAL KEY COMPROMISE
+
+Если special key украден:
+
+атакующий всё равно должен столкнуться с:
+
+```text
+2/3 Hot
+```
+
+если архитектура требует оба фактора.
+
+---
+
+# 225. HOT COMPROMISE
+
+Если 1 Hot key украден:
+
+```text
+не должен быть достаточен
+```
+
+---
+
+# 226. COLD COMPROMISE
+
+Если 1 Cold key украден:
+
+обычная:
+
+```text
+2/3 Hot
+```
+
+операция не должна автоматически становиться доступной.
+
+---
+
+# 227. THREE HOT
+
+Если скомпрометированы:
+
+```text
+2 Hot
+```
+
+они могут выполнять normal operations в рамках policy.
+
+Но не должны автоматически менять critical governance, если требуется:
+
+```text
+3/5 + Cold
+```
+
+---
+
+# 228. EMERGENCY KEY
+
+Emergency key компрометация =:
+
+```text
+full custody risk
+```
+
+Это должно быть явно указано в security documentation.
+
+---
+
+# 229. AUDIT REQUIREMENT
+
+Перед mainnet:
+
+```text
+professional smart contract audit
+```
+
+обязателен.
+
+Не считать:
+
+```text
+compile success
+```
+
+или:
+
+```text
+tests passed
+```
+
+заменой аудита.
+
+---
+
+# 230. STATIC ANALYSIS
+
+Прогнать минимум:
+
+```text
+Slither
+Mythril
+Foundry
+Solhint
+```
+
+если они совместимы с проектом.
+
+---
+
+# 231. COMPILER BUG REVIEW
+
+Перед deployment проверить:
+
+```text
+Solidity known bugs
+```
+
+для используемой версии compiler.
+
+Solidity публикует отдельный список известных compiler bugs, поэтому этот шаг должен быть частью release checklist. ([Solidity Documentation][4])
+
+---
+
+# 232. RELEASE BUILD
+
+Перед release:
+
+```text
+clean build
+clean test
+fuzz
+invariant
+static analysis
+bytecode size
+ABI diff
+storage layout diff
+```
+
+---
+
+# 233. ABI COMPATIBILITY
+
+Если v6.2 меняет ABI:
+
+сгенерировать:
+
+```text
+ABI v6.2
+```
+
+и обновить frontend.
+
+---
+
+# 234. MIGRATION COMPATIBILITY
+
+Проверить:
+
+```text
+v6.1 -> v6.2
+```
+
+если v6.1 уже будет deployed.
+
+Migration должен сохранять:
+
+```text
+owners
+wallets
+policies
+subscription
+security state
+```
+
+---
+
+# 235. НЕ ПЕРЕНОСИТЬ FUNDS В GUARD
+
+Guard:
+
+```text
+balance = 0
+```
+
+желательно.
+
+Все funds:
+
+```text
+SmartHotWallet
+SmartColdWallet
+```
+
+---
+
+# 236. GUARD SHOULD NOT HOLD USER FUNDS
+
+Если Guard получает токены случайно:
+
+должен существовать controlled recovery/emergency mechanism.
+
+Но normal execution не должен требовать хранения средств в Guard.
+
+---
+
+# 237. ARCHITECTURE
+
+Финальная модель:
+
+```text
+                    ┌─────────────────────┐
+                    │     Frontend        │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │   EIP-712 Auth      │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                  ┌─────────────────────────┐
+                  │   SmartWalletGuard      │
+                  │                         │
+                  │ Authorization           │
+                  │ Nonce                   │
+                  │ Target validation       │
+                  │ Policy enforcement      │
+                  │ Execution               │
+                  └───────┬─────┬───────────┘
+                          │     │
+             ┌────────────┘     └──────────────┐
+             ▼                                 ▼
+ ┌─────────────────────┐             ┌─────────────────────┐
+ │ Policy Registry     │             │ Owner Registry      │
+ │                     │             │                     │
+ │ Contracts           │             │ Hot owners          │
+ │ Limits              │             │ Cold owners         │
+ │ Spent               │             │ Signatures          │
+ │ Blacklist           │             │ Nonces              │
+ └─────────────────────┘             └─────────────────────┘
+             │
+             ▼
+ ┌─────────────────────┐
+ │ Token Risk Registry │
+ │                     │
+ │ GREEN               │
+ │ YELLOW              │
+ │ RED                 │
+ │ Price               │
+ │ Freshness            │
+ └─────────────────────┘
+
+             Guard
+               │
+               ▼
+       ┌───────────────┐
+       │ Smart Wallet  │
+       │               │
+       │ temporary     │
+       │ allowance     │
+       │      ↓        │
+       │ target call   │
+       │      ↓        │
+       │ revoke        │
+       └───────┬───────┘
+               │
+               ▼
+        Target Contract
+```
+
+---
+
+# 238. OPERATION EXAMPLE
+
+Пользователь вызывает Uniswap:
+
+```text
+Target:
+0xABC...
+
+Calldata:
+swap(...)
+
+Spend:
+100 USDC
+```
+
+Guard:
+
+```text
+Target whitelisted? YES
+Blocked? NO
+Deadline valid? YES
+USDC blacklisted? NO
+USDC risk? GREEN
+Price fresh? YES
+Contract remaining? $650
+Requested? $100
+Balance share? <= limit
+Signatures? 2/3 Hot
+Special key? NO
+```
+
+После этого:
+
+```text
+Wallet.approveTokenByGuard(
+    USDC,
+    Uniswap,
+    100
+)
+```
+
+затем:
+
+```text
+Wallet.executeTarget(
+    Uniswap,
+    0,
+    calldata
+)
+```
+
+затем:
+
+```text
+Wallet.revokeTokenAllowanceByGuard(
+    USDC,
+    Uniswap
+)
+```
+
+и:
+
+```text
+usdSpent += $100
+```
+
+---
+
+# 239. MALICIOUS UNISWAP EXAMPLE
+
+Target пытается:
+
+```text
+transferFrom(wallet, attacker, 1000 USDC)
+```
+
+но allowance:
+
+```text
+100 USDC
+```
+
+Следовательно:
+
+```text
+1000 > 100
+```
+
+операция не может получить больше разрешенного allowance.
+
+---
+
+# 240. ПОСЛЕ ОПЕРАЦИИ
+
+Allowance:
+
+```text
+0
+```
+
+Даже если target был malicious.
+
+---
+
+# 241. ПОВТОРНЫЙ ATTACK
+
+Следующая транзакция:
+
+```text
+target.transferFrom(wallet, attacker, 100 USDC)
+```
+
+без нового Guard authorization:
+
+```text
+allowance = 0
+```
+
+=> fail.
+
+---
+
+# 242. ЭТО И ЕСТЬ ОСНОВНАЯ МОДЕЛЬ SECURITY
+
+Не:
+
+```text
+Guard понимает каждый DeFi function
+```
+
+а:
+
+```text
+Guard контролирует кому Wallet временно дает spending power
+```
+
+---
+
+# 243. ЧТО НЕ НУЖНО ДЕЛАТЬ В v6.2
+
+НЕ добавлять:
+
+```text
+DEX adapters
+```
+
+НЕ добавлять:
+
+```text
+simulation
+```
+
+НЕ добавлять:
+
+```text
+external API calls
+```
+
+НЕ добавлять:
+
+```text
+backend security authority
+```
+
+НЕ добавлять:
+
+```text
+unlimited approvals
+```
+
+НЕ добавлять:
+
+```text
+persistent target allowances
+```
+
+НЕ добавлять:
+
+```text
+arbitrary delegatecall
+```
+
+НЕ добавлять:
+
+```text
+single admin bypass
+```
+
+НЕ добавлять:
+
+```text
+huge logic directly into Guard
+```
+
+---
+
+# 244. ОСНОВНЫЕ ИСПРАВЛЕНИЯ ТЕКУЩЕГО v6.1
+
+AI-agent должен в первую очередь проверить и исправить следующие пункты:
+
+### FIX 1
+
+Текущий:
+
+```text
+executeOnContract
+```
+
+не должен просто делать:
+
+```text
+Permit2.transferFrom(...)
+```
+
+вместо реального вызова target.
+
+Нужно реализовать настоящий:
+
+```text
+Wallet -> target.call(calldata)
+```
+
+через временный allowance.
+
+---
+
+### FIX 2
+
+Текущий:
+
+```text
+approveOnContract
+```
+
+не должен вызывать:
+
+```text
+token.approve()
+```
+
+из Guard.
+
+Approval должен исходить от:
+
+```text
+SmartWallet
+```
+
+через:
+
+```text
+approveTokenByGuard()
+```
+
+---
+
+### FIX 3
+
+Убрать:
+
+```text
+approve => spent
+```
+
+Approve не расходует lifetime budget.
+
+---
+
+### FIX 4
+
+Добавить:
+
+```text
+amountSpent
+```
+
+для Yellow/Red.
+
+`maxAmount` должен быть cumulative lifetime limit.
+
+---
+
+### FIX 5
+
+Добавить:
+
+```text
+priceUpdatedAt
+priceMaxAge
+```
+
+или эквивалентную price freshness protection.
+
+---
+
+### FIX 6
+
+Strict mode не должен полностью доверять:
+
+```text
+strict = true/false
+```
+
+от frontend.
+
+Guard должен самостоятельно определять необходимость elevation из policy/risk state.
+
+---
+
+# 245. ПОРЯДОК РАБОТЫ AI-АГЕНТА
+
+AI-agent НЕ должен сразу переписывать весь проект.
+
+Сначала:
+
+```text
+1. прочитать все текущие contracts
+2. построить dependency graph
+3. определить storage layout
+4. определить external/public functions
+5. найти текущий execution flow
+6. найти текущий approve flow
+7. найти Permit2 flow
+8. найти policy accounting
+9. найти migration flow
+10. составить список изменений
+```
+
+После этого:
+
+```text
+11. изменить Wallet primitives
+12. изменить PolicyRegistry
+13. изменить TokenRiskRegistry
+14. изменить Guard execution
+15. исправить accounting
+16. исправить signatures
+17. исправить tests
+18. compile
+19. execute tests
+20. fuzz
+21. invariant
+22. static analysis
+23. bytecode size
+```
+
+---
+
+# 246. ВАЖНО: НЕ ЛОМАТЬ РАБОЧУЮ АРХИТЕКТУРУ
+
+AI-agent не должен без необходимости переписывать:
+
+```text
+OwnerRegistry
+MigrationHub
+Subscription architecture
+Emergency Sweep
+Wallet governance
+```
+
+если они уже соответствуют этому ТЗ.
+
+---
+
+# 247. ПРИОРИТЕТ ИЗМЕНЕНИЙ
+
+Priority P0:
+
+```text
+Wallet temporary allowance
+real target call
+approve/spend separation
+cumulative amountSpent
+signature binding
+unlimited approval block
+```
+
+Priority P1:
+
+```text
+TokenRiskRegistry
+price freshness
+strict mode derivation
+blacklists
+array limits
+reentrancy
+```
+
+Priority P2:
+
+```text
+UX
+events
+optimization
+additional fuzzing
+```
+
+---
+
+# 248. DEFINITION OF DONE
+
+v6.2 считается готовой только если:
+
+```text
+[ ] compile = 0 errors
+[ ] tests реально запущены
+[ ] tests pass
+[ ] fuzz tests pass
+[ ] invariants pass
+[ ] static analysis reviewed
+[ ] no unlimited user approvals
+[ ] temporary allowances implemented
+[ ] allowance revoked after execution
+[ ] generic target.call implemented
+[ ] no arbitrary delegatecall
+[ ] approve != spend
+[ ] Yellow/Red lifetime accounting implemented
+[ ] balance-share protection implemented
+[ ] unknown token = RED
+[ ] stale price rejected/strict
+[ ] calldata signed
+[ ] target signed
+[ ] token amounts signed
+[ ] nonce protection
+[ ] deadline protection
+[ ] blacklist protection
+[ ] migration tested
+[ ] emergency tested
+[ ] EIP-170 margin checked
+[ ] no external API in transaction path
+[ ] no simulation in transaction path
+[ ] no DEX adapters
+```
+
+---
+
+# 249. ФИНАЛЬНАЯ МОДЕЛЬ
+
+Вся система должна сводиться к следующей простой формуле:
+
+```text
+WHO
++
+WHERE
++
+WHAT
++
+HOW MUCH
++
+HOW OFTEN
++
+HOW RISKY
++
+HOW MUCH OF BALANCE
++
+UNTIL WHEN
++
+WHO SIGNED
+```
+
+То есть:
+
+```text
+WHO
+= owners / signatures
+
+WHERE
+= target contract
+
+WHAT
+= calldata
+
+HOW MUCH
+= token amount / native value
+
+HOW OFTEN
+= lifetime budget
+
+HOW RISKY
+= GREEN / YELLOW / RED
+
+HOW MUCH OF BALANCE
+= maxBalanceShareBps
+
+UNTIL WHEN
+= deadline
+
+WHO SIGNED
+= EIP-712 authorization
+```
+
+А Wallet предоставляет target только:
+
+```text
+temporary exact allowance
+```
+
+на конкретную операцию.
+
+После операции:
+
+```text
+allowance = 0
+```
+
+---
+
+# 250. КЛЮЧЕВАЯ ИДЕЯ V6.2
+
+Guard не должен быть:
+
+> "AI, который понимает, что делает каждый DeFi-контракт."
+
+Guard должен быть:
+
+> **"криптографически и on-chain контролируемым firewall между Smart Wallet и любым внешним smart contract."**
+
+Он не обязан понимать:
+
+```text
+swap
+lend
+borrow
+stake
+LP
+bridge
+perp
+prediction market
+NFT
+GameFi
+```
+
+Он должен понимать:
+
+```text
+кому
+что
+сколько
+на какой срок
+с каким risk budget
+с каким balance limit
+и с какими подписями
+```
+
+И именно поэтому архитектура масштабируется на новые протоколы без создания нового adapter для каждого DEX.
+
+### Что я считаю особенно важным
+
+В этой версии я **намеренно не возвращал adapters и simulation**. Это соответствует выбранной тобой философии продукта.
+
+При этом есть одно принципиальное изменение по сравнению с текущим v6.1: **нельзя просто сделать `SmartWallet.call(target, calldata)` и считать задачу решённой**. Arbitrary contract call без ограничения spending power фактически превращает target в proxy с полномочиями кошелька — именно такой риск отдельно отмечен в документации Solidity. ([Solidity Documentation][1])
+
+Поэтому центральный механизм v6.2 должен быть:
+
+**`Policy → exact temporary allowance → target.call → revoke → accounting`**
+
+Это, на мой взгляд, наиболее важная часть всего ТЗ.
+
+[1]: https://docs.soliditylang.org/en/latest/security-considerations.html?highlight=selfdestruct&utm_source=chatgpt.com "Security Considerations — Solidity 0.8.38-develop documentation"
+[2]: https://docs.soliditylang.org/en/latest/abi-spec.html?utm_source=chatgpt.com "Contract ABI Specification — Solidity 0.8.38-develop documentation"
+[3]: https://docs.soliditylang.org/en/latest/contracts.html?utm_source=chatgpt.com "Contracts — Solidity 0.8.38-develop documentation"
+[4]: https://docs.soliditylang.org/en/latest/bugs.html?highlight=address+initial&utm_source=chatgpt.com "List of Known Bugs — Solidity 0.8.38-develop documentation"

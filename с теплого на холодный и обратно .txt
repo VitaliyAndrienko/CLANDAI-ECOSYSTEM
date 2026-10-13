@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI TRANSFER</title>
+<style>
+:root{
+  --bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);
+  --neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--pink:#ff2bd6;
+  --text:#d8dee6;--muted:#5b6672;--danger:#ff3b6b;--radius:14px;--gold:#ffd400;
+  --cold:#00eeff;
+  --warm:#ff5a00;
+  --accent:#00eeff;
+  --start-accent:#00eeff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+.app{position:relative;z-index:1;max-width:460px;margin:0 auto;min-height:100vh;
+  padding:22px 18px 40px;display:flex;flex-direction:column;gap:16px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px}
+.logo{font-weight:700;letter-spacing:3px;font-size:14px;opacity:.78;white-space:nowrap}
+.logo b{color:var(--neon)}
+.topbar-actions{display:flex;gap:6px;align-items:center}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);
+  width:34px;height:34px;border-radius:9px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .15s,color .15s;flex-shrink:0}
+.icon-btn:hover{border-color:var(--neon);color:var(--neon)}
+.icon-btn:active{transform:scale(.94)}
+.icon-btn svg{width:15px;height:15px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  backdrop-filter:blur(18px);padding:16px;position:relative}
+.section-title{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;
+  margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.section-title .link{color:var(--cyan);cursor:pointer;letter-spacing:1px;
+  background:none;border:none;font-family:inherit;font-size:11px;text-transform:uppercase}
+.section-title .link:hover{text-decoration:underline}
+
+/* ============ DIRECTION TOGGLE ============ */
+.dir-toggle{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dir-btn{position:relative;padding:16px 12px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:14px;color:var(--muted);
+  font-family:inherit;cursor:pointer;transition:all .2s;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  overflow:hidden;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700}
+.dir-btn::before{content:'';position:absolute;inset:0;opacity:0;
+  transition:opacity .25s;pointer-events:none;border-radius:13px}
+.dir-btn[data-dir="cold2warm"]::before{background:linear-gradient(135deg,
+  rgba(0,238,255,.20),rgba(255,90,0,.20))}
+.dir-btn[data-dir="warm2cold"]::before{background:linear-gradient(135deg,
+  rgba(255,90,0,.20),rgba(0,238,255,.20))}
+.dir-btn.active::before{opacity:1}
+.dir-btn.active[data-dir="cold2warm"]{border-color:var(--cold);
+  box-shadow:0 0 26px -8px var(--cold),inset 0 0 30px -20px var(--cold)}
+.dir-btn.active[data-dir="warm2cold"]{border-color:var(--warm);
+  box-shadow:0 0 26px -8px var(--warm),inset 0 0 30px -20px var(--warm)}
+.dir-btn>*{position:relative;z-index:1}
+.dir-flow{display:flex;align-items:center;gap:8px}
+.dir-icon{width:34px;height:34px;display:grid;place-items:center;flex-shrink:0}
+.dir-icon svg{width:100%;height:100%}
+.dir-icon.cold{color:var(--cold);
+  filter:drop-shadow(0 0 8px var(--cold)) drop-shadow(0 0 14px var(--cold))}
+.dir-icon.warm{color:var(--warm);
+  filter:drop-shadow(0 0 8px var(--warm)) drop-shadow(0 0 14px var(--warm))}
+.dir-icon.cold svg{animation:snowSpin 14s linear infinite;transform-origin:50% 50%}
+.dir-icon.warm svg{animation:fireFlicker 1.6s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes snowSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+@keyframes fireFlicker{
+  0%,100%{transform:scale(1) rotate(0deg);filter:brightness(1)}
+  25%{transform:scale(1.06) rotate(-1.5deg);filter:brightness(1.2)}
+  50%{transform:scale(0.97) rotate(1deg);filter:brightness(0.95)}
+  75%{transform:scale(1.05) rotate(-1deg);filter:brightness(1.15)}
+}
+.dir-arrow{color:var(--muted);width:20px;height:20px}
+.dir-btn.active .dir-arrow{color:var(--text)}
+.dir-labels{display:flex;gap:6px;font-size:10px;letter-spacing:1.2px}
+.dir-labels .cold-lbl{color:var(--cold)}
+.dir-labels .warm-lbl{color:var(--warm)}
+
+/* ============ TOKEN LIST ============ */
+.token-list{display:flex;flex-direction:column;gap:6px}
+.token-row{display:flex;align-items:center;gap:12px;padding:11px 12px;
+  background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:12px;
+  cursor:pointer;transition:all .15s;user-select:none}
+.token-row:hover{background:rgba(0,255,170,.04);border-color:rgba(0,255,170,.35)}
+.token-row.selected{background:linear-gradient(90deg,rgba(0,255,170,.08),transparent);
+  border-color:var(--neon)}
+.tcheck{width:22px;height:22px;border-radius:7px;flex-shrink:0;
+  border:1.5px solid var(--border);display:grid;place-items:center;
+  transition:all .15s;background:rgba(0,0,0,.3)}
+.token-row.selected .tcheck{background:var(--neon);border-color:var(--neon);
+  box-shadow:0 0 12px var(--neon-dim)}
+.tcheck svg{width:13px;height:13px;color:#08090b;opacity:0;transition:opacity .15s}
+.token-row.selected .tcheck svg{opacity:1}
+
+/* SPINNING TOKEN LOGO — как в кошельке */
+.tlogo{width:36px;height:36px;border-radius:50%;flex-shrink:0;position:relative;
+  background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,217,255,.08) 60%,rgba(0,0,0,.4));
+  border:1px solid var(--neon-dim);overflow:hidden;
+  display:grid;place-items:center;box-shadow:0 0 10px var(--neon-dim)}
+.tlogo img,
+.tlogo .fb{
+  animation:coinSpin 2s linear infinite;
+  display:block;
+  transform-origin:center center;
+  width:100%;height:100%;
+  object-fit:cover;
+  border-radius:50%;
+  will-change:transform;
+}
+.tlogo .fb{font-size:11px;font-weight:700;color:var(--neon);
+  text-shadow:0 0 8px var(--neon-dim);display:grid;place-items:center;background:transparent}
+@keyframes coinSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+.tinfo{flex:1;min-width:0}
+.tsym{font-size:13px;font-weight:700;color:var(--text)}
+.tname{font-size:10px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbal{text-align:right;flex-shrink:0}
+.tamt{font-size:12px;color:var(--text);font-variant-numeric:tabular-nums}
+.tusd{font-size:10px;color:var(--neon);margin-top:3px;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 8px var(--neon-dim)}
+
+/* ============ STATS ============ */
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.stat{padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);
+  border-radius:12px;transition:border-color .3s,box-shadow .3s}
+.stat.hot{border-color:var(--warm);box-shadow:0 0 18px -10px var(--warm)}
+.stat.cold{border-color:var(--cold);box-shadow:0 0 18px -10px var(--cold)}
+.stat-lbl{font-size:10px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:6px}
+.stat-val{font-size:20px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;
+  line-height:1;letter-spacing:-0.5px}
+.stat-val.small{font-size:17px}
+.stat-val .sub{font-size:11px;color:var(--muted);font-weight:400;margin-left:4px}
+
+/* ============ SLIDER ============ */
+.slider-wrap{padding:8px 0 4px;user-select:none;touch-action:none}
+.slider-track{position:relative;height:70px;
+  background:rgba(0,0,0,.55);border:1px solid var(--border);
+  border-radius:18px;overflow:hidden;cursor:grab;touch-action:none;
+  transition:border-color .3s}
+.slider-track:active{cursor:grabbing}
+.slider-grid{position:absolute;inset:0;pointer-events:none;opacity:.22;
+  color:var(--accent);
+  background-image:linear-gradient(90deg,currentColor 2px,transparent 2px);
+  background-size:14px 100%}
+
+.slider-fill{position:absolute;inset:0 auto 0 0;width:0%;
+  transition:width .06s linear,background .3s,box-shadow .3s;
+  pointer-events:none;border-radius:17px;
+  background:linear-gradient(90deg,var(--start-accent) 0%,var(--accent) 100%);
+  box-shadow:
+    0 0 14px var(--accent),
+    0 0 34px var(--accent),
+    0 0 60px var(--accent),
+    inset 0 0 24px rgba(255,255,255,.35),
+    inset 0 0 60px var(--accent);
+  filter:saturate(1.4)}
+
+.slider-thumb{position:absolute;top:5px;bottom:5px;left:5px;width:82px;
+  border-radius:14px;display:grid;place-items:center;
+  color:#fff;font-weight:800;font-size:18px;font-variant-numeric:tabular-nums;
+  background:linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 60%, white 20%),
+    color-mix(in srgb, var(--accent) 70%, black 40%));
+  border:2px solid var(--accent);
+  box-shadow:
+    0 0 18px var(--accent),
+    0 0 40px var(--accent),
+    inset 0 0 14px rgba(255,255,255,.45),
+    inset 0 0 30px var(--accent);
+  transition:left .06s linear,transform .12s,
+             border-color .25s,box-shadow .25s,background .25s;
+  z-index:3;touch-action:none;
+  text-shadow:
+    0 0 8px #fff,
+    0 0 18px var(--accent),
+    0 1px 2px rgba(0,0,0,.9)}
+.slider-thumb.dragging{transform:scale(1.05)}
+
+.slider-hint{position:absolute;inset:0;display:grid;place-items:center;
+  color:var(--muted);font-size:10px;letter-spacing:4px;text-transform:uppercase;
+  pointer-events:none;z-index:1;transition:opacity .2s}
+.slider-track.dragged .slider-hint{opacity:0}
+
+/* ============ CONFIRM BTN ============ */
+.btn-confirm{width:100%;padding:18px;margin-top:16px;
+  background:linear-gradient(180deg,var(--neon-dim),transparent);
+  border:1px solid var(--neon);border-radius:14px;color:var(--neon);
+  font-family:inherit;font-size:14px;letter-spacing:2.5px;text-transform:uppercase;
+  cursor:pointer;transition:all .15s;font-weight:700;
+  box-shadow:0 0 24px -8px var(--neon)}
+.btn-confirm:hover:not(:disabled){box-shadow:0 0 34px -4px var(--neon)}
+.btn-confirm:active:not(:disabled){transform:translateY(1px)}
+.btn-confirm:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
+
+/* ============ MODAL ============ */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:18px}
+.modal-bg.show{display:flex}
+.modal{background:#0e1014;border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px;max-width:440px;width:100%;box-shadow:0 0 40px var(--neon-dim);
+  max-height:92vh;overflow-y:auto;position:relative}
+.modal h3{font-size:12px;letter-spacing:2.5px;color:var(--neon);
+  text-transform:uppercase;margin-bottom:18px;text-align:center}
+.tx-close{position:absolute;top:14px;right:14px;width:32px;height:32px;
+  background:transparent;border:1px solid var(--border);color:var(--text);
+  border-radius:9px;cursor:pointer;display:grid;place-items:center;
+  transition:all .15s;z-index:5;font-size:14px}
+.tx-close:hover{border-color:var(--danger);color:var(--danger)}
+
+/* ============ TRANSFER STAGE ============ */
+.stage{display:flex;align-items:center;justify-content:space-between;
+  padding:24px 0 14px;position:relative;gap:10px}
+.node{width:64px;height:64px;border-radius:18px;flex-shrink:0;
+  display:grid;place-items:center;position:relative;
+  border:2px solid;background:rgba(0,0,0,.5);overflow:hidden}
+.node svg{width:38px;height:38px;position:relative;z-index:1}
+.node::before{content:'';position:absolute;inset:0;border-radius:16px;
+  background:radial-gradient(circle at 50% 50%,currentColor,transparent 70%);
+  opacity:.18;animation:nodePulse 2.4s ease-in-out infinite}
+@keyframes nodePulse{0%,100%{opacity:.12}50%{opacity:.38}}
+.node.cold{border-color:var(--cold);color:var(--cold);
+  box-shadow:0 0 26px -6px var(--cold),inset 0 0 22px -10px var(--cold)}
+.node.warm{border-color:var(--warm);color:var(--warm);
+  box-shadow:0 0 26px -6px var(--warm),inset 0 0 22px -10px var(--warm)}
+.node.cold svg{animation:snowSpin 10s linear infinite;transform-origin:50% 50%}
+.node.warm svg{animation:fireFlicker 1.4s ease-in-out infinite;transform-origin:50% 90%}
+
+.rail{flex:1;height:70px;position:relative;
+  border-bottom:2px dashed rgba(255,255,255,.15);overflow:visible}
+.tcoin{position:absolute;width:38px;height:38px;border-radius:50%;top:50%;
+  margin-top:-19px;display:grid;place-items:center;overflow:hidden;
+  border:2px solid;background:radial-gradient(circle at 30% 30%,#2a2d35,#0a0b0e);
+  will-change:left,right,transform;font-weight:700;
+  box-shadow:0 0 16px currentColor,inset 0 0 8px rgba(255,255,255,.15)}
+.tcoin.cold{border-color:var(--cold);color:var(--cold);
+  box-shadow:0 0 16px var(--cold),inset 0 0 8px rgba(255,255,255,.15)}
+.tcoin.warm{border-color:var(--warm);color:var(--warm);
+  box-shadow:0 0 16px var(--warm),inset 0 0 8px rgba(255,255,255,.15)}
+.tcoin img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%}
+.tcoin .fb{font-size:12px;font-weight:700;color:currentColor;text-shadow:0 0 8px currentColor}
+
+@keyframes rollRight{
+  0%{left:0;transform:rotate(0deg) scale(.85);opacity:0}
+  8%{opacity:1}
+  50%{transform:rotate(360deg) scale(1.08)}
+  92%{opacity:1}
+  100%{left:calc(100% - 38px);transform:rotate(720deg) scale(.85);opacity:0}
+}
+@keyframes rollLeft{
+  0%{left:calc(100% - 38px);transform:rotate(0deg) scale(.85);opacity:0}
+  8%{opacity:1}
+  50%{transform:rotate(-360deg) scale(1.08)}
+  92%{opacity:1}
+  100%{left:0;transform:rotate(-720deg) scale(.85);opacity:0}
+}
+
+/* ============ SUCCESS ============ */
+.success-wrap{display:flex;flex-direction:column;align-items:center;
+  padding:16px 0 8px;animation:popIn .35s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes popIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+.success-check{width:110px;height:110px;border-radius:50%;display:grid;place-items:center;
+  border:3px solid var(--neon);color:var(--neon);font-size:64px;font-weight:300;
+  box-shadow:0 0 40px var(--neon),0 0 70px var(--neon-dim),inset 0 0 30px var(--neon-dim);
+  background:radial-gradient(circle,rgba(0,255,170,.15),transparent 70%);
+  margin-bottom:18px;text-shadow:0 0 30px var(--neon)}
+.success-msg{font-size:13px;letter-spacing:2.5px;color:var(--neon);
+  text-transform:uppercase;margin-bottom:20px;text-align:center}
+.summary{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--border);
+  border-radius:12px;padding:14px}
+.sum-row{display:flex;justify-content:space-between;font-size:12px;
+  padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.sum-row:last-child{border-bottom:none}
+.sum-row .lbl{color:var(--muted)}
+.sum-row .val{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ============ TOAST ============ */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);
+  background:#0e1014;border:1px solid var(--neon);color:var(--neon);padding:12px 20px;
+  border-radius:999px;font-size:12px;letter-spacing:1px;z-index:200;opacity:0;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;
+  box-shadow:0 0 24px var(--neon-dim);max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--danger);color:var(--danger);
+  box-shadow:0 0 24px rgba(255,59,107,.25)}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:8px}
+
+@media (max-width:640px){
+  .panel,.modal{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(18,20,24,.95)}
+  .modal{background:#0e1014}
+  body::after{display:none}
+  .app{padding:16px 14px 32px;gap:14px}
+  .panel{padding:14px}
+  .node{width:56px;height:56px;border-radius:16px}
+  .node svg{width:32px;height:32px}
+  .tcoin{width:34px;height:34px;margin-top:-17px}
+  @keyframes rollRight{0%{left:0}100%{left:calc(100% - 34px)}}
+  @keyframes rollLeft{0%{left:calc(100% - 34px)}100%{left:0}}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">CLAN<b>DAI</b> TRANSFER</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btn-refresh" title="Обновить балансы">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- DIRECTION -->
+  <div class="dir-toggle">
+    <button class="dir-btn active" data-dir="cold2warm">
+      <div class="dir-flow">
+        <span class="dir-icon cold" data-icon="snow"></span>
+        <svg class="dir-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+        <span class="dir-icon warm" data-icon="fire"></span>
+      </div>
+      <div class="dir-labels"><span class="cold-lbl">ХОЛОД</span> <span class="warm-lbl">→ ТЕПЛО</span></div>
+    </button>
+
+    <button class="dir-btn" data-dir="warm2cold">
+      <div class="dir-flow">
+        <span class="dir-icon warm" data-icon="fire"></span>
+        <svg class="dir-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+        <span class="dir-icon cold" data-icon="snow"></span>
+      </div>
+      <div class="dir-labels"><span class="warm-lbl">ТЕПЛО</span> <span class="cold-lbl">→ ХОЛОД</span></div>
+    </button>
+  </div>
+
+  <!-- TOKENS -->
+  <div class="panel">
+    <div class="section-title">
+      <span>ВЫБЕРИТЕ ТОКЕНЫ</span>
+      <button class="link" id="btn-select-all">СНЯТЬ ВСЕ</button>
+    </div>
+    <div class="token-list" id="token-list"></div>
+  </div>
+
+  <!-- SLIDER PANEL -->
+  <div class="panel">
+    <div class="stats-row">
+      <div class="stat" id="stat-count-wrap">
+        <div class="stat-lbl">Токенов</div>
+        <div class="stat-val" id="stat-count">0<span class="sub">/ 7</span></div>
+      </div>
+      <div class="stat" id="stat-price-wrap">
+        <div class="stat-lbl">Стоимость</div>
+        <div class="stat-val small" id="stat-price">$0.00</div>
+      </div>
+    </div>
+
+    <div class="slider-wrap">
+      <div class="slider-track" id="slider-track">
+        <div class="slider-grid"></div>
+        <div class="slider-fill" id="slider-fill"></div>
+        <div class="slider-hint">ТЯНИТЕ →</div>
+        <div class="slider-thumb" id="slider-thumb">0%</div>
+      </div>
+    </div>
+
+    <button class="btn-confirm" id="btn-confirm" disabled>ПОДТВЕРДИТЬ</button>
+  </div>
+
+</div>
+
+<!-- TRANSFER MODAL -->
+<div class="modal-bg" id="modal-transfer">
+  <div class="modal">
+    <button class="tx-close" id="tx-close">✕</button>
+
+    <div class="t-view active" id="t-view-sending">
+      <h3 id="modal-title">ПЕРЕМЕЩЕНИЕ ТОКЕНОВ</h3>
+
+      <div class="stage">
+        <div class="node" id="node-left"></div>
+        <div class="rail" id="rail"></div>
+        <div class="node" id="node-right"></div>
+      </div>
+    </div>
+
+    <div class="t-view" id="t-view-success">
+      <div class="success-wrap">
+        <div class="success-check">✓</div>
+        <div class="success-msg">ПЕРЕВОД ВЫПОЛНЕН</div>
+        <div class="summary">
+          <div class="sum-row"><span class="lbl">Направление</span><span class="val" id="sum-dir">—</span></div>
+          <div class="sum-row"><span class="lbl">Токенов</span><span class="val" id="sum-count">—</span></div>
+          <div class="sum-row"><span class="lbl">Объём</span><span class="val" id="sum-amount">—</span></div>
+          <div class="sum-row"><span class="lbl">Стоимость</span><span class="val" id="sum-usd">—</span></div>
+        </div>
+      </div>
+      <button class="btn-confirm" id="success-done" style="margin-top:20px;">ГОТОВО</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   ICONS (cyberpunk snowflake & fire)
+   ================================================================ */
+const SVG_SNOW = `
+<svg viewBox="0 0 100 100" fill="none" stroke="currentColor"
+     stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <g id="arm">
+      <line x1="0" y1="0" x2="0" y2="-42"/>
+      <path d="M0 -16 L-11 -27 M0 -16 L11 -27"/>
+      <path d="M0 -30 L-8 -38 M0 -30 L8 -38"/>
+    </g>
+  </defs>
+  <g transform="translate(50 50)">
+    <use href="#arm"/>
+    <use href="#arm" transform="rotate(60)"/>
+    <use href="#arm" transform="rotate(120)"/>
+    <use href="#arm" transform="rotate(180)"/>
+    <use href="#arm" transform="rotate(240)"/>
+    <use href="#arm" transform="rotate(300)"/>
+  </g>
+  <circle cx="50" cy="50" r="5" fill="currentColor" stroke="none"/>
+</svg>`;
+
+const SVG_FIRE = `
+<svg viewBox="0 0 100 100" fill="none" stroke="currentColor"
+     stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M50 6
+    C 55 26, 76 32, 76 56
+    C 76 76, 64 94, 50 94
+    C 36 94, 24 76, 24 56
+    C 24 42, 32 34, 38 26
+    C 40 36, 45 40, 48 36
+    C 48 28, 45 20, 50 6 Z"
+    fill="currentColor" fill-opacity="0.12"/>
+  <path d="M50 42
+    C 55 54, 62 58, 62 70
+    C 62 83, 56 92, 50 92
+    C 44 92, 38 83, 38 70
+    C 38 60, 46 54, 50 42 Z"
+    fill="currentColor" fill-opacity="0.65"/>
+</svg>`;
+
+function setIcon(el, kind){
+  el.innerHTML = kind === 'snow' ? SVG_SNOW : SVG_FIRE;
+}
+document.querySelectorAll('[data-icon]').forEach(el => setIcon(el, el.dataset.icon));
+
+/* ================================================================
+   COLOR SYSTEM (direction-aware hue interpolation)
+   ================================================================ */
+const COLD_HUE = 184;
+const WARM_HUE = 24;
+const HUE_PATH = 200;
+
+function accentAt(p, dir){
+  let h;
+  if (dir === 'cold2warm') h = COLD_HUE + HUE_PATH * p;
+  else                     h = WARM_HUE - HUE_PATH * p;
+  h = ((h % 360) + 360) % 360;
+  return `hsl(${h}, 100%, 55%)`;
+}
+function startAccentAt(dir){
+  return dir === 'cold2warm'
+    ? `hsl(${COLD_HUE}, 100%, 55%)`
+    : `hsl(${WARM_HUE}, 100%, 55%)`;
+}
+
+/* ================================================================
+   DATA
+   ================================================================ */
+const TW = 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum';
+
+const TOKENS = [
+  {id:'eth',  sym:'ETH',  name:'Ethereum',       bal:2.4532, price:3100,  addr:'native'},
+  {id:'usdt', sym:'USDT', name:'Tether USD',     bal:1240.50,price:1,     addr:'0xdAC17F958D2ee523a2206206994597C13D831ec7'},
+  {id:'usdc', sym:'USDC', name:'USD Coin',       bal:3420.00,price:1,     addr:'0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'},
+  {id:'wbtc', sym:'WBTC', name:'Wrapped Bitcoin',bal:0.0512, price:64000, addr:'0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599'},
+  {id:'dai',  sym:'DAI',  name:'Dai Stablecoin', bal:580.25, price:1,     addr:'0x6B175474E89094C44Da98b954EedeAC495271d0F'},
+  {id:'link', sym:'LINK', name:'Chainlink',      bal:45.30,  price:17.5,  addr:'0x514910771AF9Ca656af840dff83E8264EcF986CA'},
+  {id:'uni',  sym:'UNI',  name:'Uniswap',        bal:128.10, price:11.2,  addr:'0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984'}
+];
+
+function tokenLogo(t){
+  if(t.addr === 'native') return `${TW}/info/logo.png`;
+  return `${TW}/assets/${t.addr}/logo.png`;
+}
+
+/* ================================================================
+   STATE
+   ================================================================ */
+const state = {
+  direction: 'cold2warm',
+  selected: new Set(TOKENS.map(t => t.id)),
+  pct: 0,
+  dragging: false,
+  dragStartX: 0,
+  dragStartPct: 0
+};
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+function toast(msg, err=false){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => el.className = 'toast', 2400);
+}
+function openModal(id){ $('#'+id).classList.add('show'); }
+function closeModal(id){ $('#'+id).classList.remove('show'); }
+function money(n){
+  return '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function num(n, dec=4){
+  const s = n.toFixed(dec);
+  return s.replace(/\.?0+$/,'') || '0';
+}
+
+function resetSlider(){
+  state.pct = 0;
+  state._lastTick = 0;
+  applySlider();
+}
+
+/* ================================================================
+   TOKEN LIST
+   ================================================================ */
+function renderTokenList(){
+  const w = $('#token-list');
+  w.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  TOKENS.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'token-row' + (state.selected.has(t.id) ? ' selected' : '');
+    el.dataset.id = t.id;
+    el.innerHTML = `
+      <div class="tcheck">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div class="tlogo">
+        <span class="fb">${t.sym}</span>
+        <img src="${tokenLogo(t)}" alt="${t.sym}" loading="lazy"
+             onload="this.previousElementSibling.style.display='none'"
+             onerror="this.remove()"/>
+      </div>
+      <div class="tinfo">
+        <div class="tsym">${t.sym}</div>
+        <div class="tname">${t.name}</div>
+      </div>
+      <div class="tbal">
+        <div class="tamt">${num(t.bal)}</div>
+        <div class="tusd">${money(t.bal * t.price)}</div>
+      </div>`;
+    el.onclick = () => {
+      if (state.selected.has(t.id)) state.selected.delete(t.id);
+      else state.selected.add(t.id);
+      el.classList.toggle('selected');
+      resetSlider();
+      updateStats();
+    };
+    frag.appendChild(el);
+  });
+  w.appendChild(frag);
+}
+
+function toggleSelectAll(){
+  const allSelected = state.selected.size === TOKENS.length;
+  if (allSelected) state.selected.clear();
+  else TOKENS.forEach(t => state.selected.add(t.id));
+  renderTokenList();
+  resetSlider();
+  updateStats();
+}
+
+/* ================================================================
+   STATS
+   ================================================================ */
+function updateStats(){
+  const count = state.selected.size;
+  const sel = TOKENS.filter(t => state.selected.has(t.id));
+  const totalValue = sel.reduce((s,t) => s + t.bal * t.price, 0);
+  const sentValue = totalValue * state.pct / 100;
+
+  $('#stat-count').innerHTML = count + '<span class="sub">/ ' + TOKENS.length + '</span>';
+  $('#stat-price').textContent = money(sentValue);
+
+  const isCold = state.direction === 'cold2warm';
+  $('#stat-count-wrap').className = 'stat ' + (isCold ? 'cold' : 'hot');
+  $('#stat-price-wrap').className = 'stat ' + (isCold ? 'hot' : 'cold');
+
+  const accent = accentAt(state.pct / 100, state.direction);
+  const startAccent = startAccentAt(state.direction);
+  document.documentElement.style.setProperty('--accent', accent);
+  document.documentElement.style.setProperty('--start-accent', startAccent);
+
+  $('#btn-select-all').textContent =
+    state.selected.size === TOKENS.length ? 'СНЯТЬ ВСЕ' : 'ВЫБРАТЬ ВСЕ';
+
+  const ok = count > 0 && state.pct > 0;
+  $('#btn-confirm').disabled = !ok;
+}
+
+/* ================================================================
+   SLIDER
+   ================================================================ */
+function applySlider(){
+  const track = $('#slider-track');
+  const thumb = $('#slider-thumb');
+  if (!track) return;
+  const trackW = track.clientWidth;
+  const thumbW = thumb.offsetWidth;
+  const pad = 5;
+  const maxLeft = trackW - thumbW - pad * 2;
+  const left = pad + (state.pct / 100) * maxLeft;
+
+  thumb.style.left = left + 'px';
+  $('#slider-fill').style.width = (left + thumbW) + 'px';
+  thumb.textContent = Math.round(state.pct) + '%';
+  track.classList.toggle('dragged', state.pct > 3);
+
+  updateStats();
+}
+
+$('#slider-track').addEventListener('pointerdown', e => {
+  if (e.button !== undefined && e.button !== 0) return;
+  const track = $('#slider-track');
+  const thumb = $('#slider-thumb');
+  const rect = track.getBoundingClientRect();
+  const thumbRect = thumb.getBoundingClientRect();
+
+  state.dragging = true;
+  thumb.classList.add('dragging');
+
+  if (e.clientX < thumbRect.left || e.clientX > thumbRect.right){
+    const trackW = track.clientWidth;
+    const thumbW = thumb.offsetWidth;
+    const pad = 5;
+    const maxLeft = trackW - thumbW - pad * 2;
+    const relX = e.clientX - rect.left - pad - thumbW / 2;
+    state.pct = Math.max(0, Math.min(100, (relX / maxLeft) * 100));
+    applySlider();
+  }
+  state.dragStartX = e.clientX;
+  state.dragStartPct = state.pct;
+
+  e.preventDefault();
+  window.addEventListener('pointermove', onSliderMove);
+  window.addEventListener('pointerup', onSliderUp);
+  window.addEventListener('pointercancel', onSliderUp);
+  if (navigator.vibrate) navigator.vibrate(10);
+});
+
+function onSliderMove(e){
+  if (!state.dragging) return;
+  const track = $('#slider-track');
+  const thumb = $('#slider-thumb');
+  const trackW = track.clientWidth;
+  const thumbW = thumb.offsetWidth;
+  const pad = 5;
+  const maxLeft = trackW - thumbW - pad * 2;
+  const dx = e.clientX - state.dragStartX;
+  const deltaPct = (dx / maxLeft) * 100;
+  state.pct = Math.max(0, Math.min(100, state.dragStartPct + deltaPct));
+  applySlider();
+
+  const p = Math.floor(state.pct / 5) * 5;
+  if (p !== state._lastTick){
+    state._lastTick = p;
+    if (navigator.vibrate) navigator.vibrate(3);
+  }
+}
+
+function onSliderUp(){
+  if (!state.dragging) return;
+  state.dragging = false;
+  $('#slider-thumb').classList.remove('dragging');
+  window.removeEventListener('pointermove', onSliderMove);
+  window.removeEventListener('pointerup', onSliderUp);
+  window.removeEventListener('pointercancel', onSliderUp);
+
+  if (state.pct < 4) state.pct = 0;
+  else if (state.pct > 96) state.pct = 100;
+  applySlider();
+}
+
+/* ================================================================
+   DIRECTION TOGGLE
+   ================================================================ */
+$$('.dir-btn').forEach(btn => {
+  btn.onclick = () => {
+    state.direction = btn.dataset.dir;
+    $$('.dir-btn').forEach(b => b.classList.toggle('active', b === btn));
+    resetSlider();
+    if (navigator.vibrate) navigator.vibrate(8);
+  };
+});
+
+/* ================================================================
+   TRANSFER ANIMATION MODAL
+   ================================================================ */
+function buildTransferModal(){
+  const dir = state.direction;
+  const isCold2Warm = dir === 'cold2warm';
+
+  const leftKind  = isCold2Warm ? 'snow' : 'fire';
+  const rightKind = isCold2Warm ? 'fire' : 'snow';
+  const leftNode  = $('#node-left');
+  const rightNode = $('#node-right');
+  leftNode.className  = 'node ' + (isCold2Warm ? 'cold' : 'warm');
+  rightNode.className = 'node ' + (isCold2Warm ? 'warm' : 'cold');
+  setIcon(leftNode, leftKind);
+  setIcon(rightNode, rightKind);
+
+  const rail = $('#rail');
+  rail.innerHTML = '';
+
+  const sel = TOKENS.filter(t => state.selected.has(t.id));
+  const DURATION = 1.35;
+  const STAGGER  = 0.32;
+
+  sel.forEach((tok, i) => {
+    const coin = document.createElement('div');
+    coin.className = 'tcoin ' + (isCold2Warm ? 'cold' : 'warm');
+    coin.innerHTML = `
+      <span class="fb">${tok.sym}</span>
+      <img src="${tokenLogo(tok)}" alt="${tok.sym}"
+           onload="this.previousElementSibling.style.display='none'"
+           onerror="this.remove()"/>`;
+    const delay = i * STAGGER;
+    const animName = isCold2Warm ? 'rollRight' : 'rollLeft';
+    coin.style.animation = `${animName} ${DURATION}s cubic-bezier(.45,0,.55,1) ${delay}s forwards`;
+    coin.style.opacity = '0';
+    rail.appendChild(coin);
+  });
+
+  const totalMs = (DURATION + STAGGER * Math.max(0, sel.length - 1)) * 1000;
+
+  state._pending = {
+    sel, pct: state.pct / 100,
+    totalValue: sel.reduce((s,t) => s + t.bal * t.price, 0) * state.pct / 100
+  };
+
+  $$('#modal-transfer .t-view').forEach(v => v.classList.remove('active'));
+  $('#t-view-sending').classList.add('active');
+
+  clearTimeout(state._txTimer);
+  // Auto-advance to success view after animation completes
+  state._txTimer = setTimeout(() => {
+    if (!$('#modal-transfer').classList.contains('show')) return;
+    if (!$('#t-view-sending').classList.contains('active')) return;
+    if (navigator.vibrate) navigator.vibrate([20,40,20]);
+    showSuccessView();
+  }, totalMs + 250);
+}
+
+function showSuccessView(){
+  const {sel, pct} = state._pending || {};
+  if (!sel || !pct) return;
+
+  const isCold2Warm = state.direction === 'cold2warm';
+
+  // apply balance changes
+  sel.forEach(t => {
+    const moved = t.bal * pct;
+    if (isCold2Warm) t.bal = Math.max(0, t.bal - moved);
+    else t.bal += moved;
+  });
+
+  const dirLabel = isCold2Warm ? '❄ COLD → 🔥 WARM' : '🔥 WARM → ❄ COLD';
+  const usdValue = state._pending.totalValue;
+
+  $('#sum-dir').textContent = dirLabel;
+  $('#sum-count').textContent = sel.length + ' шт.';
+  $('#sum-amount').textContent = sel.length === 1
+    ? num(sel[0].bal * pct) + ' ' + sel[0].sym
+    : sel.length + ' видов';
+  $('#sum-usd').textContent = money(usdValue);
+
+  $$('#modal-transfer .t-view').forEach(v => v.classList.remove('active'));
+  $('#t-view-success').classList.add('active');
+  if (navigator.vibrate) navigator.vibrate([10,30,10]);
+
+  renderTokenList();
+  resetSlider();
+  toast('✓ Перевод выполнен');
+}
+
+/* ================================================================
+   EVENTS
+   ================================================================ */
+$('#btn-select-all').onclick = toggleSelectAll;
+
+$('#btn-confirm').onclick = () => {
+  if (state.selected.size === 0){ toast('Выберите хотя бы один токен', true); return; }
+  if (state.pct === 0){ toast('Потяните ползунок', true); return; }
+  buildTransferModal();
+  openModal('modal-transfer');
+};
+
+$('#tx-close').onclick = () => {
+  clearTimeout(state._txTimer);
+  closeModal('modal-transfer');
+};
+
+$('#success-done').onclick = () => {
+  clearTimeout(state._txTimer);
+  closeModal('modal-transfer');
+};
+
+$$('.modal-bg').forEach(m => m.addEventListener('click', e => {
+  if (e.target === m){
+    clearTimeout(state._txTimer);
+    m.classList.remove('show');
+  }
+}));
+
+$('#btn-refresh').onclick = () => {
+  TOKENS.forEach(t => {
+    const factor = 0.985 + Math.random() * 0.03;
+    t.price = +(t.price * factor).toFixed(t.price > 100 ? 2 : 4);
+  });
+  renderTokenList();
+  resetSlider();
+  toast('↻ Обновлено');
+};
+
+window.addEventListener('resize', applySlider);
+
+/* ================================================================
+   INIT
+   ================================================================ */
+(function init(){
+  renderTokenList();
+  requestAnimationFrame(() => {
+    applySlider();
+    updateStats();
+  });
+})();
+</script>
+</body>
+</html>

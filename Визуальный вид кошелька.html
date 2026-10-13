@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI WALLET</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.23.1/dist/index.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/argon2-browser@1.18.0/dist/argon2-bundled.min.js"></script>
+<script>window.addEventListener('DOMContentLoaded',()=>{if(typeof window.argon2==='undefined'){const fb=document.createElement('script');fb.src='https://unpkg.com/argon2-browser@1.18.0/dist/argon2-bundled.min.js';document.head.appendChild(fb);}});</script>
+<style>
+:root{--bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);--neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--pink:#ff2bd6;--text:#d8dee6;--muted:#5b6672;--danger:#ff3b6b;--radius:14px;--gold:#ffd400}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;-webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+.app{position:relative;z-index:1;max-width:440px;margin:0 auto;min-height:100vh;padding:24px 20px 40px;display:flex;flex-direction:column;gap:16px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:4px 2px 0;gap:6px}
+.logo{font-weight:700;letter-spacing:3px;font-size:15px;color:var(--text);opacity:.78;white-space:nowrap;flex-shrink:0}
+.topbar-actions{display:flex;gap:5px;align-items:center}
+.net-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--border);border-radius:999px;background:var(--panel);backdrop-filter:blur(14px);cursor:pointer;font-size:11px;color:var(--text);transition:border-color .15s}
+.net-pill:hover{border-color:var(--neon)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon)}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);backdrop-filter:blur(18px);padding:20px;position:relative}
+.balance-label{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.balance-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.balance-value{flex:1;min-width:0;display:flex;align-items:baseline;flex-wrap:nowrap;gap:6px;font-weight:700;letter-spacing:-1px;color:#fff;text-shadow:0 0 20px var(--neon-dim);line-height:1.05}
+#balance-num{flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(22px,7.5vw,38px);cursor:pointer;transition:font-size .15s}
+#balance-num.long{font-size:clamp(18px,6vw,28px)}
+#balance-num.verylong{font-size:clamp(15px,5vw,22px)}
+#sym{flex-shrink:0;color:var(--neon);font-size:clamp(14px,4.5vw,20px);text-shadow:0 0 12px var(--neon-dim)}
+.coin-icon{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,217,255,.06) 60%,rgba(0,0,0,.4));border:2px solid var(--neon-dim);box-shadow:0 0 20px var(--neon-dim),inset 0 0 12px var(--neon-dim);overflow:hidden;flex-shrink:0;position:relative}
+.coin-icon.sm{width:38px;height:38px;border-width:1.5px}
+.coin-icon>img,.coin-icon>.fallback{animation:coinSpin 2s linear infinite;display:block;transform-origin:center center;width:100%;height:100%;object-fit:cover;border-radius:50%;will-change:transform}
+.coin-icon .fallback{font-size:14px;font-weight:700;color:var(--neon);text-shadow:0 0 8px var(--neon-dim);display:grid;place-items:center}
+.coin-icon.sm .fallback{font-size:10px}
+@keyframes coinSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.coin-icon::after{content:'';position:absolute;inset:0;border-radius:50%;background:linear-gradient(120deg,transparent 35%,rgba(255,255,255,.15) 50%,transparent 65%);pointer-events:none;z-index:2}
+.balance-meta{margin-top:8px;color:var(--muted);font-size:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.balance-meta .qs-inline{display:inline-flex;align-items:center;gap:3px;color:#a855f7}
+.balance-meta .qs-inline .num{font-weight:700}
+.balance-meta .sep{opacity:.4}
+.addr-row{display:flex;align-items:center;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.05)}
+.addr{flex:1;min-width:0;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;letter-spacing:.5px}
+.addr:hover{color:var(--neon)}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);width:34px;height:34px;border-radius:9px;cursor:pointer;display:grid;place-items:center;transition:border-color .15s,color .15s;flex-shrink:0;padding:0}
+.icon-btn:hover{border-color:var(--neon);color:var(--neon)}
+.icon-btn:active{transform:scale(.94)}
+.icon-btn svg{width:15px;height:15px}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.btn{padding:12px 6px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:inherit;font-size:10px;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;transition:border-color .15s,color .15s;backdrop-filter:blur(14px);display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+.btn svg{width:15px;height:15px}
+.btn:hover{border-color:var(--neon);color:var(--neon);box-shadow:0 0 20px var(--neon-dim)}
+.btn.primary{background:linear-gradient(180deg,var(--neon-dim),transparent);border-color:var(--neon);color:var(--neon)}
+.btn.ai-btn{border-color:var(--neon);color:var(--neon);background:linear-gradient(180deg,var(--neon-dim),transparent)}
+.section-title{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.section-title .link{color:var(--cyan);cursor:pointer;letter-spacing:1px}
+.section-title .link:hover{text-decoration:underline}
+.tx{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+.tx:last-child{border-bottom:none}
+.tx-ico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:rgba(0,217,255,.08);border:1px solid rgba(0,217,255,.2);color:var(--cyan);flex-shrink:0}
+.tx-ico svg{width:15px;height:15px}
+.tx-body{flex:1;min-width:0}
+.tx-to{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tx-time{color:var(--muted);font-size:11px;margin-top:2px}
+.tx-amt{color:var(--neon);font-size:12px;white-space:nowrap;cursor:pointer}
+.tx-del{color:var(--muted);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px;transition:all .15s;flex-shrink:0}
+.tx-del:hover{color:var(--pink);background:rgba(255,43,214,.1)}
+.empty{color:var(--muted);font-size:12px;padding:20px 0;text-align:center}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
+input,textarea,select{width:100%;padding:12px 14px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s;resize:none}
+input:focus,textarea:focus,select:focus{border-color:var(--neon);box-shadow:0 0 0 3px var(--neon-dim)}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+.btn-full{width:100%;padding:14px;background:linear-gradient(180deg,var(--neon-dim),transparent);border:1px solid var(--neon);border-radius:10px;color:var(--neon);font-family:inherit;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:box-shadow .15s;margin-top:6px}
+.btn-full:hover{box-shadow:0 0 24px var(--neon-dim)}
+.btn-full:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:10px}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted);box-shadow:none}
+.view{display:none;flex-direction:column;gap:16px}
+.view.active{display:flex}
+.hero{text-align:center;padding:30px 0 16px}
+.hero h1{font-size:20px;letter-spacing:4px;color:var(--neon);text-shadow:0 0 20px var(--neon-dim);margin-bottom:12px}
+.hero p{color:var(--muted);font-size:12px;line-height:1.7}
+.seed-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+.seed-word{background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:10px 8px;font-size:11px;text-align:center;color:var(--text)}
+.seed-word .num{color:var(--muted);margin-right:4px}
+.warn{background:rgba(255,59,107,.08);border:1px solid rgba(255,59,107,.3);border-radius:10px;padding:12px 14px;font-size:11px;color:#ff8fa8;line-height:1.6;margin-bottom:14px}
+.info{background:rgba(0,217,255,.08);border:1px solid rgba(0,217,255,.3);border-radius:10px;padding:12px 14px;font-size:11px;color:#8fd9ff;line-height:1.6;margin-bottom:14px}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-bg.show{display:flex}
+.modal{background:#0e1014;border:1px solid var(--border);border-radius:var(--radius);padding:22px;max-width:380px;width:100%;box-shadow:0 0 40px var(--neon-dim);max-height:90vh;overflow-y:auto}
+.modal h3{font-size:14px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:16px}
+.modal p{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:#0e1014;border:1px solid var(--neon);color:var(--neon);padding:12px 20px;border-radius:999px;font-size:12px;letter-spacing:1px;z-index:200;opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;box-shadow:0 0 24px var(--neon-dim);max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--danger);color:var(--danger);box-shadow:0 0 24px rgba(255,59,107,.25)}
+.spinner{width:14px;height:14px;border:2px solid var(--neon-dim);border-top-color:var(--neon);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.net-list{display:flex;flex-direction:column;gap:8px}
+.net-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s;font-size:12px}
+.net-item:hover{border-color:var(--neon)}
+.net-item.active{border-color:var(--neon);background:var(--neon-dim)}
+.net-item .chain-id{color:var(--muted);font-size:11px}
+.token-row{display:flex;align-items:center;gap:12px;padding:12px 6px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .12s,border-color .12s;border-left:3px solid transparent}
+.token-row:last-child{border-bottom:none}
+.token-row:hover{background:rgba(255,255,255,.035)}
+.token-row:hover .token-symbol{color:var(--neon)}
+.token-row.selected{border-left-color:var(--neon);background:linear-gradient(90deg,var(--neon-dim),transparent)}
+.token-row.selected .token-symbol{color:var(--neon)}
+.token-info{flex:1;min-width:0}
+.token-symbol{font-size:13px;color:var(--text);transition:color .12s}
+.token-name{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.token-balance{font-size:13px;color:var(--neon);white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+.wc-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.4);border-radius:10px;color:#60a5fa;font-family:inherit;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:border-color .15s;margin-top:10px}
+.wc-btn:hover{border-color:#60a5fa}
+.pattern-wrap{position:relative;width:240px;height:240px;margin:16px auto;user-select:none;touch-action:none}
+.pattern-svg{position:absolute;inset:0;pointer-events:none;z-index:1}
+.pattern-grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:14px;z-index:2}
+.pattern-dot{border-radius:50%;background:rgba(0,0,0,.35);border:2px solid var(--border);display:grid;place-items:center;cursor:pointer;transition:border-color .12s,box-shadow .12s;position:relative}
+.pattern-dot::after{content:'';width:10px;height:10px;border-radius:50%;background:var(--muted);transition:background .12s}
+.pattern-dot.active{border-color:var(--neon);box-shadow:0 0 18px var(--neon-dim)}
+.pattern-dot.active::after{background:var(--neon)}
+.pin-display{display:flex;gap:10px;justify-content:center;margin:20px 0}
+.pin-slot{width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid var(--border);transition:all .12s}
+.pin-slot.filled{background:var(--neon);border-color:var(--neon);box-shadow:0 0 12px var(--neon)}
+.pin-slot.err{background:var(--danger);border-color:var(--danger)}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:280px;margin:0 auto}
+.keypad button{aspect-ratio:1;background:var(--panel);border:1px solid var(--border);border-radius:14px;color:var(--text);font-family:inherit;font-size:18px;cursor:pointer;transition:background .1s;backdrop-filter:blur(14px)}
+.keypad button:hover{border-color:var(--neon);color:var(--neon)}
+.keypad button:active{transform:scale(.95);background:var(--neon-dim)}
+.keypad button.del{color:var(--pink);font-size:14px}
+.keypad button.ok{color:var(--neon);font-size:14px}
+.step-badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:10px;letter-spacing:2px;text-transform:uppercase;background:var(--neon-dim);border:1px solid var(--neon-dim);color:var(--neon);margin-bottom:10px}
+.step-dots{display:flex;gap:6px;justify-content:center;margin-bottom:16px}
+.step-dots span{width:24px;height:3px;border-radius:2px;background:var(--muted);transition:background .15s}
+.step-dots span.on{background:var(--neon);box-shadow:0 0 6px var(--neon)}
+.loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:500;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+.loading-overlay.show{display:flex}
+.loading-overlay p{color:var(--neon);font-size:12px;letter-spacing:2px}
+.loading-overlay .spinner{width:32px;height:32px;border-width:3px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:8px}
+.theme-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.theme-swatch{aspect-ratio:1;border-radius:12px;cursor:pointer;border:2px solid transparent;transition:transform .12s;display:grid;place-items:center;position:relative}
+.theme-swatch:hover{transform:scale(1.05)}
+.theme-swatch.active{border-color:var(--text);box-shadow:0 0 16px var(--neon-dim)}
+.theme-swatch .tick{color:#fff;font-size:18px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.search-box{position:relative}
+.search-box input{padding-left:38px}
+.search-box svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted);pointer-events:none}
+.search-result{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .12s;margin-bottom:8px}
+.search-result:hover{border-color:var(--neon);background:var(--neon-dim)}
+.search-result .sr-info{flex:1;min-width:0}
+.search-result .sr-symbol{font-size:13px;color:var(--text)}
+.search-result .sr-name{font-size:11px;color:var(--muted)}
+.search-result .sr-addr{font-size:10px;color:var(--muted);word-break:break-all}
+.search-empty{color:var(--muted);font-size:12px;text-align:center;padding:20px 0}
+.lang-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;max-height:60vh;overflow-y:auto}
+.lang-item{padding:10px 12px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .12s;font-size:12px;display:flex;align-items:center;gap:8px}
+.lang-item:hover{border-color:var(--neon);background:var(--neon-dim)}
+.lang-item.active{border-color:var(--neon);background:var(--neon-dim);color:var(--neon)}
+.lang-item .flag{font-size:18px}
+.file-pick{display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(0,0,0,.4);border:1px dashed var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s,background .15s}
+.file-pick:hover{border-color:var(--neon);background:rgba(0,0,0,.5)}
+.file-pick input{display:none}
+.file-pick svg{width:22px;height:22px;color:var(--neon);flex-shrink:0}
+.file-pick-info{flex:1;min-width:0}
+.file-pick-title{font-size:12px;color:var(--text);letter-spacing:.5px}
+.file-pick-name{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.file-pick.loaded{border-style:solid;border-color:var(--neon);background:var(--neon-dim)}
+.file-pick.loaded .file-pick-name{color:var(--neon)}
+.ai-modal{max-width:460px;width:100%;height:85vh;max-height:700px;display:flex;flex-direction:column;padding:18px}
+.ai-header{display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.ai-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--neon),var(--cyan));display:grid;place-items:center;color:#08090b;flex-shrink:0}
+.ai-avatar svg{width:22px;height:22px}
+.ai-title{flex:1}
+.ai-title h3{margin:0;font-size:13px;color:var(--neon)}
+.ai-title p{margin:2px 0 0;font-size:10px;color:var(--muted)}
+.ai-chat{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:4px 4px 4px 0}
+.ai-msg{display:flex;gap:8px;max-width:92%}
+.ai-msg.user{align-self:flex-end;flex-direction:row-reverse}
+.ai-msg .bubble{padding:10px 14px;border-radius:14px;font-size:12px;line-height:1.55;word-wrap:break-word}
+.ai-msg.bot .bubble{background:rgba(0,255,170,.06);border:1px solid var(--border);border-top-left-radius:4px}
+.ai-msg.user .bubble{background:var(--neon-dim);border:1px solid var(--neon);border-top-right-radius:4px;color:var(--text)}
+.ai-quick{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0;border-top:1px solid var(--border);margin-top:10px}
+.ai-quick button{padding:6px 10px;border-radius:999px;font-family:inherit;font-size:10px;background:rgba(0,0,0,.4);border:1px solid var(--border);color:var(--text);cursor:pointer;transition:border-color .12s}
+.ai-quick button:hover{border-color:var(--neon);color:var(--neon)}
+.ai-input-row{display:flex;gap:8px;margin-top:8px}
+.ai-input-row input{flex:1}
+.ai-input-row button{width:42px;height:42px;border-radius:10px;cursor:pointer;background:var(--neon);border:none;color:#08090b;font-size:18px;font-weight:700;transition:box-shadow .15s;flex-shrink:0}
+.ai-input-row button:hover{box-shadow:0 0 16px var(--neon)}
+.ai-input-row button:disabled{opacity:.4;cursor:not-allowed}
+.ai-typing{display:inline-flex;gap:3px}
+.ai-typing span{width:5px;height:5px;border-radius:50%;background:var(--neon);animation:aiDot 1.4s infinite}
+.ai-typing span:nth-child(2){animation-delay:.2s}
+.ai-typing span:nth-child(3){animation-delay:.4s}
+@keyframes aiDot{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+.pixel-ai-icon{width:22px;height:22px;display:grid;place-items:center}
+
+/* WALLET TABS */
+.wallet-tabs{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:0}
+.wallet-tabs::-webkit-scrollbar{display:none}
+.wallet-tab{flex-shrink:0;padding:10px 14px 8px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);transition:color .15s,border-color .15s;position:relative;border-bottom:2px solid transparent;text-align:center;white-space:nowrap}
+.wallet-tab:hover{color:var(--text)}
+.wallet-tab.active{color:var(--neon);border-bottom-color:var(--neon);text-shadow:0 0 12px var(--neon-dim)}
+.wallet-tab .role{display:block;font-size:8px;letter-spacing:.5px;opacity:.6;margin-top:2px;font-weight:400}
+.wallet-tab.active .role{opacity:1}
+.wallet-tab.locked .role::after{content:' 🔒'}
+.wallet-tab-add{flex-shrink:0;padding:10px 12px 8px;border:none;background:transparent;cursor:pointer;color:var(--muted);font-size:20px;font-weight:300;transition:color .15s;border-bottom:2px solid transparent;font-family:inherit}
+.wallet-tab-add:hover{color:var(--neon)}
+
+.mode-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:999px;font-size:9px;letter-spacing:1px;font-weight:700;cursor:pointer;transition:transform .12s}
+.mode-badge:active{transform:scale(.95)}
+.mode-badge.cold{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.4)}
+.mode-badge.warm{background:rgba(255,140,0,.15);color:#ff8c00;border:1px solid rgba(255,140,0,.4)}
+
+/* ⋮ MENU */
+.menu-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.menu-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:rgba(0,0,0,.3);cursor:pointer;transition:border-color .15s,background .15s}
+.menu-item:hover{border-color:var(--neon);background:rgba(0,255,170,.05)}
+.menu-item .mi-icon{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:16px;flex-shrink:0;background:rgba(255,255,255,.03);border:1px solid var(--border)}
+.menu-item .mi-body{flex:1;min-width:0}
+.menu-item .mi-title{font-size:12px;color:var(--text);letter-spacing:.5px;font-weight:500}
+.menu-item .mi-desc{font-size:10px;color:var(--muted);margin-top:2px}
+.menu-item .mi-right{font-size:10px;color:var(--neon);letter-spacing:1px;text-transform:uppercase;font-weight:700;flex-shrink:0}
+.menu-item .mi-right.purple{color:#a855f7}
+.menu-item .mi-right.cyan{color:var(--cyan)}
+.menu-item .mi-right.gold{color:var(--gold)}
+.menu-divider{height:1px;background:rgba(255,255,255,.06);margin:6px 4px}
+
+.wl-list{display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:50vh;overflow-y:auto}
+.wl-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:11px;background:rgba(0,0,0,.3)}
+.wl-item .wl-addr{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.wl-item .wl-label{font-size:9px;color:var(--muted);display:block;margin-top:2px}
+.wl-item .wl-del{color:var(--pink);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px}
+.wl-item .wl-del:hover{background:rgba(255,43,214,.15)}
+.wl-item.blocked{border-color:rgba(255,59,107,.4);background:rgba(255,59,107,.08)}
+.wl-item.allowed{border-color:rgba(0,255,170,.3);background:rgba(0,255,170,.05)}
+
+.tier-grid{display:flex;flex-direction:column;gap:12px;margin:14px 0}
+.tier-card{border-radius:12px;padding:16px;position:relative;border:2px solid transparent;cursor:pointer;transition:transform .15s,box-shadow .2s}
+.tier-card:hover{transform:translateY(-2px)}
+.tier-card.basic{background:linear-gradient(135deg,rgba(91,102,114,.15),rgba(91,102,114,.05));border-color:#5b6672}
+.tier-card.standard{background:linear-gradient(135deg,rgba(0,217,255,.15),rgba(0,217,255,.03));border-color:#00d9ff}
+.tier-card.premium{background:linear-gradient(135deg,rgba(168,85,247,.2),rgba(255,43,214,.1));border-color:#a855f7;box-shadow:0 0 24px rgba(168,85,247,.2)}
+.tier-card .tier-name{font-size:14px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:4px}
+.tier-card.basic .tier-name{color:#5b6672}
+.tier-card.standard .tier-name{color:#00d9ff}
+.tier-card.premium .tier-name{color:#a855f7}
+.tier-card .tier-price{font-size:11px;color:var(--muted);margin-bottom:10px}
+.tier-card ul{list-style:none;font-size:11px;line-height:1.7;color:var(--text)}
+.tier-card li{padding-left:16px;position:relative}
+.tier-card li::before{content:'▸';position:absolute;left:0;color:var(--neon)}
+.tier-card.current::after{content:'✓ АКТИВЕН';position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:1px;color:var(--neon)}
+
+.session-item{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:11px;margin-bottom:8px}
+.session-item .s-ip{flex:1;font-family:inherit}
+.session-item .s-meta{font-size:9px;color:var(--muted);margin-top:3px}
+.session-item.current{border-color:var(--neon);background:var(--neon-dim)}
+.session-item .s-badge{font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(0,255,170,.15);color:var(--neon)}
+.session-item .s-close{color:var(--pink);cursor:pointer;padding:4px 8px;border-radius:6px;font-size:12px}
+.session-item .s-close:hover{background:rgba(255,43,214,.15)}
+
+.warn-shield{display:flex;align-items:flex-start;gap:12px;padding:14px;background:linear-gradient(135deg,rgba(255,59,107,.12),rgba(255,59,107,.04));border:1px solid rgba(255,59,107,.4);border-radius:10px;margin-bottom:12px}
+.warn-shield .ws-icon{font-size:28px;line-height:1}
+.warn-shield .ws-body{flex:1;font-size:11px;line-height:1.6;color:#ff8fa8}
+.warn-shield .ws-body b{color:#ff3b6b;font-size:13px;display:block;margin-bottom:4px}
+.warn-shield.safe{background:linear-gradient(135deg,rgba(0,255,170,.12),rgba(0,255,170,.04));border-color:rgba(0,255,170,.4)}
+.warn-shield.safe .ws-body{color:#8affd4}
+.warn-shield.safe .ws-body b{color:var(--neon)}
+.warn-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.warn-actions button{padding:10px 6px;border-radius:10px;font-family:inherit;font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;background:rgba(0,0,0,.4);border:1px solid var(--border);color:var(--text)}
+.warn-actions button:hover{transform:translateY(-1px)}
+.warn-actions button.allow{border-color:var(--neon);color:var(--neon)}
+.warn-actions button.allow:hover{background:var(--neon-dim)}
+.warn-actions button.block{border-color:#ff3b6b;color:#ff3b6b}
+.warn-actions button.block:hover{background:rgba(255,59,107,.15)}
+.warn-actions button.ignore{border-color:var(--muted);color:var(--muted)}
+
+/* UPGRADE BUTTON — SVG */
+.upgrade-btn{position:relative;width:34px;height:34px;border-radius:9px;flex-shrink:0;background:linear-gradient(135deg,rgba(168,85,247,.18),rgba(255,43,214,.08));border:1px solid rgba(168,85,247,.5);color:#c084fc;cursor:pointer;display:grid;place-items:center;transition:all .2s;box-shadow:0 0 0 rgba(168,85,247,0)}
+.upgrade-btn:hover{border-color:#c084fc;color:#fff;box-shadow:0 0 20px rgba(168,85,247,.4);transform:translateY(-1px)}
+.upgrade-btn:active{transform:scale(.94)}
+.upgrade-btn svg{width:16px;height:16px;transition:transform .3s}
+.upgrade-btn:hover svg{transform:rotate(72deg)}
+.upgrade-btn::after{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#ff2bd6);box-shadow:0 0 6px rgba(168,85,247,.8);animation:upgPulse 2s ease-in-out infinite}
+@keyframes upgPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.3);opacity:.7}}
+
+/* UNIFIED CONFIRM MODAL */
+.confirm-box{background:#0e1014;border:1px solid var(--border);border-radius:var(--radius);padding:22px;max-width:360px;width:100%;box-shadow:0 0 40px var(--neon-dim);animation:cfmIn .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes cfmIn{from{transform:translateY(12px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+.confirm-box h3{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--neon);margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.confirm-box .cfm-icon{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex-shrink:0;background:rgba(0,255,170,.08);border:1px solid rgba(0,255,170,.3);color:var(--neon)}
+.confirm-box .cfm-icon.warn{background:rgba(255,140,0,.1);border-color:rgba(255,140,0,.35);color:#ff8c00}
+.confirm-box .cfm-icon.danger{background:rgba(255,59,107,.1);border-color:rgba(255,59,107,.35);color:var(--danger)}
+.confirm-box .cfm-icon.gold{background:rgba(255,212,0,.1);border-color:rgba(255,212,0,.35);color:var(--gold)}
+.confirm-box .cfm-icon svg{width:16px;height:16px}
+.confirm-box p{font-size:12px;color:var(--muted);line-height:1.65;margin-bottom:6px}
+.confirm-box .cfm-mono{font-family:inherit;font-size:10px;color:var(--text);letter-spacing:.5px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:10px;word-break:break-all;white-space:pre-wrap}
+.confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.confirm-actions.single{grid-template-columns:1fr}
+.confirm-actions button{padding:12px;border-radius:10px;font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;transition:all .15s;background:transparent;border:1px solid var(--border);color:var(--muted)}
+.confirm-actions button:hover{color:var(--text);border-color:var(--muted)}
+.confirm-actions button.ok{background:linear-gradient(180deg,var(--neon-dim),transparent);border-color:var(--neon);color:var(--neon)}
+.confirm-actions button.ok:hover{box-shadow:0 0 24px var(--neon-dim)}
+.confirm-actions button.ok.danger{background:linear-gradient(180deg,rgba(255,59,107,.18),transparent);border-color:var(--danger);color:var(--danger)}
+.confirm-actions button.ok.danger:hover{box-shadow:0 0 24px rgba(255,59,107,.3)}
+.confirm-actions button.ok.gold{background:linear-gradient(180deg,rgba(255,212,0,.18),transparent);border-color:var(--gold);color:var(--gold)}
+.confirm-actions button.ok.gold:hover{box-shadow:0 0 24px rgba(255,212,0,.25)}
+
+@media (max-width:640px){
+.panel,.modal,.btn,.net-pill,.keypad button{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(18,20,24,.92)}
+.modal{background:#0e1014}
+body::after{display:none}
+.coin-icon>img,.coin-icon>.fallback{animation-duration:3.2s}
+.app{padding:16px 14px 32px;gap:14px}
+.panel{padding:16px}
+.logo{font-size:13px;letter-spacing:2px}
+.net-pill{font-size:11px;padding:5px 9px}
+.actions{gap:6px}
+.btn{font-size:9px;padding:10px 4px}
+.btn svg{width:14px;height:14px}
+.balance-value{gap:4px}
+.balance-row{gap:8px}
+.coin-icon{width:48px;height:48px}
+.coin-icon.sm{width:34px;height:34px}
+.addr-row{gap:6px}
+.icon-btn{width:32px;height:32px}
+#balance-num,#sym{text-shadow:none}
+.wallet-tab{padding:8px 10px 6px;font-size:10px}
+}
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loading-overlay"><div class="spinner"></div><p id="loading-text">ИНИЦИАЛИЗАЦИЯ...</p></div>
+<div class="app">
+
+<div class="view active" id="view-onboard">
+  <div class="topbar"><div class="logo">CLANDAI</div><div class="topbar-actions"><button class="icon-btn" id="btn-lang-top" title="Language"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button></div></div>
+  <div class="hero"><h1>КИБЕР-КОШЕЛЁК</h1><p>23 сети · ERC-20 · WalletConnect<br>XOR-split seed · Web Worker · Argon2id</p></div>
+  <div class="panel">
+    <button class="btn-full" id="btn-create">Создать кошелёк</button>
+    <button class="btn-full btn-ghost" id="btn-import">Импорт seed-фразы</button>
+    <button class="btn-full btn-ghost" id="btn-restore">Восстановить из файла</button>
+    <button class="wc-btn" id="btn-walletconnect"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>WalletConnect</button>
+  </div>
+</div>
+
+<div class="view" id="view-seed">
+  <div class="topbar"><div class="logo">CLANDAI</div></div>
+  <div class="panel"><div class="section-title">ВАША SEED-ФРАЗА</div><div class="warn">⚠ Запишите эти 12 слов на бумаге. Любой, кто их получит, украдёт все средства.</div><div class="seed-grid" id="seed-grid"></div><button class="btn-full" id="btn-seed-next">Я записал(а) — дальше</button><button class="btn-full btn-ghost" id="btn-seed-back">Назад</button></div>
+</div>
+
+<div class="view" id="view-reg-q">
+  <div class="topbar"><div class="logo">CLANDAI</div></div>
+  <div class="panel"><div class="step-dots"><span class="on"></span><span></span><span></span><span></span></div><span class="step-badge">ШАГ 1 ИЗ 4</span><div class="section-title">ТРИ ВОПРОСА</div><div class="info">Ответы нужны для расшифровки бэкапа. В файл они не пишутся.</div><div id="q-fields"></div><button class="btn-full" id="btn-reg-q-next">Далее</button></div>
+</div>
+
+<div class="view" id="view-reg-pat">
+  <div class="topbar"><div class="logo">CLANDAI</div></div>
+  <div class="panel"><div class="step-dots"><span class="on"></span><span class="on"></span><span></span><span></span></div><span class="step-badge">ШАГ 2 ИЗ 4</span><div class="section-title">ГРАФИЧЕСКИЙ ПАРОЛЬ</div><div class="info">Соедините минимум 4 точки.</div><div class="pattern-wrap" id="pattern-reg"><svg class="pattern-svg"></svg><div class="pattern-grid"><div class="pattern-dot" data-i="0"></div><div class="pattern-dot" data-i="1"></div><div class="pattern-dot" data-i="2"></div><div class="pattern-dot" data-i="3"></div><div class="pattern-dot" data-i="4"></div><div class="pattern-dot" data-i="5"></div><div class="pattern-dot" data-i="6"></div><div class="pattern-dot" data-i="7"></div><div class="pattern-dot" data-i="8"></div></div></div><div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:12px;">Выбрано точек: <span id="pat-count">0</span></div><button class="btn-full" id="btn-reg-pat-next">Далее</button><button class="btn-full btn-ghost" id="btn-reg-pat-back">Назад</button></div>
+</div>
+
+<div class="view" id="view-reg-pass">
+  <div class="topbar"><div class="logo">CLANDAI</div></div>
+  <div class="panel"><div class="step-dots"><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div><span class="step-badge">ШАГ 3 ИЗ 4 · BIP39</span><div class="section-title">PASSPHRASE (4-Й ФАКТОР)</div><div class="warn">⚠ Passphrase <b>не хранится</b> ни в файле, ни в localStorage. Только флаг «был указан». Забыли — потеряете доступ к средствам.</div><div class="field"><label>Passphrase (мин. 8 символов)</label><input type="password" id="reg-passphrase" placeholder="Оставьте пустым, если не нужно" autocomplete="new-password" /></div><div class="field"><label>Повторите Passphrase</label><input type="password" id="reg-passphrase2" placeholder="Повторите" autocomplete="new-password" /></div><button class="btn-full" id="btn-reg-pass-go">Продолжить с passphrase</button><button class="btn-full btn-ghost" id="btn-reg-pass-skip">Пропустить (без passphrase)</button><button class="btn-full btn-ghost" id="btn-reg-pass-back">← Назад к паттерну</button></div>
+</div>
+
+<div class="view" id="view-reg-pin">
+  <div class="topbar"><div class="logo">CLANDAI</div></div>
+  <div class="panel"><div class="step-dots"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div><span class="step-badge">ШАГ 4 ИЗ 4</span><div class="section-title" id="reg-pin-title">ПРИДУМАЙТЕ 9-ЗНАЧНЫЙ PIN</div><div class="info" id="reg-pin-info">Этот PIN запрашивается при входе.</div><div class="pin-display" id="reg-pin-display"></div><div class="keypad" id="reg-keypad"><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button data-k="del" class="del">⌫</button><button data-k="0">0</button><button data-k="ok" class="ok">→</button></div><button class="btn-full btn-ghost" id="btn-reg-pin-back" style="margin-top:16px;">Назад</button></div>
+</div>
+
+<div class="view" id="view-reg-done">
+  <div class="topbar"><div class="logo">CLANDAI</div></div>
+  <div class="panel"><div class="section-title">КОШЕЛЁК ГОТОВ</div><div class="warn">⚠ Seed разбит на <b>2 shares</b> (XOR). Скачайте <b>ОБА</b> файла. Каждый в отдельном месте. Только вместе они дадут доступ.</div><div class="field"><label>АДРЕС КОШЕЛЬКА</label><input id="reg-done-addr" readonly /></div><button class="btn-full" id="btn-download-backup">⬇ Скачать оба share-файла</button><div style="text-align:center;font-size:11px;color:var(--muted);margin-top:10px;"><div id="reg-done-file-1">clandai-share1-....json</div><div id="reg-done-file-2">clandai-share2-....json</div></div><button class="btn-full btn-ghost" id="btn-reg-done-continue">Войти в кошелёк</button></div>
+</div>
+
+<div class="view" id="view-unlock">
+  <div class="topbar"><div class="logo">CLANDAI</div><div class="topbar-actions"><button class="icon-btn" id="btn-lang-unlock" title="Language"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button></div></div>
+  <div class="hero"><h1>🔒 PIN</h1><p>Введите 9-значный код</p></div>
+  <div class="panel"><div class="pin-display" id="unlock-pin-display"></div><div class="keypad" id="unlock-keypad"><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button data-k="del" class="del">⌫</button><button data-k="0">0</button><button data-k="ok" class="ok">→</button></div><button class="btn-full btn-ghost" id="btn-unlock-restore">Восстановить из файлов</button><button class="btn-full btn-ghost" id="btn-wipe">Сбросить кошелёк</button></div>
+</div>
+
+<div class="view" id="view-wallet">
+  <div class="topbar">
+    <div class="logo">CLANDAI</div>
+    <div class="topbar-actions">
+      <button class="upgrade-btn" id="btn-upgrade-top" title="Upgrade Wallet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      </button>
+      <div class="net-pill" id="net-pill"><span class="dot"></span><span id="net-name">Ethereum</span></div>
+      <button class="icon-btn" id="btn-menu" title="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+      <button class="icon-btn" id="btn-lock" title="Lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+      <button class="icon-btn" id="btn-lang-wallet" title="Language"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button>
+    </div>
+  </div>
+
+  <div class="wallet-tabs" id="wallet-tabs"></div>
+
+  <div class="panel">
+    <div class="balance-label" id="balance-label">БАЛАНС</div>
+    <div class="balance-row">
+      <div class="balance-value"><span id="balance-num" title="Нажмите">0.0000</span><span id="sym">ETH</span></div>
+      <div class="coin-icon" id="balance-coin"><span class="fallback">ETH</span></div>
+    </div>
+    <div class="balance-meta" id="balance-meta">≈ $0.00 <span class="sep">·</span> <span class="qs-inline"><span>⚛</span><span class="num" id="qs-inline-num">0</span><span>QS</span></span></div>
+    <div class="addr-row">
+      <div class="addr" id="addr">0x0000...0000</div>
+      <button class="icon-btn" id="btn-privkey" title="Private key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5L21 2M15 6l3 3M18 4l2 2"/></svg></button>
+      <button class="icon-btn" id="btn-theme" title="Theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button>
+      <button class="icon-btn" id="btn-refresh" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn primary" id="act-send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg><span>Send</span></button>
+    <button class="btn" id="act-receive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg><span>Receive</span></button>
+    <button class="btn ai-btn" id="act-ai"><svg class="pixel-ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><line x1="9" y1="3" x2="9" y2="6"/><line x1="15" y1="3" x2="15" y2="6"/><rect x="8.5" y="2" width="1" height="1" fill="currentColor"/><rect x="14.5" y="2" width="1" height="1" fill="currentColor"/><rect x="4" y="6" width="16" height="14" rx="1"/><rect x="8" y="10" width="2" height="2" fill="currentColor" stroke="none"/><rect x="14" y="10" width="2" height="2" fill="currentColor" stroke="none"/><line x1="9" y1="15" x2="15" y2="15"/></svg><span>AI</span></button>
+    <button class="btn" id="act-backup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Backup</span></button>
+  </div>
+
+  <div class="panel">
+    <div class="section-title"><span>ТОКЕНЫ</span> <span class="link" id="link-search-token">Поиск</span></div>
+    <div id="token-list"><div class="empty">Загрузка...</div></div>
+  </div>
+  <div class="panel">
+    <div class="section-title"><span>ИСТОРИЯ</span> <span class="link" id="link-explorer">Explorer ↗</span></div>
+    <div id="tx-list"><div class="empty">Пока нет транзакций</div></div>
+  </div>
+</div>
+
+<div class="view" id="view-restore">
+  <div class="topbar"><div class="logo">CLANDAI</div></div>
+  <div class="panel">
+    <div class="section-title">ВОССТАНОВЛЕНИЕ ИЗ 2 SHARES</div>
+    <div class="info">Нужны <b>оба</b> файла-шары + ответы + паттерн + PIN. Если использовалась passphrase — спросим отдельно.</div>
+    <div class="field"><label>SHARE 1 ИЗ 2</label><label class="file-pick" id="restore-file-pick-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div class="file-pick-info"><div class="file-pick-title">Выбрать файл #1</div><div class="file-pick-name" id="restore-file-name-1">Файл не выбран</div></div><input type="file" id="restore-file-1" accept=".json,application/json" /></label></div>
+    <div class="field"><label>SHARE 2 ИЗ 2</label><label class="file-pick" id="restore-file-pick-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div class="file-pick-info"><div class="file-pick-title">Выбрать файл #2</div><div class="file-pick-name" id="restore-file-name-2">Файл не выбран</div></div><input type="file" id="restore-file-2" accept=".json,application/json" /></label></div>
+    <div id="restore-q-fields"></div>
+    <div id="restore-pattern-wrap" style="display:none;"><label style="display:block;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin:14px 0 7px;">ПАТТЕРН</label><div class="pattern-wrap" id="pattern-restore" style="width:200px;height:200px;"><svg class="pattern-svg"></svg><div class="pattern-grid"><div class="pattern-dot" data-i="0"></div><div class="pattern-dot" data-i="1"></div><div class="pattern-dot" data-i="2"></div><div class="pattern-dot" data-i="3"></div><div class="pattern-dot" data-i="4"></div><div class="pattern-dot" data-i="5"></div><div class="pattern-dot" data-i="6"></div><div class="pattern-dot" data-i="7"></div><div class="pattern-dot" data-i="8"></div></div></div></div>
+    <div id="restore-pin-wrap" style="display:none;"><label style="display:block;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin:14px 0 7px;">9-ЗНАЧНЫЙ PIN</label><input type="password" id="restore-pin" maxlength="9" inputmode="numeric" placeholder="•••••••••" style="text-align:center;letter-spacing:8px;font-size:18px;" /></div>
+    <button class="btn-full" id="btn-restore-go" style="margin-top:16px;">Восстановить</button>
+    <button class="btn-full btn-ghost" id="btn-restore-back">Назад</button>
+  </div>
+</div>
+</div>
+
+<div class="modal-bg" id="modal-backup"><div class="modal"><h3>Показать seed из бэкапа</h3><p>Загрузите <b>оба</b> share-файла, введите ответы, паттерн и PIN.</p>
+<div class="field"><label>SHARE 1</label><label class="file-pick" id="backup-file-pick-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div class="file-pick-info"><div class="file-pick-title">Файл #1</div><div class="file-pick-name" id="backup-file-name-1">Не выбран</div></div><input type="file" id="backup-load-file-1" accept=".json,application/json" /></label></div>
+<div class="field"><label>SHARE 2</label><label class="file-pick" id="backup-file-pick-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div class="file-pick-info"><div class="file-pick-title">Файл #2</div><div class="file-pick-name" id="backup-file-name-2">Не выбран</div></div><input type="file" id="backup-load-file-2" accept=".json,application/json" /></label></div>
+<div id="backup-q-fields"></div>
+<div id="backup-pattern-wrap" style="display:none;"><label style="display:block;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin:14px 0 7px;">ПАТТЕРН</label><div class="pattern-wrap" id="pattern-backup" style="width:200px;height:200px;"><svg class="pattern-svg"></svg><div class="pattern-grid"><div class="pattern-dot" data-i="0"></div><div class="pattern-dot" data-i="1"></div><div class="pattern-dot" data-i="2"></div><div class="pattern-dot" data-i="3"></div><div class="pattern-dot" data-i="4"></div><div class="pattern-dot" data-i="5"></div><div class="pattern-dot" data-i="6"></div><div class="pattern-dot" data-i="7"></div><div class="pattern-dot" data-i="8"></div></div></div></div>
+<div id="backup-pin-wrap" style="display:none;"><div class="field"><label>9-ЗНАЧНЫЙ PIN</label><input type="password" id="backup-pin" maxlength="9" inputmode="numeric" placeholder="•••••••••" style="text-align:center;letter-spacing:8px;font-size:16px;" /></div></div>
+<button class="btn-full" id="backup-decrypt" style="display:none;">🔓 Расшифровать и показать seed</button>
+<div id="backup-seed-wrap" style="display:none;"><div class="warn">⚠ ВАША SEED-ФРАЗА. Никому не показывайте.</div><div class="seed-grid" id="backup-seed-grid"></div></div>
+<button class="btn-full btn-ghost" id="backup-close">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-passphrase"><div class="modal"><h3>BIP39 PASSPHRASE</h3><p>Этот кошелёк защищён passphrase. Введите его для продолжения.</p><div class="field"><label>Passphrase</label><input type="password" id="unlock-passphrase-input" autocomplete="off" /></div><button class="btn-full" id="passphrase-go">Продолжить</button><button class="btn-full btn-ghost" id="passphrase-cancel">Отмена</button></div></div>
+
+<div class="modal-bg" id="modal-lang"><div class="modal"><h3>Язык</h3><div class="lang-list" id="lang-list"></div><button class="btn-full btn-ghost" id="lang-close" style="margin-top:16px;">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-theme"><div class="modal"><h3>Цветовая тема</h3><p>Выберите акцентный цвет.</p><div class="theme-grid" id="theme-grid"></div><button class="btn-full btn-ghost" id="theme-close">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-search-token"><div class="modal"><h3>Поиск токена</h3><div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input id="search-token-input" placeholder="Contract / symbol / name" /></div><div id="search-results" style="margin-top:14px;"></div><button class="btn-full btn-ghost" id="search-cancel">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-send"><div class="modal"><h3>Отправить</h3><div class="field"><label>АКТИВ</label><select id="send-asset"><option value="native">—</option></select></div><div class="field"><label>АДРЕС ПОЛУЧАТЕЛЯ</label><input id="send-to" placeholder="0x..." /></div><div class="field"><label>СУММА</label><input id="send-amt" type="number" step="0.0001" placeholder="0.0" /></div><div class="field"><label>PIN</label><input id="send-pass" type="password" maxlength="9" inputmode="numeric" placeholder="•••••••••" /></div><button class="btn-full" id="send-go">Подписать и отправить</button><button class="btn-full btn-ghost" id="send-cancel">Отмена</button></div></div>
+
+<div class="modal-bg" id="modal-receive"><div class="modal"><h3>Получить</h3><p>Отправьте средства на адрес в сети <b id="rec-net">Ethereum</b>:</p><div style="word-break:break-all;font-size:12px;color:var(--neon);padding:12px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;" id="rec-addr"></div><button class="btn-full" id="rec-copy">Скопировать адрес</button><button class="btn-full btn-ghost" id="rec-close">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-privkey"><div class="modal"><h3>Приватный ключ</h3><p id="privkey-net-info">Приватный ключ для текущей сети.</p><div class="warn">⚠ Никому не показывайте.</div><div class="field"><label>PIN</label><input id="pk-pass" type="password" maxlength="9" inputmode="numeric" placeholder="•••••••••" /></div><button class="btn-full" id="pk-show">Показать</button><div id="pk-out" style="word-break:break-all;font-size:11px;color:var(--pink);margin-top:12px;display:none;padding:12px;background:rgba(0,0,0,.5);border:1px solid rgba(255,43,214,.3);border-radius:10px;"></div><button class="btn-full btn-ghost" id="pk-close">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-net"><div class="modal"><h3>Сеть</h3><div class="net-list" id="net-list"></div><button class="btn-full btn-ghost" id="net-close" style="margin-top:14px;">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-wc"><div class="modal"><h3>WalletConnect</h3><p style="margin-bottom:18px;">Подключитесь через QR-код.</p><p id="wc-status" style="font-size:11px;color:var(--muted);text-align:center;">Ожидание...</p><button class="btn-full btn-ghost" id="wc-close" style="margin-top:16px;">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-ai"><div class="modal ai-modal"><div class="ai-header"><div class="ai-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><line x1="9" y1="3" x2="9" y2="6"/><line x1="15" y1="3" x2="15" y2="6"/><rect x="8.5" y="2" width="1" height="1" fill="currentColor"/><rect x="14.5" y="2" width="1" height="1" fill="currentColor"/><rect x="4" y="6" width="16" height="14" rx="1"/><rect x="8" y="10" width="2" height="2" fill="currentColor" stroke="none"/><rect x="14" y="10" width="2" height="2" fill="currentColor" stroke="none"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div><div class="ai-title"><h3>AI-АССИСТЕНТ</h3><p>онлайн · мгновенные ответы</p></div><button class="icon-btn" id="ai-close" style="width:30px;height:30px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div><div class="ai-chat" id="ai-chat"></div><div class="ai-quick" id="ai-quick"></div><div class="ai-input-row"><input id="ai-input" placeholder="Задайте вопрос..." /><button id="ai-send">→</button></div></div></div>
+
+<div class="modal-bg" id="modal-menu">
+  <div class="modal" style="max-width:420px">
+    <h3>Меню</h3>
+    <div class="menu-list">
+      <div class="menu-item" id="mi-mode">
+        <div class="mi-icon" id="mi-mode-icon">❄️</div>
+        <div class="mi-body"><div class="mi-title">Формат кошелька</div><div class="mi-desc">Cold требует 3 фактора для HOT2</div></div>
+        <div class="mi-right" id="mi-mode-val">COLD</div>
+      </div>
+      <div class="menu-item" id="mi-quantum">
+        <div class="mi-icon" id="mi-quantum-icon">⚡</div>
+        <div class="mi-body"><div class="mi-title">Тип подписи</div><div class="mi-desc">Classical ECDSA / Quantum-resistant</div></div>
+        <div class="mi-right purple" id="mi-quantum-val">CS · 0 QS</div>
+      </div>
+      <div class="menu-divider"></div>
+      <div class="menu-item" id="mi-whitelist">
+        <div class="mi-icon">🛡️</div>
+        <div class="mi-body"><div class="mi-title">Whitelist</div><div class="mi-desc">Доверенные адреса</div></div>
+        <div class="mi-right cyan" id="mi-wl-count">0</div>
+      </div>
+      <div class="menu-item" id="mi-blocklist">
+        <div class="mi-icon">🚫</div>
+        <div class="mi-body"><div class="mi-title">Blocklist</div><div class="mi-desc">Запрещённые адреса</div></div>
+        <div class="mi-right cyan" id="mi-bl-count">0</div>
+      </div>
+      <div class="menu-item" id="mi-sessions">
+        <div class="mi-icon">🖥️</div>
+        <div class="mi-body"><div class="mi-title">Активные сессии</div><div class="mi-desc">Устройства и IP</div></div>
+        <div class="mi-right cyan" id="mi-sess-count">0</div>
+      </div>
+      <div class="menu-item" id="mi-subs">
+        <div class="mi-icon">⭐</div>
+        <div class="mi-body"><div class="mi-title">Мои крипто-подписки</div><div class="mi-desc">Контракты и сервисы</div></div>
+        <div class="mi-right gold">→</div>
+      </div>
+    </div>
+    <button class="btn-full btn-ghost" id="menu-close" style="margin-top:14px;">Закрыть</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-upgrade"><div class="modal" style="max-width:440px"><h3>⭐ UPGRADE WALLET</h3><p>Выберите тариф. Оплата — в крипте, подписка хранится на смарт-контракте.</p><div class="tier-grid" id="tier-grid"></div><button class="btn-full btn-ghost" id="upgrade-close">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-whitelist"><div class="modal"><h3>🛡️ Whitelist</h3><p>Адреса, которым вы доверяете. Отправка на них — без предупреждений.</p><div class="field"><label>Адрес</label><input id="wl-input-addr" placeholder="0x..." /></div><div class="field"><label>Метка (необязательно)</label><input id="wl-input-label" placeholder="Например: Binance" /></div><button class="btn-full" id="wl-add">Добавить в whitelist</button><div class="wl-list" id="wl-list"></div><button class="btn-full btn-ghost" id="wl-close">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-blocklist"><div class="modal"><h3>🚫 Blocklist</h3><p>Адреса, с которыми вы НИКОГДА не хотите взаимодействовать.</p><div class="field"><label>Адрес</label><input id="bl-input-addr" placeholder="0x..." /></div><div class="field"><label>Метка (необязательно)</label><input id="bl-input-label" placeholder="Например: Scam" /></div><button class="btn-full" id="bl-add">Добавить в blocklist</button><div class="wl-list" id="bl-list"></div><button class="btn-full btn-ghost" id="bl-close">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-sessions"><div class="modal"><h3>🖥️ Активные сессии</h3><p>Устройства, с которых открыт кошелёк. IP определяется по публичному API.</p><div id="sessions-list"></div><button class="btn-full btn-ghost" id="sessions-close">Закрыть</button></div></div>
+
+<div class="modal-bg" id="modal-contract-warn"><div class="modal"><div id="cw-icon-wrap"></div><div id="cw-body"></div><div class="warn-actions" id="cw-actions"></div></div></div>
+
+<div class="modal-bg" id="modal-hot2-unlock"><div class="modal"><h3>🔒 Разблокировка HOT WALLET 2</h3><p>Введите все 3 фактора, чтобы получить доступ к резервному кошельку.</p><div id="hot2-q-fields"></div><div id="hot2-pattern-wrap" style="display:none;"><label style="display:block;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin:14px 0 7px;">Графический пароль</label><div class="pattern-wrap" id="pattern-hot2" style="width:180px;height:180px;"><svg class="pattern-svg"></svg><div class="pattern-grid"><div class="pattern-dot" data-i="0"></div><div class="pattern-dot" data-i="1"></div><div class="pattern-dot" data-i="2"></div><div class="pattern-dot" data-i="3"></div><div class="pattern-dot" data-i="4"></div><div class="pattern-dot" data-i="5"></div><div class="pattern-dot" data-i="6"></div><div class="pattern-dot" data-i="7"></div><div class="pattern-dot" data-i="8"></div></div></div></div><div id="hot2-pin-wrap" style="display:none;"><div class="field"><label>9-значный PIN</label><input type="password" id="hot2-pin" maxlength="9" inputmode="numeric" style="text-align:center;letter-spacing:8px" /></div></div><button class="btn-full" id="hot2-unlock-go">Разблокировать</button><button class="btn-full btn-ghost" id="hot2-close">Отмена</button></div></div>
+
+<div class="modal-bg" id="modal-confirm">
+  <div class="confirm-box" id="confirm-box"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==================== CLANDAI WALLET v9.3 ==================== */
+const WC_PROJECT_ID='ccb68ff2e8f71ef889bf9cbf5ebb3353';
+const ALCHEMY_KEY='alch_xcv-MNdn2s2rdAH-zQoWO';
+const ARGON2_OPTS={time:3,mem:65536,hashLen:32,parallelism:1};
+const CONTRACTS={SUBSCRIPTION:'0x0000000000000000000000000000000000000001',MULTISIG:'0x0000000000000000000000000000000000000002',REGISTRY:'0x0000000000000000000000000000000000000003'};
+
+class SecureBuffer{constructor(i){this.data=typeof i==='number'?new Uint8Array(i):(i instanceof Uint8Array?i:new Uint8Array(i));this._w=false;}wipe(){if(!this._w){this.data.fill(0);this._w=true;}}[Symbol.dispose](){this.wipe();}}
+function withSecure(d,fn){const b=new SecureBuffer(d);try{return fn(b.data);}finally{b.wipe();}}
+
+const LANG_LIST=[{code:'en',name:'English',flag:'🇬🇧'},{code:'ru',name:'Русский',flag:'🇷🇺'},{code:'zh',name:'中文',flag:'🇨🇳'},{code:'es',name:'Español',flag:'🇪🇸'},{code:'fr',name:'Français',flag:'🇫🇷'},{code:'de',name:'Deutsch',flag:'🇩🇪'},{code:'pt',name:'Português',flag:'🇵🇹'},{code:'tr',name:'Türkçe',flag:'🇹🇷'},{code:'ar',name:'العربية',flag:'🇸🇦'},{code:'hi',name:'हिन्दी',flag:'🇮🇳'},{code:'ja',name:'日本語',flag:'🇯🇵'},{code:'ko',name:'한국어',flag:'🇰🇷'}];
+const I18N={en:{loading:'INITIALIZING...',create:'Create wallet',import:'Import seed',restore:'Restore',back:'Back',next:'Next',balance:'BALANCE'},ru:{loading:'ИНИЦИАЛИЗАЦИЯ...',create:'Создать кошелёк',import:'Импорт seed',restore:'Восстановить',back:'Назад',next:'Далее',balance:'БАЛАНС'},zh:{loading:'初始化...',create:'创建钱包',balance:'余额'}};
+
+const NETWORKS={
+  ethereum:{name:'Ethereum',chainId:1,symbol:'ETH',twChain:'ethereum',standard:'ERC-20',explorer:'https://etherscan.io',coingecko:'ethereum',rpcs:[`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,'https://eth.llamarpc.com','https://rpc.ankr.com/eth','https://ethereum.publicnode.com']},
+  polygon:{name:'Polygon',chainId:137,symbol:'POL',twChain:'polygon',standard:'ERC-20 (Polygon)',explorer:'https://polygonscan.com',coingecko:'matic-network',rpcs:[`https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,'https://polygon-rpc.com','https://polygon.llamarpc.com','https://polygon-bor.publicnode.com']},
+  bsc:{name:'BNB Chain',chainId:56,symbol:'BNB',twChain:'smartchain',standard:'BEP-20',explorer:'https://bscscan.com',coingecko:'binancecoin',rpcs:['https://bsc-dataseed.bnbchain.org','https://bsc.publicnode.com','https://binance.llamarpc.com']},
+  arbitrum:{name:'Arbitrum',chainId:42161,symbol:'ETH',twChain:'arbitrum',standard:'ERC-20 (Arbitrum)',explorer:'https://arbiscan.io',coingecko:'ethereum',rpcs:['https://arb1.arbitrum.io/rpc','https://arbitrum.llamarpc.com','https://arbitrum-one.publicnode.com']},
+  optimism:{name:'Optimism',chainId:10,symbol:'ETH',twChain:'optimism',standard:'ERC-20 (Optimism)',explorer:'https://optimistic.etherscan.io',coingecko:'ethereum',rpcs:['https://mainnet.optimism.io','https://optimism.llamarpc.com','https://optimism.publicnode.com']},
+  base:{name:'Base',chainId:8453,symbol:'ETH',twChain:'base',standard:'ERC-20 (Base)',explorer:'https://basescan.org',coingecko:'ethereum',rpcs:['https://mainnet.base.org','https://base.llamarpc.com','https://base.publicnode.com']},
+  avalanche:{name:'Avalanche',chainId:43114,symbol:'AVAX',twChain:'avalanchec',standard:'ARC-20 / ERC-20',explorer:'https://snowtrace.io',coingecko:'avalanche-2',rpcs:['https://api.avax.network/ext/bc/C/rpc','https://avalanche-c-chain.publicnode.com']},
+  fantom:{name:'Fantom',chainId:250,symbol:'FTM',twChain:'fantom',standard:'FRC-20 / ERC-20',explorer:'https://ftmscan.com',coingecko:'fantom',rpcs:['https://rpc.ftm.tools','https://fantom.publicnode.com']},
+  gnosis:{name:'Gnosis',chainId:100,symbol:'XDAI',twChain:'xdai',standard:'ERC-20',explorer:'https://gnosisscan.io',coingecko:'xdai',rpcs:['https://rpc.gnosischain.com','https://gnosis.publicnode.com']},
+  celo:{name:'Celo',chainId:42220,symbol:'CELO',twChain:'celo',standard:'ERC-20 (Celo)',explorer:'https://celoscan.io',coingecko:'celo',rpcs:['https://forno.celo.org','https://celo.publicnode.com']},
+  cronos:{name:'Cronos',chainId:25,symbol:'CRO',twChain:'cronos',standard:'CRC-20',explorer:'https://cronoscan.com',coingecko:'crypto-com-chain',rpcs:['https://evm.cronos.org','https://cronos.publicnode.com']},
+  linea:{name:'Linea',chainId:59144,symbol:'ETH',twChain:'linea',standard:'ERC-20 (Linea)',explorer:'https://lineascan.build',coingecko:'ethereum',rpcs:['https://rpc.linea.build','https://linea.publicnode.com']},
+  mantle:{name:'Mantle',chainId:5000,symbol:'MNT',twChain:'mantle',standard:'ERC-20 (Mantle)',explorer:'https://explorer.mantle.xyz',coingecko:'mantle',rpcs:['https://rpc.mantle.xyz','https://mantle.publicnode.com']},
+  scroll:{name:'Scroll',chainId:534352,symbol:'ETH',twChain:'scroll',standard:'ERC-20 (Scroll)',explorer:'https://scrollscan.com',coingecko:'ethereum',rpcs:['https://rpc.scroll.io','https://scroll.publicnode.com']},
+  zksync:{name:'zkSync Era',chainId:324,symbol:'ETH',twChain:'zksync',standard:'ERC-20 (zkSync)',explorer:'https://explorer.zksync.io',coingecko:'ethereum',rpcs:['https://mainnet.era.zksync.io','https://zksync-era.publicnode.com']},
+  'polygon-zkevm':{name:'Polygon zkEVM',chainId:1101,symbol:'ETH',twChain:'polygonzkevm',standard:'ERC-20 (zkEVM)',explorer:'https://zkevm.polygonscan.com',coingecko:'ethereum',rpcs:['https://zkevm-rpc.com','https://rpc.ankr.com/polygon_zkevm']},
+  blast:{name:'Blast',chainId:81457,symbol:'ETH',twChain:'blast',standard:'ERC-20 (Blast)',explorer:'https://blastscan.io',coingecko:'ethereum',rpcs:['https://rpc.blast.io','https://blast-rpc.publicnode.com']},
+  hyperliquid:{name:'Hyperliquid',chainId:999,symbol:'HYPE',twChain:'hyperevm',standard:'HyperEVM',explorer:'https://app.hyperliquid.xyz/explorer',coingecko:'hyperliquid',rpcs:['https://rpc.hyperliquid.xyz/evm']},
+  ronin:{name:'Ronin',chainId:2020,symbol:'RON',twChain:'ronin',standard:'RRC-20 / ERC-20',explorer:'https://app.roninchain.com',coingecko:'ronin',rpcs:['https://api.roninchain.com/rpc','https://ronin-rpc.publicnode.com']},
+  immutable:{name:'Immutable zkEVM',chainId:13371,symbol:'IMX',twChain:'immutable',standard:'ERC-20 (Immutable)',explorer:'https://explorer.immutable.com',coingecko:'immutable-x',rpcs:['https://rpc.immutable.com']},
+  oasys:{name:'OASYS',chainId:248,symbol:'OAS',twChain:'oasys',standard:'OAS-20',explorer:'https://explorer.oasys.games',coingecko:'oasys',rpcs:['https://rpc.mainnet.oasys.games']},
+  sei:{name:'Sei EVM',chainId:1329,symbol:'SEI',twChain:'sei',standard:'CW-20 / EVM',explorer:'https://seitrace.com',coingecko:'sei-network',rpcs:['https://evm-rpc.sei-apis.com']},
+  robinhood:{name:'Robinhood Chain',chainId:4663,symbol:'ETH',twChain:'robinhood',standard:'ERC-20 (Robinhood)',explorer:'https://robinhoodchain.io/explorer',coingecko:'ethereum',rpcs:['https://rpc.robinhoodchain.io']}
+};
+const THEMES={neon:{name:'Neon',accent:'#00ffaa',dim:'#00ffaa55',pink:'#ff2bd6'},yellow:{name:'Yellow',accent:'#ffd400',dim:'#ffd40055',pink:'#ff6b00'},pink:{name:'Pink',accent:'#ff2bd6',dim:'#ff2bd655',pink:'#c026d3'},purple:{name:'Purple',accent:'#a855f7',dim:'#a855f755',pink:'#ec4899'},cyan:{name:'Cyan',accent:'#00d9ff',dim:'#00d9ff55',pink:'#0ea5e9'},red:{name:'Red',accent:'#ff3b6b',dim:'#ff3b6b55',pink:'#dc2626'},orange:{name:'Orange',accent:'#ff8c00',dim:'#ff8c0055',pink:'#ef4444'},blue:{name:'Blue',accent:'#3b82f6',dim:'#3b82f655',pink:'#6366f1'}};
+const TW_BASE='https://raw.githubusercontent.com/trustwallet/assets/master/blockchains';
+function nativeLogo(k){const tw=NETWORKS[k]?.twChain;return tw?`${TW_BASE}/${tw}/info/logo.png`:null;}
+function tokenLogo(k,a){const tw=NETWORKS[k]?.twChain;return tw?`${TW_BASE}/${tw}/assets/${a}/logo.png`:null;}
+
+const KNOWN_TOKENS={
+  ethereum:[{address:'0xdAC17F958D2ee523a2206206994597C13D831ec7',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',symbol:'USDC',name:'USD Coin',decimals:6},{address:'0x6B175474E89094C44Da98b954EedeAC495271d0F',symbol:'DAI',name:'Dai',decimals:18}],
+  polygon:[{address:'0xc2132D05D31c914a87C6611C10748AEb04B58e8F',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',symbol:'USDC',name:'USD Coin',decimals:6},{address:'0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',symbol:'DAI',name:'Dai',decimals:18}],
+  bsc:[{address:'0x55d398326f99059fF775485246999027B3197955',symbol:'USDT',name:'Tether USD',decimals:18},{address:'0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',symbol:'USDC',name:'USD Coin',decimals:18},{address:'0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3',symbol:'DAI',name:'Dai',decimals:18}],
+  arbitrum:[{address:'0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0xaf88d065e77c8cC2239327C5EDb3A432268e5831',symbol:'USDC',name:'USD Coin',decimals:6}],
+  optimism:[{address:'0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',symbol:'USDC',name:'USD Coin',decimals:6}],
+  base:[{address:'0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',symbol:'USDC',name:'USD Coin',decimals:6}],
+  avalanche:[{address:'0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',symbol:'USDC',name:'USD Coin',decimals:6}],
+  fantom:[{address:'0x049d68029688eAbF473097a2fC38ef61633A3C7A',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0x04068DA6C83AFCFA0e13ba15A6696662335D5B75',symbol:'USDC',name:'USD Coin',decimals:6}],
+  gnosis:[{address:'0x4ECaBa5870353805a9F068101A40E0f32ed605C6',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83',symbol:'USDC',name:'USD Coin',decimals:6}],
+  celo:[{address:'0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0xcebA9300f2b948710d2653dD7B07f33A8B32118C',symbol:'USDC',name:'USD Coin',decimals:6}],
+  cronos:[{address:'0x66e428c3f67a68878562e79A0234c1F83c208770',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0xc21223249CA28397B4B6541dfFaEcC539BfF0c59',symbol:'USDC',name:'USD Coin',decimals:6}],
+  linea:[{address:'0xA219439258ca9da29E9Cc4cE5596924745e12B93',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0x176211869cA2b568f2A7D4EE941E073a821EE1ff',symbol:'USDC',name:'USD Coin',decimals:6}],
+  mantle:[{address:'0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0x09Bc4E0D864854c6aFB6eB9A9cdF58aC190D0dF9',symbol:'USDC',name:'USD Coin',decimals:6}],
+  scroll:[{address:'0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4',symbol:'USDC',name:'USD Coin',decimals:6}],
+  zksync:[{address:'0x493257fD37EDB34451f62EDf8D2a0C418852bA4C',symbol:'USDT',name:'Tether USD',decimals:6},{address:'0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4',symbol:'USDC',name:'USD Coin',decimals:6}]
+};
+
+const MULTICALL3='0xcA11bde05977b3631167028862bE2a173976CA11';
+const MULTICALL3_ABI=[{inputs:[{components:[{internalType:'address',name:'target',type:'address'},{internalType:'bool',name:'allowFailure',type:'bool'},{internalType:'bytes',name:'callData',type:'bytes'}],internalType:'struct Multicall3.Call3[]',name:'calls',type:'tuple[]'}],name:'aggregate3',outputs:[{components:[{internalType:'bool',name:'success',type:'bool'},{internalType:'bytes',name:'returnData',type:'bytes'}],internalType:'struct Multicall3.Result[]',name:'returnData',type:'tuple[]'}],stateMutability:'view',type:'function'}];
+const ERC20_ABI=['function name() view returns (string)','function symbol() view returns (string)','function decimals() view returns (uint8)','function balanceOf(address) view returns (uint256)','function transfer(address to, uint256 amount) returns (bool)'];
+
+const state={
+  provider:null,wallet:null,address:null,mnemonic:null,
+  network:localStorage.getItem('nw_network')||'ethereum',
+  theme:localStorage.getItem('nw_theme')||'neon',
+  lang:localStorage.getItem('nw_lang')||'ru',
+  priceCache:{},wcProvider:null,wcActive:false,wcSigner:null,
+  tokens:{},meta:{},selectedToken:null,passphrase:'',
+  reg:{seed:null,questions:['','',''],answers:['','',''],pattern:[],pin:'',pinConfirm:'',passphrase:'',usePassphrase:false},
+  restore:{file1:null,file2:null,pattern:[]},
+  backupForm:{file1:null,file2:null,pattern:[]},
+  vault:null,tokenRowsMap:new Map(),
+  wallets:[
+    {id:'main',name:'MAIN',role:'COLD',path:"m/44'/60'/0'/0/0",locked:false,passDerived:false},
+    {id:'hot1',name:'HOT 1',role:'HOT',path:"m/44'/60'/0'/0/1",locked:false,passDerived:false},
+    {id:'hot2',name:'HOT 2',role:'REZERV',path:"m/44'/60'/0'/0/2",locked:true,passDerived:false}
+  ],
+  activeWalletId:'main',
+  walletCache:{},
+  mode:localStorage.getItem('nw_mode')||'cold',
+  quantumSig:localStorage.getItem('nw_qs')||'classical',
+  quantumCredits:parseInt(localStorage.getItem('nw_qs_credits')||'0',10),
+  whitelist:[],blocklist:[],sessions:[],
+  currentTier:localStorage.getItem('nw_tier')||'basic'
+};
+
+const $=s=>document.querySelector(s);
+const $$=s=>document.querySelectorAll(s);
+function t(k){const l=I18N[state.lang];return (l&&l[k])||I18N.en[k]||I18N.ru[k]||k;}
+function applyTranslations(){document.querySelectorAll('[data-i18n]').forEach(el=>{const v=t(el.dataset.i18n);if(el.tagName==='INPUT'||el.tagName==='TEXTAREA')el.placeholder=v;else el.textContent=v;});}
+function toast(m,e=false){const el=$('#toast');el.textContent=m;el.className='toast show'+(e?' err':'');clearTimeout(el._h);el._h=setTimeout(()=>el.className='toast',3000);}
+function show(v){$$('.view').forEach(x=>x.classList.remove('active'));$('#'+v).classList.add('active');}
+function openModal(id){$('#'+id).classList.add('show');}
+function closeModal(id){$('#'+id).classList.remove('show');}
+
+/* UNIFIED CONFIRM MODAL */
+function showConfirm(opts){
+  const {title='Подтвердите действие',message='',mono='',icon='question',okText='Подтвердить',cancelText='Отмена',variant='default'} = opts||{};
+  return new Promise(resolve=>{
+    const box=$('#confirm-box');
+    const icons={
+      question:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      danger:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+      star:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+      trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+      shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+    };
+    const iconCls=(icon==='warn'||icon==='danger'||icon==='gold')?icon:'';
+    box.innerHTML=`
+      <h3><span class="cfm-icon ${iconCls}">${icons[icon]||icons.question}</span>${title}</h3>
+      ${message?`<p>${message}</p>`:''}
+      ${mono?`<div class="cfm-mono">${mono}</div>`:''}
+      <div class="confirm-actions ${cancelText?'':'single'}">
+        ${cancelText?`<button class="cancel">${cancelText}</button>`:''}
+        <button class="ok ${variant==='danger'?'danger':variant==='gold'?'gold':''}">${okText}</button>
+      </div>`;
+    function cleanup(){box.querySelectorAll('button').forEach(b=>b.onclick=null);closeModal('modal-confirm');}
+    const cancelBtn=box.querySelector('.cancel');
+    if(cancelBtn)cancelBtn.onclick=()=>{cleanup();resolve(false);};
+    box.querySelector('.ok').onclick=()=>{cleanup();resolve(true);};
+    openModal('modal-confirm');
+  });
+}
+function showAlert(opts){
+  const {title='Уведомление',message='',mono='',icon='question',okText='OK'} = opts||{};
+  return showConfirm({title,message,mono,icon,okText,cancelText:'',variant:'default'}).then(()=>true);
+}
+
+function short(a,n=6){return a?a.slice(0,n)+'...'+a.slice(-4):'';}
+function showLoading(t){$('#loading-text').textContent=t||'LOADING...';$('#loading-overlay').classList.add('show');}
+function hideLoading(){$('#loading-overlay').classList.remove('show');}
+async function copy(t,m='✓'){try{await navigator.clipboard.writeText(t);toast(m);}catch{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast(m);}}
+function formatNumber(s){const n=parseFloat(s);if(!isFinite(n)||n===0)return s;if(s.length<=12)return s;const a=Math.abs(n);if(a>=1e15)return (n/1e15).toFixed(2)+'Q';if(a>=1e12)return (n/1e12).toFixed(2)+'T';if(a>=1e9)return (n/1e9).toFixed(2)+'B';if(a>=1e6)return (n/1e6).toFixed(2)+'M';return s;}
+function setMainBalance(r,s){const el=$('#balance-num');if(!el)return;const d=formatNumber(r);el.textContent=d;el.dataset.full=r+' '+s;el.classList.toggle('long',d.length>10&&d.length<=14);el.classList.toggle('verylong',d.length>14);$('#sym').textContent=s;}
+function applyTheme(k){const th=THEMES[k]||THEMES.neon;document.documentElement.style.setProperty('--neon',th.accent);document.documentElement.style.setProperty('--neon-dim',th.dim);document.documentElement.style.setProperty('--pink',th.pink);state.theme=k;localStorage.setItem('nw_theme',k);}
+function fillCoinIcon(el,s,u){el.innerHTML='';const fb=document.createElement('span');fb.className='fallback';fb.textContent=(s||'?').slice(0,5);el.appendChild(fb);if(u){const img=document.createElement('img');img.src=u;img.alt=s||'';img.loading='lazy';img.decoding='async';img.onload=()=>{fb.style.display='none';};img.onerror=()=>{img.remove();};el.appendChild(img);}}
+function buildCoinIcon(s,u,sz=''){const w=document.createElement('div');w.className='coin-icon '+(sz==='sm'?'sm':'');fillCoinIcon(w,s,u);return w;}
+
+async function waitForArgon2(ms=15000){const s=Date.now();while(Date.now()-s<ms){if(typeof window.argon2!=='undefined'&&window.argon2.hash)return true;await new Promise(r=>setTimeout(r,100));}return false;}
+const bufToB64=b=>btoa(String.fromCharCode(...new Uint8Array(b)));
+const b64ToBuf=b=>Uint8Array.from(atob(b),c=>c.charCodeAt(0));
+async function argon2Key(p,s){if(!await waitForArgon2())throw new Error('Argon2 missing');const r=await window.argon2.hash({pass:p,salt:s,time:ARGON2_OPTS.time,mem:ARGON2_OPTS.mem,hashLen:ARGON2_OPTS.hashLen,parallelism:ARGON2_OPTS.parallelism,type:window.argon2.ArgonType.Argon2id});return withSecure(r.hash,h=>crypto.subtle.importKey('raw',h,{name:'AES-GCM'},false,['encrypt','decrypt']));}
+async function encryptAES(p,k,c=''){const iv=crypto.getRandomValues(new Uint8Array(12));const e=new TextEncoder();const pr=c?{name:'AES-GCM',iv,additionalData:e.encode(c),tagLength:128}:{name:'AES-GCM',iv,tagLength:128};const ct=await crypto.subtle.encrypt(pr,k,e.encode(p));return {iv:bufToB64(iv),data:bufToB64(ct),aad:c};}
+async function decryptAES(i,d,k,c=''){const e=new TextEncoder();const pr=c?{name:'AES-GCM',iv:b64ToBuf(i),additionalData:e.encode(c),tagLength:128}:{name:'AES-GCM',iv:b64ToBuf(i),tagLength:128};try{const pt=await crypto.subtle.decrypt(pr,k,b64ToBuf(d));return new TextDecoder().decode(pt);}catch(x){throw new Error('AUTH_TAG_MISMATCH');}}
+function buildBackupPassword(q,a,pt,pin){const qa=q.map((x,i)=>`${x.trim().toLowerCase()}::${(a[i]||'').trim().toLowerCase()}`).join('||');return `CLANDAIv9|qa:${qa}|pat:${pt.join('-')}|pin:${pin}`;}
+function buildPinPassword(p){return `CLANDAIv9|pin:${p}`;}
+function splitSeed(s){const b=new TextEncoder().encode(s);const s1=crypto.getRandomValues(new Uint8Array(b.length));const s2=new Uint8Array(b.length);for(let i=0;i<b.length;i++)s2[i]=b[i]^s1[i];return {share1:bufToB64(s1),share2:bufToB64(s2)};}
+function combineShares(a,b){const x=b64ToBuf(a),y=b64ToBuf(b);if(x.length!==y.length)throw new Error('SHARE_LENGTH_MISMATCH');const o=new Uint8Array(x.length);for(let i=0;i<x.length;i++)o[i]=x[i]^y[i];return new TextDecoder().decode(o);}
+
+const workerSrc=`self.importScripts('https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js');let seed=null,address=null,passphrase='';self.onmessage=async(e)=>{const{id,type,payload}=e.data;try{let r;switch(type){case 'unlock':seed=payload.seed;passphrase=payload.passphrase||'';address=ethers.HDNodeWallet.fromPhrase(seed,passphrase).address;r={address};break;case 'signNative':r=await signNative(payload);break;case 'signErc20':r=await signErc20(payload);break;case 'reveal':r={seed};break;case 'lock':seed=null;address=null;passphrase='';r={ok:true};break;default:throw new Error('Unknown');}self.postMessage({id,ok:true,result:r});}catch(err){self.postMessage({id,ok:false,error:err.message});}};async function signNative({to,valueWei,rpc,chainId}){if(!seed)throw new Error('Locked');const p=new ethers.JsonRpcProvider(rpc,chainId,{staticNetwork:true});const w=ethers.HDNodeWallet.fromPhrase(seed,passphrase).connect(p);const f=await p.getFeeData();const g=await p.estimateGas({from:w.address,to,value:valueWei});const tx={to,value:valueWei,gasLimit:(g*12n)/10n};if(f.maxFeePerGas){tx.maxFeePerGas=f.maxFeePerGas;tx.maxPriorityFeePerGas=f.maxPriorityFeePerGas;tx.type=2;}else if(f.gasPrice)tx.gasPrice=f.gasPrice;const r=await w.sendTransaction(tx);return{hash:r.hash};}async function signErc20({token,to,amount,decimals,rpc,chainId}){if(!seed)throw new Error('Locked');const p=new ethers.JsonRpcProvider(rpc,chainId,{staticNetwork:true});const w=ethers.HDNodeWallet.fromPhrase(seed,passphrase).connect(p);const a=['function transfer(address,uint256) returns (bool)'];const c=new ethers.Contract(token,a,w);const r=await c.transfer(to,ethers.parseUnits(amount,decimals));return{hash:r.hash};}`;
+let signerWorker=null,workerReqId=0;const workerPending=new Map();
+function initWorker(){if(signerWorker)return true;try{const b=new Blob([workerSrc],{type:'application/javascript'});signerWorker=new Worker(URL.createObjectURL(b));signerWorker.onmessage=e=>{const{id,ok,result,error}=e.data;const h=workerPending.get(id);if(!h)return;workerPending.delete(id);if(ok)h.resolve(result);else h.reject(new Error(error));};signerWorker.onerror=err=>{console.error('Worker error:',err);};return true;}catch(e){console.warn('Worker unavailable:',e);return false;}}
+function callWorker(type,payload){return new Promise((res,rej)=>{if(!signerWorker){rej(new Error('Worker not initialized'));return;}const id=++workerReqId;workerPending.set(id,{resolve:res,reject:rej});signerWorker.postMessage({id,type,payload});setTimeout(()=>{if(workerPending.has(id)){workerPending.delete(id);rej(new Error('Worker timeout'));}},60000);});}
+
+const VAULT_KEY='nw_vault_v9',TX_KEY='nw_txs',TOKENS_KEY='nw_tokens',META_KEY='nw_meta';
+function saveVault(v){localStorage.setItem(VAULT_KEY,JSON.stringify(v));}
+function loadVault(){try{return JSON.parse(localStorage.getItem(VAULT_KEY)||'null');}catch{return null;}}
+function wipeVault(){[VAULT_KEY,TX_KEY,TOKENS_KEY,META_KEY,'nw_whitelist','nw_blocklist','nw_sessions'].forEach(k=>localStorage.removeItem(k));}
+function loadMeta(){try{state.meta=JSON.parse(localStorage.getItem(META_KEY)||'{}');}catch{state.meta={};}}
+function saveMeta(){localStorage.setItem(META_KEY,JSON.stringify(state.meta));}
+function getTxs(){try{return JSON.parse(localStorage.getItem(TX_KEY)||'[]');}catch{return [];}}
+function addTx(tx){const l=getTxs();l.unshift(tx);localStorage.setItem(TX_KEY,JSON.stringify(l.slice(0,50)));}
+function saveTxs(l){localStorage.setItem(TX_KEY,JSON.stringify(l.slice(0,50)));}
+function loadTokens(){try{state.tokens=JSON.parse(localStorage.getItem(TOKENS_KEY)||'{}');}catch{state.tokens={};}}
+function saveTokens(){localStorage.setItem(TOKENS_KEY,JSON.stringify(state.tokens));}
+function getTokens(n){return state.tokens[n]||[];}
+function addTokenToList(n,t){if(!state.tokens[n])state.tokens[n]=[];if(state.tokens[n].some(x=>x.address.toLowerCase()===t.address.toLowerCase())){toast('Already added',true);return false;}state.tokens[n].push(t);saveTokens();return true;}
+function removeToken(n,a){if(!state.tokens[n])return;state.tokens[n]=state.tokens[n].filter(x=>x.address.toLowerCase()!==a.toLowerCase());saveTokens();}
+
+function getNetwork(){return NETWORKS[state.network];}
+function buildProvider(){const n=getNetwork();const p=n.rpcs.map((u,i)=>({provider:new ethers.JsonRpcProvider(u,n.chainId,{staticNetwork:true}),priority:i+1,weight:1,stallTimeout:2500}));state.provider=p.length===1?p[0].provider:new ethers.FallbackProvider(p,n.chainId,{quorum:1});}
+function updateNetworkUI(){const n=getNetwork();const a=$('#net-name'),b=$('#rec-net');if(a)a.textContent=n.name;if(b)b.textContent=n.name;if(!state.selectedToken){const c=$('#balance-coin');if(c)fillCoinIcon(c,n.symbol,nativeLogo(state.network));}const l=$('#balance-label');if(l){l.innerHTML=t('balance');const badge=document.createElement('span');badge.className='mode-badge '+state.mode;badge.textContent=state.mode==='cold'?'❄️ COLD':'🔥 WARM';badge.onclick=toggleMode;l.appendChild(badge);}}
+
+/* MENU */
+function updateMenuCounters(){
+  $('#mi-wl-count').textContent=state.whitelist.length;
+  $('#mi-bl-count').textContent=state.blocklist.length;
+  $('#mi-sess-count').textContent=state.sessions.length;
+  $('#mi-mode-icon').textContent=state.mode==='cold'?'❄️':'🔥';
+  $('#mi-mode-val').textContent=state.mode==='cold'?'COLD':'WARM';
+  $('#mi-quantum-icon').textContent=state.quantumSig==='quantum'?'⚛':'⚡';
+  $('#mi-quantum-val').textContent=(state.quantumSig==='quantum'?'QS':'CS')+' · '+state.quantumCredits+' QS';
+}
+function openMenu(){updateMenuCounters();openModal('modal-menu');}
+function toggleMode(){setMode(state.mode==='cold'?'warm':'cold');updateMenuCounters();updateNetworkUI();}
+function toggleQuantum(){setQuantum(state.quantumSig==='quantum'?'classical':'quantum');updateMenuCounters();updateQuantumInline();}
+$('#btn-menu').onclick=openMenu;
+$('#menu-close').onclick=()=>closeModal('modal-menu');
+$('#mi-mode').onclick=toggleMode;
+$('#mi-quantum').onclick=toggleQuantum;
+$('#mi-whitelist').onclick=()=>{closeModal('modal-menu');renderLists();openModal('modal-whitelist');};
+$('#mi-blocklist').onclick=()=>{closeModal('modal-menu');renderLists();openModal('modal-blocklist');};
+$('#mi-sessions').onclick=()=>{closeModal('modal-menu');openSessionsModal();};
+$('#mi-subs').onclick=async()=>{
+  closeModal('modal-menu');
+  await showAlert({
+    title:'Мои крипто-подписки',
+    message:'Раздел появится в Этапе 2. Здесь будут отображаться активные подписки с логотипами, названиями и адресами контрактов.',
+    mono:'Контракт реестра: '+CONTRACTS.REGISTRY,
+    icon:'star',
+    okText:'Понятно'
+  });
+};
+
+/* MODE / QUANTUM */
+function setMode(m){state.mode=m;localStorage.setItem('nw_mode',m);updateNetworkUI();if(m==='warm'&&!state._warmWarn){state._warmWarn=true;setTimeout(()=>toast('🔥 Warm mode: только PIN. Cold требует 3 фактора.'),400);}else{toast(m==='cold'?'❄️ Cold mode':'🔥 Warm mode');}}
+function setQuantum(s){state.quantumSig=s;localStorage.setItem('nw_qs',s);if(s==='quantum'&&state.quantumCredits<=0){toast('⚛ Нет квантовых подписей. Пополните через Upgrade.',true);}else if(s==='quantum'){toast('⚛ Quantum signature. Осталось: '+state.quantumCredits);}else{toast('⚡ Classical signature (ECDSA)');}}
+function updateQuantumInline(){$('#qs-inline-num').textContent=state.quantumCredits;}
+function consumeQuantumCredit(){if(state.quantumSig!=='quantum')return true;if(state.quantumCredits<=0){toast('⚛ Нет квантовых подписей',true);return false;}state.quantumCredits--;localStorage.setItem('nw_qs_credits',String(state.quantumCredits));updateQuantumInline();return true;}
+
+/* UPGRADE */
+const TIERS=[
+  {key:'basic',name:'BASIC',price:'FREE',features:['Шифрование сид-фразы','Проверка подлинности приложения','Базовая защита от несанкционированного доступа']},
+  {key:'standard',name:'STANDARD',price:'$1 / месяц',features:['Всё из FREE','Холодный и тёплый формат','Swaps токенов ↔ фиат','Защита от вредоносных контрактов','Расширенная защита сид-фразы','AI-детектор официальных доменов','Анонимный режим','Доступ к торговым платформам']},
+  {key:'premium',name:'PREMIUM',price:'$15 / месяц',features:['Всё из STANDARD','Личный VPS с частью сид-фразы','Мультисиг + отмена recovery','Персональный AI-ассистент 24/7','Торговля и анализ','Помощь в web2 и web3']}
+];
+function renderTiers(){const w=$('#tier-grid');if(!w)return;w.innerHTML='';TIERS.forEach(t=>{const el=document.createElement('div');el.className='tier-card '+t.key+(state.currentTier===t.key?' current':'');el.innerHTML=`<div class="tier-name">${t.name}</div><div class="tier-price">${t.price}</div><ul>${t.features.map(f=>'<li>'+f+'</li>').join('')}</ul>`;el.onclick=()=>selectTier(t.key);w.appendChild(el);});}
+async function selectTier(k){
+  if(k==='basic'){state.currentTier='basic';localStorage.setItem('nw_tier','basic');renderTiers();toast('✓ BASIC активен');return;}
+  const price=k==='standard'?1:15;
+  const bonus=k==='standard'?20:500;
+  const ok=await showConfirm({
+    title:`Подписка ${k.toUpperCase()}`,
+    message:`Ежемесячная оплата $${price}. После активации +${bonus} QS будут добавлены на ваш счёт.`,
+    mono:`Контракт: ${CONTRACTS.SUBSCRIPTION}\n(заглушка — оплата не производится)`,
+    icon:'star',
+    okText:`Оплатить $${price}`,
+    variant:'gold'
+  });
+  if(!ok)return;
+  state.currentTier=k;localStorage.setItem('nw_tier',k);
+  if(k==='standard')state.quantumCredits+=20;
+  if(k==='premium')state.quantumCredits+=500;
+  localStorage.setItem('nw_qs_credits',String(state.quantumCredits));
+  updateQuantumInline();updateMenuCounters();renderTiers();
+  toast(`✓ ${k.toUpperCase()}. +${bonus} QS`);
+}
+
+/* LISTS */
+function loadLists(){try{state.whitelist=JSON.parse(localStorage.getItem('nw_whitelist')||'[]');}catch{state.whitelist=[];}try{state.blocklist=JSON.parse(localStorage.getItem('nw_blocklist')||'[]');}catch{state.blocklist=[];}}
+function saveLists(){localStorage.setItem('nw_whitelist',JSON.stringify(state.whitelist));localStorage.setItem('nw_blocklist',JSON.stringify(state.blocklist));}
+function addToList(l,a,lab){if(!ethers.isAddress(a)){toast('Неверный адрес',true);return;}const t=l==='wl'?state.whitelist:state.blocklist;const o=l==='wl'?state.blocklist:state.whitelist;if(t.some(x=>x.address.toLowerCase()===a.toLowerCase())){toast('Уже в списке',true);return;}const i=o.findIndex(x=>x.address.toLowerCase()===a.toLowerCase());if(i>=0)o.splice(i,1);t.push({address:a,label:lab||'',addedAt:Date.now()});saveLists();renderLists();updateMenuCounters();toast('✓ Добавлен в '+(l==='wl'?'whitelist':'blocklist'));}
+function removeFromList(l,a){const t=l==='wl'?state.whitelist:state.blocklist;const i=t.findIndex(x=>x.address.toLowerCase()===a.toLowerCase());if(i>=0){t.splice(i,1);saveLists();renderLists();updateMenuCounters();toast('Удалён');}}
+function renderLists(){['wl','bl'].forEach(l=>{const w=$(l==='wl'?'#wl-list':'#bl-list');if(!w)return;const t=l==='wl'?state.whitelist:state.blocklist;w.innerHTML='';if(!t.length){w.innerHTML='<div class="search-empty">Список пуст</div>';return;}t.forEach(it=>{const el=document.createElement('div');el.className='wl-item '+(l==='wl'?'allowed':'blocked');el.innerHTML=`<div style="flex:1;min-width:0"><div class="wl-addr" title="${it.address}">${short(it.address,12)}</div>${it.label?'<span class="wl-label">'+it.label+'</span>':''}</div><span class="wl-del">✕</span>`;el.querySelector('.wl-del').onclick=()=>removeFromList(l,it.address);w.appendChild(el);});});}
+function isWhitelisted(a){return state.whitelist.some(x=>x.address.toLowerCase()===a.toLowerCase());}
+function isBlocklisted(a){return state.blocklist.some(x=>x.address.toLowerCase()===a.toLowerCase());}
+
+/* CONTRACT WARNING */
+function showContractWarning({title,body,icon='⚠️',type='danger'}){return new Promise(res=>{const iw=$('#cw-icon-wrap');const b=$('#cw-body');const a=$('#cw-actions');iw.innerHTML=`<div class="warn-shield ${type==='safe'?'safe':''}"><div class="ws-icon">${icon}</div><div class="ws-body"><b>${title}</b>${body}</div></div>`;b.innerHTML='';a.innerHTML='';const mk=(c,l,v)=>{const x=document.createElement('button');x.className=c;x.textContent=l;x.onclick=()=>{closeModal('modal-contract-warn');res(v);};a.appendChild(x);};mk('allow','✓ Whitelist','allow');mk('block','✕ Blocklist','block');mk('ignore','→ Игнор','ignore');openModal('modal-contract-warn');});}
+async function checkRecipient(a,amt){if(isBlocklisted(a)){const c=await showContractWarning({title:'🚫 АДРЕС В BLOCKLIST',body:`Ранее добавлен <b>${short(a,8)}</b>.<br><br>Отправка <b>${amt}</b> запрещена. Продолжить?`,icon:'🚫'});if(c==='ignore')return false;if(c==='allow'){removeFromList('bl',a);addToList('wl',a,'');return true;}return false;}if(isWhitelisted(a))return true;const c=await showContractWarning({title:'⚠️ НОВЫЙ АДРЕС',body:`Впервые отправляете на <b>${short(a,8)}</b>.<br>Сумма: <b>${amt}</b>.<br><br>Добавить получателя в список?`,icon:'🛡️'});if(c==='allow'){addToList('wl',a,'');return true;}if(c==='block'){addToList('bl',a,'');return false;}if(c==='ignore'){toast('⚠️ Риски на вас — адрес не добавлен',true);return true;}return false;}
+
+/* HOT2 */
+let hot2PatternCtrl=null;
+function openHot2Unlock(){const w=state.wallets.find(x=>x.id==='hot2');if(!w)return;const f=$('#hot2-q-fields');f.innerHTML='';const qs=state.meta.questions||['','',''];qs.forEach((q,i)=>{const el=document.createElement('div');el.className='field';el.innerHTML=`<label>${q||'Вопрос '+(i+1)}</label><input class="hot2-answer" data-i="${i}" />`;f.appendChild(el);});$('#hot2-pattern-wrap').style.display='block';$('#hot2-pin-wrap').style.display='block';if(!hot2PatternCtrl)hot2PatternCtrl=initPatternLock($('#pattern-hot2'),s=>{w._tmpPattern=s;});else hot2PatternCtrl.reset();$('#hot2-pin').value='';openModal('modal-hot2-unlock');}
+$('#hot2-close').onclick=()=>closeModal('modal-hot2-unlock');
+$('#hot2-unlock-go').onclick=async()=>{const w=state.wallets.find(x=>x.id==='hot2');if(!w)return;const a=[...$$('.hot2-answer')].map(i=>i.value.trim());if(a.some(x=>!x)){toast('Ответьте на все вопросы',true);return;}const pin=$('#hot2-pin').value.trim();if(pin.length!==9){toast('9-значный PIN',true);return;}if(!w._tmpPattern||w._tmpPattern.length<4){toast('Нарисуйте паттерн',true);return;}showLoading('ПРОВЕРКА...');try{const v=state.vault||loadVault();const k=await argon2Key(buildPinPassword(pin),b64ToBuf(v.salt));await decryptAES(v.iv,v.data,k,v.aad||'vault');w.passDerived=true;w.locked=false;hideLoading();closeModal('modal-hot2-unlock');switchWallet('hot2');toast('🔓 HOT 2 разблокирован');}catch(e){hideLoading();console.error(e);toast('Неверные факторы',true);}};
+
+/* SESSIONS */
+function loadSessions(){try{state.sessions=JSON.parse(localStorage.getItem('nw_sessions')||'[]');}catch{state.sessions=[];}}
+function saveSessions(){localStorage.setItem('nw_sessions',JSON.stringify(state.sessions));}
+async function fetchSessions(){let ip='—';try{const r=await fetch('https://api.ipify.org?format=json');const j=await r.json();ip=j.ip||'—';}catch{ip='localhost';}if(!state.sessions.length){state.sessions=[{id:'s_'+Date.now(),ip,ua:navigator.userAgent.slice(0,60),created:Date.now(),current:true}];}else{const c=state.sessions.find(s=>s.current);if(c)c.ip=ip;}saveSessions();}
+function renderSessions(){const w=$('#sessions-list');if(!w)return;w.innerHTML='';if(!state.sessions.length){w.innerHTML='<div class="search-empty">Нет сессий</div>';return;}state.sessions.forEach(s=>{const el=document.createElement('div');el.className='session-item'+(s.current?' current':'');el.innerHTML=`<div style="flex:1;min-width:0"><div class="s-ip">${s.ip} ${s.current?'<span class="s-badge">ТЕКУЩАЯ</span>':''}</div><div class="s-meta">${new Date(s.created).toLocaleString()} · ${s.ua}</div></div>${s.current?'':'<span class="s-close">✕</span>'}`;const cb=el.querySelector('.s-close');if(cb)cb.onclick=()=>{state.sessions=state.sessions.filter(x=>x.id!==s.id);saveSessions();renderSessions();updateMenuCounters();toast('Сессия закрыта');};w.appendChild(el);});}
+async function openSessionsModal(){await fetchSessions();renderSessions();updateMenuCounters();openModal('modal-sessions');}
+
+/* TX DELETE */
+async function deleteTx(h){
+  const ok=await showConfirm({
+    title:'Удалить транзакцию',
+    message:'Запись будет удалена из истории этого браузера. На блокчейне транзакция останется.',
+    mono:short(h,16),
+    icon:'trash',
+    okText:'Удалить',
+    variant:'danger'
+  });
+  if(!ok)return;
+  const l=getTxs().filter(t=>t.hash!==h);
+  saveTxs(l);renderTxs();toast('Удалено');
+}
+
+/* CREATE */
+$('#btn-create').onclick=()=>{const w=ethers.Wallet.createRandom();state.reg.seed=w.mnemonic.phrase;const g=$('#seed-grid');g.innerHTML='';const fr=document.createDocumentFragment();state.reg.seed.split(' ').forEach((w,i)=>{const el=document.createElement('div');el.className='seed-word';el.innerHTML=`<span class="num">${i+1}</span>${w}`;fr.appendChild(el);});g.appendChild(fr);show('view-seed');};
+$('#btn-seed-back').onclick=()=>{state.reg.seed=null;show('view-onboard');};
+$('#btn-seed-next').onclick=()=>{renderQuestionsForm();show('view-reg-q');};
+function renderQuestionsForm(){const w=$('#q-fields');w.innerHTML='';const fr=document.createDocumentFragment();for(let i=0;i<3;i++){const b=document.createElement('div');b.innerHTML=`<div class="field"><label>Вопрос ${i+1}</label><input class="q-input" data-i="${i}" value="${state.reg.questions[i]||''}" /></div><div class="field"><label>Ответ ${i+1}</label><input class="a-input" data-i="${i}" value="${state.reg.answers[i]||''}" /></div>`;fr.appendChild(b);}w.appendChild(fr);}
+$('#btn-reg-q-next').onclick=()=>{const qs=[...$$('#q-fields .q-input')].map(i=>i.value.trim());const as=[...$$('#q-fields .a-input')].map(i=>i.value.trim());if(qs.some(x=>!x)){toast('Все вопросы обязательны',true);return;}if(as.some(x=>!x)){toast('Все ответы обязательны',true);return;}state.reg.questions=qs;state.reg.answers=as;if(!regPatternCtrl)regPatternCtrl=initPatternLock($('#pattern-reg'),s=>{state.reg.pattern=s;},s=>{$('#pat-count').textContent=s.length;});else regPatternCtrl.reset();show('view-reg-pat');};
+$('#btn-reg-pat-back').onclick=()=>show('view-reg-q');
+$('#btn-reg-pat-next').onclick=()=>{if(state.reg.pattern.length<4){toast('4 точки min',true);return;}show('view-reg-pass');};
+$('#btn-reg-pass-back').onclick=()=>show('view-reg-pat');
+$('#btn-reg-pass-skip').onclick=()=>{state.reg.usePassphrase=false;state.reg.passphrase='';prepRegPin();};
+$('#btn-reg-pass-go').onclick=()=>{const p1=$('#reg-passphrase').value,p2=$('#reg-passphrase2').value;if(p1.length<8){toast('Passphrase min 8',true);return;}if(p1!==p2){toast('Не совпадает',true);return;}state.reg.usePassphrase=true;state.reg.passphrase=p1;prepRegPin();};
+function prepRegPin(){if(!regPinCtrl){regPinCtrl=initPinKeypad($('#reg-keypad'),$('#reg-pin-display'),async(pin)=>{if(!state.reg.pin){if(pin.length!==9){regPinCtrl.setError();return;}state.reg.pin=pin;$('#reg-pin-title').textContent='Повторите PIN';regPinCtrl.reset();}else{if(pin!==state.reg.pin){regPinCtrl.setError();state.reg.pin='';return;}state.reg.pinConfirm=pin;finalizeRegistration();}});}else{state.reg.pin='';regPinCtrl.reset();}show('view-reg-pin');}
+$('#btn-reg-pin-back').onclick=()=>{state.reg.pin='';state.reg.pinConfirm='';if(regPinCtrl)regPinCtrl.reset();show('view-reg-pass');};
+
+async function finalizeRegistration(){
+  showLoading('ARGON2ID + XOR...');
+  try{
+    const seed=state.reg.seed;
+    const pp=state.reg.passphrase||'';
+    const w=pp?ethers.HDNodeWallet.fromPhrase(seed,pp):ethers.HDNodeWallet.fromPhrase(seed);
+    const addr=w.address;
+    const ps=crypto.getRandomValues(new Uint8Array(16));
+    const pk=await argon2Key(buildPinPassword(state.reg.pin),ps);
+    const pc=await encryptAES(seed,pk,'vault');
+    const vault={version:9,type:'clandai-local',address:addr,salt:bufToB64(ps),iv:pc.iv,data:pc.data,aad:pc.aad,questions:[...state.reg.questions],hasPassphrase:state.reg.usePassphrase,createdAt:new Date().toISOString()};
+    saveVault(vault);state.vault=vault;
+    state.meta.questions=[...state.reg.questions];state.meta.address=addr;state.meta.hasPassphrase=state.reg.usePassphrase;saveMeta();
+    const {share1,share2}=splitSeed(seed);
+    const pwd=buildBackupPassword(state.reg.questions,state.reg.answers,state.reg.pattern,state.reg.pin);
+    const mk=async(s,i)=>{const sa=crypto.getRandomValues(new Uint8Array(16));const k=await argon2Key(pwd,sa);const c=await encryptAES(s,k,'share'+i);return {version:9,type:'clandai-backup',share:i,total:2,address:addr,salt:bufToB64(sa),iv:c.iv,data:c.data,aad:c.aad,questions:[...state.reg.questions],hasPassphrase:state.reg.usePassphrase,createdAt:new Date().toISOString()};};
+    state.pendingBackup1=await mk(share1,1);
+    state.pendingBackup2=await mk(share2,2);
+    state.pendingBackupFilename1=`clandai-share1-${addr.slice(0,8)}.json`;
+    state.pendingBackupFilename2=`clandai-share2-${addr.slice(0,8)}.json`;
+    $('#reg-done-addr').value=addr;
+    $('#reg-done-file-1').textContent=state.pendingBackupFilename1;
+    $('#reg-done-file-2').textContent=state.pendingBackupFilename2;
+    buildProvider();attachWallet(seed,addr,pp);
+    hideLoading();show('view-reg-done');toast('✓ Готово');
+  }catch(e){hideLoading();console.error(e);toast('Error: '+(e.message||e),true);show('view-reg-q');}
+}
+$('#btn-download-backup').onclick=()=>{if(!state.pendingBackup1||!state.pendingBackup2)return;downloadJson(state.pendingBackup1,state.pendingBackupFilename1);setTimeout(()=>downloadJson(state.pendingBackup2,state.pendingBackupFilename2),400);toast('✓ 2 файла');};
+$('#btn-reg-done-continue').onclick=()=>{show('view-wallet');refreshUI();};
+function downloadJson(o,f){const b=new Blob([JSON.stringify(o,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=f;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+$('#btn-import').onclick=()=>{const s=prompt('Seed phrase (12/24):');if(!s)return;const c=s.trim().toLowerCase().replace(/\s+/g,' ');if(!ethers.Mnemonic.isValidMnemonic(c)){toast('Invalid seed',true);return;}state.reg.seed=c;state.reg.questions=['','',''];state.reg.answers=['','',''];state.reg.pattern=[];state.reg.pin='';state.reg.passphrase='';state.reg.usePassphrase=false;renderQuestionsForm();show('view-reg-q');};
+
+function attachWallet(m,addr,pp=''){state.mnemonic=m;state.passphrase=pp;deriveAllWallets(m,pp);state.activeWalletId='main';const c=state.walletCache['main'];const w=c?c.wallet:(pp?ethers.HDNodeWallet.fromPhrase(m,pp):ethers.HDNodeWallet.fromPhrase(m));state.wallet=w.connect(state.provider);state.address=addr||w.address;state.wcActive=false;state.selectedToken=null;renderWalletTabs();updateMenuCounters();updateQuantumInline();refreshUI();}
+
+function deriveAllWallets(m,pp=''){const root=pp?ethers.HDNodeWallet.fromPhrase(m,pp):ethers.HDNodeWallet.fromPhrase(m);state.wallets.forEach(w=>{try{const ch=root.derivePath(w.path);state.walletCache[w.id]={address:ch.address,privateKey:ch.privateKey,wallet:ch};}catch(e){console.warn(e);}});}
+function renderWalletTabs(){const w=$('#wallet-tabs');if(!w)return;w.innerHTML='';state.wallets.forEach(x=>{const t=document.createElement('div');t.className='wallet-tab'+(state.activeWalletId===x.id?' active':'')+(x.locked?' locked':'');t.innerHTML=`${x.name}<span class="role">${x.role}</span>`;t.onclick=()=>switchWallet(x.id);w.appendChild(t);});const b=document.createElement('button');b.className='wallet-tab-add';b.textContent='+';b.onclick=addNewWallet;w.appendChild(b);}
+function switchWallet(id){const w=state.wallets.find(x=>x.id===id);if(!w)return;if(w.locked&&!w.passDerived){openHot2Unlock();return;}state.activeWalletId=id;const c=state.walletCache[id];if(c){state.address=c.address;buildProvider();state.wallet=c.wallet.connect(state.provider);refreshUI();}renderWalletTabs();toast('→ '+w.name);}
+function addNewWallet(){const i=state.wallets.length;const id='hot'+i;state.wallets.push({id,name:'HOT '+i,role:'HOT',path:`m/44'/60'/0'/0/${i}`,locked:false,passDerived:false});if(state.mnemonic)deriveAllWallets(state.mnemonic,state.passphrase||'');renderWalletTabs();toast('+ HOT '+i);}
+
+/* UNLOCK */
+function initUnlockView(){if(!unlockPinCtrl){unlockPinCtrl=initPinKeypad($('#unlock-keypad'),$('#unlock-pin-display'),async(pin)=>{if(pin.length!==9){unlockPinCtrl.setError();return;}showLoading('DECRYPTING...');try{const v=state.vault||loadVault();const k=await argon2Key(buildPinPassword(pin),b64ToBuf(v.salt));const seed=await decryptAES(v.iv,v.data,k,v.aad||'vault');if(!ethers.Mnemonic.isValidMnemonic(seed))throw new Error('invalid');let pp='';if(v.hasPassphrase){pp=await promptPassphrase();if(pp===null)throw new Error('Cancelled');}const w=pp?ethers.HDNodeWallet.fromPhrase(seed,pp):ethers.HDNodeWallet.fromPhrase(seed);if(w.address.toLowerCase()!==v.address.toLowerCase())throw new Error(v.hasPassphrase?'Wrong passphrase':'Wrong PIN');if(initWorker()){try{await callWorker('unlock',{seed,passphrase:pp});}catch(err){console.warn('Worker unlock failed');}}buildProvider();attachWallet(seed,v.address,pp);hideLoading();show('view-wallet');toast('✓');}catch(e){hideLoading();console.error(e);unlockPinCtrl.setError();toast(e.message==='AUTH_TAG_MISMATCH'?'Vault tampered!':(e.message||'Wrong PIN'),true);}});}else unlockPinCtrl.reset();}
+$('#btn-wipe').onclick=async()=>{
+  const ok=await showConfirm({
+    title:'Сбросить кошелёк',
+    message:'Все данные будут удалены из этого браузера. Убедитесь, что у вас есть оба share-файла и passphrase (если использовали).',
+    icon:'warn',
+    okText:'Сбросить',
+    variant:'danger'
+  });
+  if(ok){wipeVault();location.reload();}
+};
+
+/* REFRESH */
+async function refreshMainBalance(){if(!state.provider||!state.address)return;try{if(!state.selectedToken){const b=await state.provider.getBalance(state.address);const f=(+ethers.formatEther(b)).toFixed(6);setMainBalance(f,getNetwork().symbol);const p=await getPrice();const meta=$('#balance-meta');meta.innerHTML=`${p?'≈ $'+(parseFloat(f)*p).toFixed(2):''} <span class="sep">·</span> <span class="qs-inline"><span>⚛</span><span class="num" id="qs-inline-num">${state.quantumCredits}</span><span>QS</span></span>`;const c=$('#balance-coin');fillCoinIcon(c,getNetwork().symbol,nativeLogo(state.network));}else{const tk=state.selectedToken;const c=new ethers.Contract(tk.address,ERC20_ABI,state.provider);const b=await c.balanceOf(state.address);const f=ethers.formatUnits(b,tk.decimals);setMainBalance((+f).toFixed(6),tk.symbol);const meta=$('#balance-meta');meta.innerHTML=`<span class="qs-inline"><span>⚛</span><span class="num" id="qs-inline-num">${state.quantumCredits}</span><span>QS</span></span>`;const c2=$('#balance-coin');fillCoinIcon(c2,tk.symbol,tokenLogo(state.network,tk.address));}}catch(e){console.error(e);$('#balance-meta').textContent='RPC error';}}
+async function refreshUI(){if(!state.address)return;$('#addr').textContent=state.address;updateNetworkUI();renderTxs();await Promise.all([refreshMainBalance(),refreshTokenBalances()]);}
+async function refreshTokenBalances(){const ut=getTokens(state.network);if(!state.tokenRowsMap.size||state._renderedNetwork!==state.network){buildTokenRowsSkeleton(ut);state._renderedNetwork=state.network;}try{const nb=await state.provider.getBalance(state.address);const nf=(+ethers.formatEther(nb)).toFixed(6);const nr=state.tokenRowsMap.get('__native__');if(nr){const b=nr.querySelector('.token-balance');if(b)b.textContent=formatNumber(nf);}}catch(e){console.error(e);}if(!ut.length)return;try{const mc=new ethers.Contract(MULTICALL3,MULTICALL3_ABI,state.provider);const iface=new ethers.Interface(ERC20_ABI);const calls=ut.map(tk=>({target:tk.address,allowFailure:true,callData:iface.encodeFunctionData('balanceOf',[state.address])}));const res=await mc.aggregate3(calls);ut.forEach((tk,i)=>{const r=res[i];let br=0n;if(r.success){try{br=iface.decodeFunctionResult('balanceOf',r.returnData)[0];}catch{}}const b=ethers.formatUnits(br,tk.decimals);const row=state.tokenRowsMap.get(tk.address.toLowerCase());if(row){const be=row.querySelector('.token-balance');if(be)be.textContent=formatNumber((+b).toFixed(6));}});}catch(e){console.error('Multicall:',e);for(const tk of ut){try{const c=new ethers.Contract(tk.address,ERC20_ABI,state.provider);const br=await c.balanceOf(state.address);const b=ethers.formatUnits(br,tk.decimals);const row=state.tokenRowsMap.get(tk.address.toLowerCase());if(row){const be=row.querySelector('.token-balance');if(be)be.textContent=formatNumber((+b).toFixed(6));}}catch(err){console.error(err);}}}}
+function buildTokenRowsSkeleton(ut){const w=$('#token-list');w.innerHTML='';state.tokenRowsMap.clear();const fr=document.createDocumentFragment();const nr=document.createElement('div');nr.className='token-row'+(state.selectedToken?'':' selected');nr.dataset.addr='__native__';const ni=buildCoinIcon(getNetwork().symbol,nativeLogo(state.network),'sm');const nif=document.createElement('div');nif.className='token-info';nif.innerHTML=`<div class="token-symbol">${getNetwork().symbol}</div><div class="token-name">Native</div>`;const nb=document.createElement('div');nb.className='token-balance';nb.textContent='...';nr.appendChild(ni);nr.appendChild(nif);nr.appendChild(nb);nr.onclick=()=>selectTokenRow(null);fr.appendChild(nr);state.tokenRowsMap.set('__native__',nr);ut.forEach(tk=>{const el=document.createElement('div');el.className='token-row'+(state.selectedToken&&state.selectedToken.address.toLowerCase()===tk.address.toLowerCase()?' selected':'');el.dataset.addr=tk.address.toLowerCase();const ic=buildCoinIcon(tk.symbol,tokenLogo(state.network,tk.address),'sm');const inf=document.createElement('div');inf.className='token-info';inf.innerHTML=`<div class="token-symbol">${tk.symbol||'?'}</div><div class="token-name">${tk.name||'?'}</div>`;const be=document.createElement('div');be.className='token-balance';be.textContent='...';el.appendChild(ic);el.appendChild(inf);el.appendChild(be);el.onclick=()=>selectTokenRow(tk);el.oncontextmenu=async(e)=>{e.preventDefault();const ok=await showConfirm({title:'Удалить токен',message:`${tk.symbol} будет скрыт из списка. Баланс в блокчейне останется.`,icon:'trash',okText:'Удалить',variant:'danger'});if(!ok)return;if(state.selectedToken&&state.selectedToken.address.toLowerCase()===tk.address.toLowerCase())state.selectedToken=null;removeToken(state.network,tk.address);state._renderedNetwork=null;refreshTokenBalances();refreshMainBalance();};fr.appendChild(el);state.tokenRowsMap.set(tk.address.toLowerCase(),el);});w.appendChild(fr);}
+function selectTokenRow(tk){state.selectedToken=tk;state.tokenRowsMap.forEach(r=>r.classList.remove('selected'));const k=tk?tk.address.toLowerCase():'__native__';const r=state.tokenRowsMap.get(k);if(r)r.classList.add('selected');refreshMainBalance();}
+async function getPrice(){const id=getNetwork().coingecko;if(state.priceCache[id]&&Date.now()-state.priceCache[id].t<60000)return state.priceCache[id].p;try{const r=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`);const j=await r.json();const p=j[id]?.usd||0;state.priceCache[id]={p,t:Date.now()};return p;}catch{return state.priceCache[id]?.p||0;}}
+
+/* SEARCH */
+function openSearchToken(){$('#search-token-input').value='';$('#search-results').innerHTML='';openModal('modal-search-token');setTimeout(()=>$('#search-token-input').focus(),100);}
+function renderSearchResults(q){const w=$('#search-results');const x=q.trim().toLowerCase();if(!x){w.innerHTML='';return;}if(ethers.isAddress(q.trim())){w.innerHTML=`<div class="search-result" id="sr-add"><div class="coin-icon sm"><span class="fallback">?</span></div><div class="sr-info"><div class="sr-symbol">+ Add by address</div><div class="sr-addr">${q.trim()}</div></div></div>`;$('#sr-add').onclick=async()=>{closeModal('modal-search-token');await addToken(q.trim());};return;}const kn=KNOWN_TOKENS[state.network]||[];const m=kn.filter(t=>t.symbol.toLowerCase().includes(x)||t.name.toLowerCase().includes(x));if(!m.length){w.innerHTML=`<div class="search-empty">Не найдено</div>`;return;}w.innerHTML='';const fr=document.createDocumentFragment();m.forEach(tk=>{const el=document.createElement('div');el.className='search-result';const ic=buildCoinIcon(tk.symbol,tokenLogo(state.network,tk.address),'sm');const inf=document.createElement('div');inf.className='sr-info';inf.innerHTML=`<div class="sr-symbol">${tk.symbol}</div><div class="sr-name">${tk.name}</div><div class="sr-addr">${short(tk.address,10)}</div>`;el.appendChild(ic);el.appendChild(inf);el.onclick=async()=>{closeModal('modal-search-token');if(addTokenToList(state.network,tk)){toast(`✓ ${tk.symbol}`);state._renderedNetwork=null;await refreshTokenBalances();}};fr.appendChild(el);});w.appendChild(fr);}
+async function addToken(a){if(!ethers.isAddress(a)){toast('Неверный адрес',true);return;}showLoading('Чтение...');try{const c=new ethers.Contract(a,ERC20_ABI,state.provider);const [n,s,d]=await Promise.all([c.name().catch(()=>'Unknown'),c.symbol().catch(()=>'?'),c.decimals().catch(()=>18)]);const tok={address:a,name:n,symbol:s,decimals:Number(d)};if(addTokenToList(state.network,tok)){toast(`✓ ${s}`);state._renderedNetwork=null;await refreshTokenBalances();}hideLoading();}catch(e){hideLoading();toast('Read failed',true);}}
+
+/* SEND */
+function openSendModal(tk){const s=$('#send-asset');s.innerHTML=`<option value="native">${getNetwork().symbol} (native)</option>`;const fr=document.createDocumentFragment();getTokens(state.network).forEach(t=>{const o=document.createElement('option');o.value=t.address;o.textContent=`${t.symbol} — ${t.name||short(t.address)}`;fr.appendChild(o);});s.appendChild(fr);if(tk)s.value=tk.address;else if(state.selectedToken)s.value=state.selectedToken.address;$('#send-to').value='';$('#send-amt').value='';$('#send-pass').value='';openModal('modal-send');}
+async function sendTx(){
+  const aa=$('#send-asset').value;const to=$('#send-to').value.trim();const amt=$('#send-amt').value.trim();const pin=$('#send-pass').value;
+  if(!ethers.isAddress(to)){toast('Неверный адрес',true);return;}
+  if(!amt||+amt<=0){toast('Неверная сумма',true);return;}
+  const ok=await checkRecipient(to,amt);if(!ok)return;
+  if(!consumeQuantumCredit())return;
+  const btn=$('#send-go');btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
+  try{
+    if(state.wcActive&&state.wcSigner){
+      let r;
+      if(aa==='native'){r=await state.wcSigner.sendTransaction({to,value:ethers.parseEther(amt)});}
+      else{const tk=getTokens(state.network).find(x=>x.address.toLowerCase()===aa.toLowerCase());const c=new ethers.Contract(tk.address,ERC20_ABI,state.wcSigner);r=await c.transfer(to,ethers.parseUnits(amt,tk.decimals));}
+      addTx({hash:r.hash,to,amount:amt,symbol:getNetwork().symbol,network:state.network,time:Date.now(),status:'pending'});
+      renderTxs();closeModal('modal-send');toast('✓ '+short(r.hash,8));
+      state.provider.waitForTransaction(r.hash,1).then(()=>{const l=getTxs();const it=l.find(x=>x.hash===r.hash);if(it)it.status='confirmed';saveTxs(l);renderTxs();refreshUI();}).catch(()=>{});
+      return;
+    }
+    if(!pin)throw new Error('Введите PIN');
+    const v=state.vault||loadVault();
+    const k=await argon2Key(buildPinPassword(pin),b64ToBuf(v.salt));
+    const seed=await decryptAES(v.iv,v.data,k,v.aad||'vault');
+    if(!ethers.Mnemonic.isValidMnemonic(seed))throw new Error('Wrong PIN');
+    const net=getNetwork();let r;
+    if(initWorker()){
+      await callWorker('unlock',{seed,passphrase:state.passphrase||''});
+      if(aa==='native'){r=await callWorker('signNative',{to,valueWei:ethers.parseEther(amt).toString(),rpc:net.rpcs[0],chainId:net.chainId});}
+      else{const tk=getTokens(state.network).find(x=>x.address.toLowerCase()===aa.toLowerCase());r=await callWorker('signErc20',{token:tk.address,to,amount:amt,decimals:tk.decimals,rpc:net.rpcs[0],chainId:net.chainId});}
+      await callWorker('lock',{});
+    }else{
+      const w=(state.passphrase?ethers.HDNodeWallet.fromPhrase(seed,state.passphrase):ethers.HDNodeWallet.fromPhrase(seed)).connect(state.provider);
+      if(w.address.toLowerCase()!==state.address.toLowerCase())throw new Error('Wrong PIN');
+      if(aa==='native'){const value=ethers.parseEther(amt);const fee=await state.provider.getFeeData();const gas=await state.provider.estimateGas({from:w.address,to,value});const tx={to,value,gasLimit:(gas*12n)/10n};if(fee.maxFeePerGas){tx.maxFeePerGas=fee.maxFeePerGas;tx.maxPriorityFeePerGas=fee.maxPriorityFeePerGas;tx.type=2;}else if(fee.gasPrice)tx.gasPrice=fee.gasPrice;const resp=await w.sendTransaction(tx);r={hash:resp.hash};}else{const tk=getTokens(state.network).find(x=>x.address.toLowerCase()===aa.toLowerCase());const c=new ethers.Contract(tk.address,ERC20_ABI,w);const resp=await c.transfer(to,ethers.parseUnits(amt,tk.decimals));r={hash:resp.hash};}
+    }
+    addTx({hash:r.hash,to,amount:amt,symbol:aa==='native'?getNetwork().symbol:short(aa,6),network:state.network,time:Date.now(),status:'pending'});
+    renderTxs();closeModal('modal-send');toast('✓ '+short(r.hash,8));
+    state.provider.waitForTransaction(r.hash,1).then(()=>{const l=getTxs();const it=l.find(x=>x.hash===r.hash);if(it)it.status='confirmed';saveTxs(l);renderTxs();refreshMainBalance();refreshTokenBalances();}).catch(()=>{});
+  }catch(e){console.error(e);toast(e.shortMessage||e.message||'Error',true);}
+  finally{btn.disabled=false;btn.textContent='Подписать и отправить';}
+}
+function renderTxs(){const l=getTxs();const w=$('#tx-list');if(!l.length){w.innerHTML=`<div class="empty">Пока нет транзакций</div>`;return;}w.innerHTML='';const fr=document.createDocumentFragment();l.forEach(tx=>{const el=document.createElement('div');el.className='tx';const tm=new Date(tx.time).toLocaleString();const c=tx.status==='confirmed'?'var(--neon)':tx.status==='pending'?'var(--cyan)':'var(--danger)';el.innerHTML=`<div class="tx-ico" style="color:${c};border-color:${c}40;background:${c}14;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div><div class="tx-body"><div class="tx-to">→ ${short(tx.to,8)}</div><div class="tx-time">${tm} · ${tx.symbol} · ${tx.status}</div></div><div class="tx-amt">-${(+tx.amount).toFixed(4)}</div><span class="tx-del" title="Удалить">✕</span>`;el.querySelector('.tx-amt').onclick=(e)=>{e.stopPropagation();const ex=NETWORKS[tx.network]?.explorer||NETWORKS.ethereum.explorer;window.open(`${ex}/tx/${tx.hash}`,'_blank');};el.querySelector('.tx-del').onclick=(e)=>{e.stopPropagation();deleteTx(tx.hash);};fr.appendChild(el);});w.appendChild(fr);}
+
+function renderNetworkList(){const w=$('#net-list');w.innerHTML='';const fr=document.createDocumentFragment();Object.entries(NETWORKS).forEach(([k,n])=>{const el=document.createElement('div');el.className='net-item'+(k===state.network?' active':'');const ic=buildCoinIcon(n.symbol,nativeLogo(k),'sm');const inf=document.createElement('div');inf.style.flex='1';inf.innerHTML=`<div>${n.name}</div><div class="chain-id">${n.standard}</div>`;const sy=document.createElement('div');sy.style.color='var(--neon)';sy.textContent=n.symbol;el.appendChild(ic);el.appendChild(inf);el.appendChild(sy);el.onclick=async()=>{closeModal('modal-net');state.network=k;localStorage.setItem('nw_network',k);state.selectedToken=null;state._renderedNetwork=null;state.tokenRowsMap.clear();updateNetworkUI();try{if(state.wcActive&&state.wcProvider){try{await state.wcProvider.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x'+n.chainId.toString(16)}]});}catch(e){}}buildProvider();if(state.wallet)state.wallet=state.wallet.connect(state.provider);}catch(e){console.error(e);}refreshUI().catch(console.error);};fr.appendChild(el);});w.appendChild(fr);}
+function renderLangList(){const w=$('#lang-list');w.innerHTML='';const fr=document.createDocumentFragment();LANG_LIST.forEach(l=>{const el=document.createElement('div');el.className='lang-item'+(l.code===state.lang?' active':'');el.innerHTML=`<span class="flag">${l.flag}</span> ${l.name}`;el.onclick=()=>{state.lang=l.code;localStorage.setItem('nw_lang',l.code);applyTranslations();renderLangList();closeModal('modal-lang');toast('🌐 '+l.name);};fr.appendChild(el);});w.appendChild(fr);}
+function renderThemeGrid(){const w=$('#theme-grid');w.innerHTML='';const fr=document.createDocumentFragment();Object.entries(THEMES).forEach(([k,th])=>{const el=document.createElement('div');el.className='theme-swatch'+(k===state.theme?' active':'');el.style.background=`linear-gradient(135deg, ${th.accent}, ${th.pink})`;el.title=th.name;if(k===state.theme){const tk=document.createElement('span');tk.className='tick';tk.textContent='✓';el.appendChild(tk);}el.onclick=()=>{applyTheme(k);renderThemeGrid();toast('🎨 '+th.name);};fr.appendChild(el);});w.appendChild(fr);}
+
+async function initWalletConnect(){if(!window['@walletconnect/ethereum-provider']){toast('WC не загружен',true);return;}const EP=window['@walletconnect/ethereum-provider'].EthereumProvider;const net=getNetwork();try{const wc=await EP.init({projectId:WC_PROJECT_ID,optionalChains:[net.chainId],showQrModal:true,methods:['eth_sendTransaction','eth_signTransaction','personal_sign','eth_sign','eth_signTypedData','eth_signTypedData_v4'],events:['chainChanged','accountsChanged','disconnect'],metadata:{name:'CLANDAI WALLET',description:'Cyber wallet',url:location.origin,icons:[]}});wc.on('accountsChanged',a=>{if(a?.length){state.address=a[0];refreshUI();}});wc.on('chainChanged',h=>{const cid=parseInt(h,16);const k=Object.keys(NETWORKS).find(k=>NETWORKS[k].chainId===cid);if(k){state.network=k;localStorage.setItem('nw_network',k);state.selectedToken=null;state._renderedNetwork=null;state.tokenRowsMap.clear();updateNetworkUI();refreshUI();}});wc.on('disconnect',()=>{state.wcActive=false;state.address=null;closeModal('modal-wc');show('view-onboard');toast('WC off');});openModal('modal-wc');await wc.connect();const acc=await wc.request({method:'eth_requestAccounts'});if(acc?.length){state.address=acc[0];const bp=new ethers.BrowserProvider(wc);state.provider=bp;state.wcSigner=await bp.getSigner();state.wallet=null;state.wcProvider=wc;state.wcActive=true;closeModal('modal-wc');show('view-wallet');updateNetworkUI();refreshUI();toast('✓ WC');}}catch(e){console.error(e);toast('WC error',true);closeModal('modal-wc');}}
+
+$('#btn-restore').onclick=()=>{$('#restore-file-1').value='';$('#restore-file-2').value='';$('#restore-file-name-1').textContent='Файл не выбран';$('#restore-file-name-2').textContent='Файл не выбран';$('#restore-file-pick-1').classList.remove('loaded');$('#restore-file-pick-2').classList.remove('loaded');$('#restore-q-fields').innerHTML='';$('#restore-pattern-wrap').style.display='none';$('#restore-pin-wrap').style.display='none';state.restore={file1:null,file2:null,pattern:[]};show('view-restore');};
+$('#btn-unlock-restore').onclick=()=>$('#btn-restore').click();
+$('#btn-restore-back').onclick=()=>show('view-onboard');
+async function loadRestoreFile(n){const i=$(n===1?'#restore-file-1':'#restore-file-2');const f=i.files[0];if(!f)return;$(n===1?'#restore-file-name-1':'#restore-file-name-2').textContent=f.name;$(n===1?'#restore-file-pick-1':'#restore-file-pick-2').classList.add('loaded');try{const j=JSON.parse(await f.text());if(j.type!=='clandai-backup')throw new Error('bad type');if(n===1)state.restore.file1=j;else state.restore.file2=j;const f1=state.restore.file1,f2=state.restore.file2;if(f1||f2){const qs=(f1||f2).questions;const w=$('#restore-q-fields');w.innerHTML='';const fr=document.createDocumentFragment();qs.forEach((q,ix)=>{const el=document.createElement('div');el.className='field';el.innerHTML=`<label>${q}</label><input class="r-answer" data-i="${ix}" />`;fr.appendChild(el);});w.appendChild(fr);$('#restore-pattern-wrap').style.display='block';$('#restore-pin-wrap').style.display='block';if(!restorePatternCtrl)restorePatternCtrl=initPatternLock($('#pattern-restore'),s=>{state.restore.pattern=s;});else restorePatternCtrl.reset();}toast('✓ File loaded');}catch(err){toast('Read failed: '+err.message,true);}}
+$('#restore-file-1').onchange=()=>loadRestoreFile(1);
+$('#restore-file-2').onchange=()=>loadRestoreFile(2);
+$('#btn-restore-go').onclick=async()=>{const {file1,file2}=state.restore;if(!file1||!file2){toast('Загрузите оба файла',true);return;}if(file1.address.toLowerCase()!==file2.address.toLowerCase()){toast('Файлы из разных кошельков',true);return;}const a=[...$$('#restore-q-fields .r-answer')].map(i=>i.value.trim());if(a.some(x=>!x)){toast('Ответьте на все',true);return;}if(state.restore.pattern.length<4){toast('Нарисуйте паттерн',true);return;}const pin=$('#restore-pin').value.trim();if(pin.length!==9){toast('9-значный PIN',true);return;}showLoading('ARGON2ID + XOR...');try{const pwd=buildBackupPassword(file1.questions,a,state.restore.pattern,pin);const k1=await argon2Key(pwd,b64ToBuf(file1.salt));const s1=await decryptAES(file1.iv,file1.data,k1,file1.aad||'share1');const k2=await argon2Key(pwd,b64ToBuf(file2.salt));const s2=await decryptAES(file2.iv,file2.data,k2,file2.aad||'share2');const seed=combineShares(s1,s2);if(!ethers.Mnemonic.isValidMnemonic(seed))throw new Error('Combined seed invalid');let pp='';if(file1.hasPassphrase){pp=await promptPassphrase();if(pp===null)throw new Error('Cancelled');}const w=pp?ethers.HDNodeWallet.fromPhrase(seed,pp):ethers.HDNodeWallet.fromPhrase(seed);if(w.address.toLowerCase()!==file1.address.toLowerCase())throw new Error('Wrong passphrase');const ps=crypto.getRandomValues(new Uint8Array(16));const pk=await argon2Key(buildPinPassword(pin),ps);const pc=await encryptAES(seed,pk,'vault');const vault={version:9,type:'clandai-local',address:file1.address,salt:bufToB64(ps),iv:pc.iv,data:pc.data,aad:pc.aad,questions:[...file1.questions],hasPassphrase:file1.hasPassphrase,createdAt:new Date().toISOString()};saveVault(vault);state.vault=vault;state.meta.questions=[...file1.questions];state.meta.address=file1.address;state.meta.hasPassphrase=file1.hasPassphrase;saveMeta();if(initWorker()){try{await callWorker('unlock',{seed,passphrase:pp});}catch{}}buildProvider();attachWallet(seed,file1.address,pp);hideLoading();show('view-wallet');toast('✓ Восстановлено');}catch(e){hideLoading();console.error(e);toast(e.message==='AUTH_TAG_MISMATCH'?'Data tampered!':(e.message||'Wrong data'),true);}};
+
+$('#act-backup').onclick=()=>{$('#backup-load-file-1').value='';$('#backup-load-file-2').value='';$('#backup-file-name-1').textContent='Не выбран';$('#backup-file-name-2').textContent='Не выбран';$('#backup-file-pick-1').classList.remove('loaded');$('#backup-file-pick-2').classList.remove('loaded');$('#backup-q-fields').innerHTML='';$('#backup-pattern-wrap').style.display='none';$('#backup-pin-wrap').style.display='none';$('#backup-decrypt').style.display='none';$('#backup-seed-wrap').style.display='none';$('#backup-pin').value='';state.backupForm={file1:null,file2:null,pattern:[]};if(backupPatternCtrl)backupPatternCtrl.reset();openModal('modal-backup');};
+async function loadBackupFile(n){const i=$(n===1?'#backup-load-file-1':'#backup-load-file-2');const f=i.files[0];if(!f)return;$(n===1?'#backup-file-name-1':'#backup-file-name-2').textContent=f.name;$(n===1?'#backup-file-pick-1':'#backup-file-pick-2').classList.add('loaded');try{const j=JSON.parse(await f.text());if(j.type!=='clandai-backup')throw new Error('bad type');if(n===1)state.backupForm.file1=j;else state.backupForm.file2=j;const f1=state.backupForm.file1,f2=state.backupForm.file2;if(f1&&f2){const w=$('#backup-q-fields');w.innerHTML='';const fr=document.createDocumentFragment();f1.questions.forEach((q,ix)=>{const el=document.createElement('div');el.className='field';el.innerHTML=`<label>${q}</label><input class="bk-answer" data-i="${ix}" placeholder="Answer" />`;fr.appendChild(el);});w.appendChild(fr);$('#backup-pattern-wrap').style.display='block';$('#backup-pin-wrap').style.display='block';$('#backup-decrypt').style.display='block';if(!backupPatternCtrl)backupPatternCtrl=initPatternLock($('#pattern-backup'),s=>{state.backupForm.pattern=s;});else backupPatternCtrl.reset();toast('✓ Both loaded');}else{toast('✓ Load second');}}catch(err){toast('Invalid: '+err.message,true);}}
+$('#backup-load-file-1').onchange=()=>loadBackupFile(1);
+$('#backup-load-file-2').onchange=()=>loadBackupFile(2);
+$('#backup-decrypt').onclick=async()=>{const {file1,file2}=state.backupForm;if(!file1||!file2){toast('Load both',true);return;}const a=[...$$('#backup-q-fields .bk-answer')].map(i=>i.value.trim());if(a.some(x=>!x)){toast('Answer all',true);return;}if(state.backupForm.pattern.length<4){toast('Draw pattern',true);return;}const pin=$('#backup-pin').value.trim();if(pin.length!==9){toast('9-digit PIN',true);return;}showLoading('ARGON2ID + XOR...');try{const pwd=buildBackupPassword(file1.questions,a,state.backupForm.pattern,pin);const k1=await argon2Key(pwd,b64ToBuf(file1.salt));const s1=await decryptAES(file1.iv,file1.data,k1,file1.aad||'share1');const k2=await argon2Key(pwd,b64ToBuf(file2.salt));const s2=await decryptAES(file2.iv,file2.data,k2,file2.aad||'share2');const seed=combineShares(s1,s2);if(!ethers.Mnemonic.isValidMnemonic(seed))throw new Error('bad seed');const g=$('#backup-seed-grid');g.innerHTML='';const fr=document.createDocumentFragment();seed.split(' ').forEach((wd,i)=>{const el=document.createElement('div');el.className='seed-word';el.innerHTML=`<span class="num">${i+1}</span>${wd}`;fr.appendChild(el);});g.appendChild(fr);$('#backup-seed-wrap').style.display='block';$('#backup-decrypt').style.display='none';hideLoading();toast('✓ Decrypted');}catch(e){hideLoading();console.error(e);toast(e.message==='AUTH_TAG_MISMATCH'?'Data tampered!':'Wrong credentials',true);}};
+$('#backup-close').onclick=()=>closeModal('modal-backup');
+
+$('#btn-privkey').onclick=()=>{$('#pk-pass').value='';$('#pk-out').style.display='none';$('#pk-out').textContent='';const info=$('#privkey-net-info');if(info)info.textContent=`Приватный ключ для текущей сети. (${getNetwork().name})`;openModal('modal-privkey');};
+$('#pk-show').onclick=async()=>{const pin=$('#pk-pass').value;if(!pin){toast('PIN required',true);return;}if(state.wcActive&&!state.vault){toast('Not available for WalletConnect',true);return;}showLoading('...');try{const v=state.vault||loadVault();if(!v)throw new Error('no vault');const k=await argon2Key(buildPinPassword(pin),b64ToBuf(v.salt));const seed=await decryptAES(v.iv,v.data,k,v.aad||'vault');const w=state.passphrase?ethers.HDNodeWallet.fromPhrase(seed,state.passphrase):ethers.HDNodeWallet.fromPhrase(seed);if(w.address.toLowerCase()!==state.address.toLowerCase())throw new Error('bad pin');hideLoading();$('#pk-out').textContent=w.privateKey;$('#pk-out').style.display='block';}catch(e){hideLoading();toast('Wrong PIN',true);}};
+$('#pk-close').onclick=()=>closeModal('modal-privkey');
+
+function promptPassphrase(){return new Promise(res=>{const i=$('#unlock-passphrase-input');i.value='';const g=$('#passphrase-go'),c=$('#passphrase-cancel');function cl(){g.onclick=null;c.onclick=null;closeModal('modal-passphrase');}g.onclick=()=>{const v=i.value;cl();res(v);};c.onclick=()=>{cl();res(null);};openModal('modal-passphrase');setTimeout(()=>i.focus(),100);});}
+
+function initPatternLock(w,onC,onU){const svg=w.querySelector('.pattern-svg');const dots=[...w.querySelectorAll('.pattern-dot')];const seq=[];let dr=false;function dl(){svg.innerHTML='';if(seq.length<2)return;const a=getComputedStyle(document.documentElement).getPropertyValue('--neon').trim()||'#00ffaa';const wr=w.getBoundingClientRect();const cs=seq.map(i=>{const r=dots[i].getBoundingClientRect();return{x:r.left+r.width/2-wr.left,y:r.top+r.height/2-wr.top};});for(let i=1;i<cs.length;i++){const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',cs[i-1].x);l.setAttribute('y1',cs[i-1].y);l.setAttribute('x2',cs[i].x);l.setAttribute('y2',cs[i].y);l.setAttribute('stroke',a);l.setAttribute('stroke-width','3');l.setAttribute('stroke-linecap','round');svg.appendChild(l);}}function dfp(x,y){for(const d of dots){const r=d.getBoundingClientRect();const cx=r.left+r.width/2,cy=r.top+r.height/2;if(Math.hypot(x-cx,y-cy)<r.width*0.7)return d;}return null;}function ad(d){const i=+d.dataset.i;if(seq.includes(i))return;seq.push(i);d.classList.add('active');dl();if(onU)onU([...seq]);if(navigator.vibrate)navigator.vibrate(6);}function rs(){seq.length=0;dots.forEach(d=>d.classList.remove('active'));svg.innerHTML='';if(onU)onU([]);}w.addEventListener('pointerdown',e=>{if(!w.contains(e.target))return;const d=dfp(e.clientX,e.clientY);if(d){dr=true;ad(d);w.setPointerCapture(e.pointerId);}});w.addEventListener('pointermove',e=>{if(!dr)return;const d=dfp(e.clientX,e.clientY);if(d)ad(d);});w.addEventListener('pointerup',()=>{if(!dr)return;dr=false;if(seq.length>=4)onC([...seq]);else{rs();toast('4 точки min',true);}});w.addEventListener('pointercancel',()=>{dr=false;});return {reset:rs};}
+function initPinKeypad(k,d,onC,o={}){const m=o.max||9;const sl=[];d.innerHTML='';for(let i=0;i<m;i++){const s=document.createElement('div');s.className='pin-slot';d.appendChild(s);sl.push(s);}let v='';function rn(e=false){sl.forEach((s,i)=>{s.classList.toggle('filled',i<v.length);s.classList.toggle('err',e);});}function pr(k){if(k==='del'){v=v.slice(0,-1);rn();return;}if(k==='ok'){onC(v);return;}if(v.length>=m)return;v+=k;rn();if(navigator.vibrate)navigator.vibrate(6);if(v.length===m&&o.autoSubmit)setTimeout(()=>onC(v),120);}k.querySelectorAll('button').forEach(b=>{b.onclick=()=>pr(b.dataset.k);});return {reset(){v='';rn();},setError(){rn(true);setTimeout(()=>{v='';rn(false);},400);},get value(){return v;}};}
+let regPatternCtrl=null,restorePatternCtrl=null,backupPatternCtrl=null,regPinCtrl=null,unlockPinCtrl=null;
+
+/* AI */
+const AI_RESPONSES={greet:{en:'Hi! I can help.',ru:'Привет! Помогу с отправкой, бэкапом, безопасностью.'},send:{en:'Tap Send.',ru:'Нажми «Send» → актив → адрес → сумма → PIN.'},backup:{en:'Two shares.',ru:'Два share (XOR). Оба нужны для восстановления.'},seed:{en:'Seed is the only recovery.',ru:'Seed-фраза — единственный способ восстановить.'},pin:{en:'PIN decrypts seed.',ru:'PIN расшифровывает seed на этом устройстве.'},passphrase:{en:'Passphrase 4th factor.',ru:'BIP39 passphrase — 4-й фактор. Нигде не хранится.'},security:{en:'Argon2id + AES-GCM + Worker.',ru:'Argon2id + AES-GCM + Web Worker.'},fallback:{en:'Ask about send, backup, seed, PIN.',ru:'Спроси про: отправку, бэкап, seed, PIN.'}};
+function aiIntent(t){const s=t.toLowerCase();if(/(hi|hello|привет|hey)/.test(s))return 'greet';if(/(send|отправ)/.test(s))return 'send';if(/(backup|бэкап|share)/.test(s))return 'backup';if(/(seed|фраз)/.test(s))return 'seed';if(/(passphrase)/.test(s))return 'passphrase';if(/(pin|пин)/.test(s))return 'pin';if(/(security|безопас)/.test(s))return 'security';return 'fallback';}
+function aiRespond(t){const r=AI_RESPONSES[aiIntent(t)];return r[state.lang]||r.en||r.ru;}
+function appendAiMsg(ro,t){const w=$('#ai-chat');const el=document.createElement('div');el.className='ai-msg '+ro;el.innerHTML=`<div class="bubble">${t.replace(/\n/g,'<br>')}</div>`;w.appendChild(el);w.scrollTop=w.scrollHeight;}
+function aiSend(t){if(!t.trim())return;appendAiMsg('user',t);$('#ai-input').value='';$('#ai-send').disabled=true;const w=$('#ai-chat');const ty=document.createElement('div');ty.className='ai-msg bot';ty.innerHTML=`<div class="bubble"><span class="ai-typing"><span></span><span></span><span></span></span></div>`;w.appendChild(ty);w.scrollTop=w.scrollHeight;setTimeout(()=>{ty.remove();appendAiMsg('bot',aiRespond(t));$('#ai-send').disabled=false;},350+Math.random()*300);}
+function renderAiQuick(){const w=$('#ai-quick');const q={en:['How to send?','Backup?','Security?'],ru:['Как отправить?','Бэкап?','Безопасность?']};const l=q[state.lang]||q.en;w.innerHTML='';const fr=document.createDocumentFragment();l.forEach(x=>{const b=document.createElement('button');b.textContent=x;b.onclick=()=>aiSend(x);fr.appendChild(b);});w.appendChild(fr);}
+function openAiChat(){const w=$('#ai-chat');w.innerHTML='';appendAiMsg('bot',aiRespond('hi'));renderAiQuick();openModal('modal-ai');setTimeout(()=>$('#ai-input').focus(),200);}
+
+/* Events */
+['#btn-lang-top','#btn-lang-unlock','#btn-lang-wallet'].forEach(id=>{const el=document.querySelector(id);if(el)el.onclick=()=>{renderLangList();openModal('modal-lang');};});
+$('#lang-close').onclick=()=>closeModal('modal-lang');
+$('#btn-theme').onclick=()=>{renderThemeGrid();openModal('modal-theme');};
+$('#theme-close').onclick=()=>closeModal('modal-theme');
+$('#btn-lock').onclick=async()=>{if(signerWorker){try{await callWorker('lock',{});}catch{}}state.wallet=null;state.address=null;state.mnemonic=null;state.passphrase='';state.selectedToken=null;state.tokenRowsMap.clear();state._renderedNetwork=null;initUnlockView();show('view-unlock');};
+$('#btn-refresh').onclick=async()=>{toast('...');await refreshUI();};
+$('#addr').onclick=()=>copy(state.address,'✓');
+$('#balance-num').onclick=()=>{const f=$('#balance-num').dataset.full;if(f)toast(f);};
+$('#act-send').onclick=()=>openSendModal(null);
+$('#act-receive').onclick=()=>{$('#rec-addr').textContent=state.address;openModal('modal-receive');};
+$('#act-ai').onclick=openAiChat;
+$('#send-cancel').onclick=()=>closeModal('modal-send');
+$('#send-go').onclick=sendTx;
+$('#link-search-token').onclick=openSearchToken;
+$('#search-token-input').oninput=e=>renderSearchResults(e.target.value);
+$('#search-cancel').onclick=()=>closeModal('modal-search-token');
+$('#rec-copy').onclick=()=>copy(state.address,'✓');
+$('#rec-close').onclick=()=>closeModal('modal-receive');
+$('#net-pill').onclick=()=>{renderNetworkList();openModal('modal-net');};
+$('#net-close').onclick=()=>closeModal('modal-net');
+$('#link-explorer').onclick=()=>{window.open(`${getNetwork().explorer}/address/${state.address}`,'_blank');};
+$('#btn-walletconnect').onclick=()=>initWalletConnect();
+$('#wc-close').onclick=async()=>{closeModal('modal-wc');if(state.wcProvider){try{await state.wcProvider.disconnect();}catch{}}};
+$('#ai-close').onclick=()=>closeModal('modal-ai');
+$('#ai-send').onclick=()=>aiSend($('#ai-input').value);
+$('#ai-input').addEventListener('keydown',e=>{if(e.key==='Enter')aiSend(e.target.value);});
+$('#btn-upgrade-top').onclick=()=>{renderTiers();openModal('modal-upgrade');};
+$('#upgrade-close').onclick=()=>closeModal('modal-upgrade');
+$('#wl-close').onclick=()=>closeModal('modal-whitelist');
+$('#wl-add').onclick=()=>{addToList('wl',$('#wl-input-addr').value.trim(),$('#wl-input-label').value.trim());$('#wl-input-addr').value='';$('#wl-input-label').value='';};
+$('#bl-close').onclick=()=>closeModal('modal-blocklist');
+$('#bl-add').onclick=()=>{addToList('bl',$('#bl-input-addr').value.trim(),$('#bl-input-label').value.trim());$('#bl-input-addr').value='';$('#bl-input-label').value='';};
+$('#sessions-close').onclick=()=>closeModal('modal-sessions');
+$$('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
+
+(async function init(){
+  applyTheme(state.theme);
+  applyTranslations();
+  loadMeta();loadLists();loadSessions();
+  showLoading('ИНИЦИАЛИЗАЦИЯ...');
+  if(typeof ethers==='undefined'){hideLoading();alert('ethers.js failed');return;}
+  if(!await waitForArgon2(15000)){hideLoading();alert('Argon2 failed');return;}
+  initWorker();loadTokens();
+  if(!state.meta.seededTokens){Object.keys(NETWORKS).forEach(nk=>{if(!state.tokens[nk]){state.tokens[nk]=(KNOWN_TOKENS[nk]||[]).slice(0,3).map(t=>({...t}));}});state.meta.seededTokens=true;saveTokens();saveMeta();}
+  buildProvider();state.vault=loadVault();
+  renderWalletTabs();updateQuantumInline();updateMenuCounters();updateNetworkUI();
+  hideLoading();
+  if(state.vault){initUnlockView();show('view-unlock');}
+  else show('view-onboard');
+})();
+</script>
+</body>
+</html>

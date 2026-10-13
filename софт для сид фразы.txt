@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLANDAI Secure Vault & Signer v1.0</title>
+<style>
+:root{
+  --bg:#0a0e14;--card:#131820;--card2:#0f141b;--border:#232c38;--text:#d5dde8;--muted:#7a8699;
+  --accent:#4a9eff;--accent-h:#6cb1ff;--success:#2ecc71;--danger:#ff4757;--warning:#f5a623;--gold:#ffd700;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.55;min-height:100vh;font-size:14px}
+.container{max-width:1100px;margin:0 auto;padding:24px 20px 60px}
+h1{font-size:22px;font-weight:600;letter-spacing:.3px;background:linear-gradient(90deg,#4a9eff,#a371f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:2px}
+.subtitle{color:var(--muted);font-size:12px;margin-bottom:24px;font-family:monospace}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.card h2{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:10px;color:var(--text);text-transform:uppercase;letter-spacing:.5px}
+.card h2::before{content:'';width:3px;height:14px;background:var(--accent);border-radius:2px}
+.card h2 .badge{margin-left:auto;font-size:10px;padding:2px 8px;border-radius:8px;background:rgba(74,158,255,.15);color:var(--accent);text-transform:none;letter-spacing:0;font-weight:500}
+.card h2 .badge.lock{background:rgba(255,71,87,.15);color:var(--danger)}
+.card h2 .badge.ok{background:rgba(46,204,113,.15);color:var(--success)}
+textarea,input,select{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-family:inherit;font-size:13px;outline:none;transition:border-color .15s}
+textarea:focus,input:focus,select:focus{border-color:var(--accent)}
+textarea{min-height:70px;resize:vertical;font-family:monospace;font-size:12px}
+input[type=password]{font-family:monospace;letter-spacing:1px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;margin-top:12px}
+label:first-child{margin-top:0}
+button{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:9px 18px;border-radius:6px;font-size:13px;cursor:pointer;transition:all .15s;font-family:inherit;font-weight:500}
+button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#0a0e14;font-weight:600}
+button.primary:hover:not(:disabled){background:var(--accent-h);border-color:var(--accent-h);color:#0a0e14}
+button.danger{border-color:var(--danger);color:var(--danger)}
+button.danger:hover:not(:disabled){background:var(--danger);color:#fff;border-color:var(--danger)}
+button.ghost{background:transparent}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.row.tight{margin-top:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
+.status{padding:11px 14px;border-radius:7px;font-size:13px;margin-bottom:14px;display:none;border:1px solid transparent}
+.status.show{display:block}
+.status.error{background:rgba(255,71,87,.08);border-color:rgba(255,71,87,.35);color:var(--danger)}
+.status.success{background:rgba(46,204,113,.08);border-color:rgba(46,204,113,.35);color:var(--success)}
+.status.info{background:rgba(74,158,255,.08);border-color:rgba(74,158,255,.35);color:var(--accent)}
+.status.warn{background:rgba(245,166,35,.08);border-color:rgba(245,166,35,.35);color:var(--warning)}
+.mono{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:11.5px;word-break:break-all}
+.kv{display:flex;padding:8px 0;border-bottom:1px dashed var(--border);font-size:12px;gap:14px;align-items:flex-start}
+.kv:last-child{border-bottom:none}
+.kv-key{color:var(--muted);min-width:130px;font-size:11px;text-transform:uppercase;letter-spacing:.3px;padding-top:2px}
+.kv-val{flex:1;word-break:break-all;font-family:monospace;font-size:11.5px}
+
+/* ===== Pattern lock widget ===== */
+.pattern-wrap{position:relative;display:inline-block;padding:18px;background:var(--card2);border-radius:10px;border:1px solid var(--border);margin:8px auto;touch-action:none;user-select:none;cursor:crosshair}
+.pattern-grid{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:14px;position:relative;z-index:2}
+.pattern-dot{width:44px;height:44px;border-radius:50%;background:var(--bg);border:2px solid var(--border);transition:all .12s;position:relative;display:flex;align-items:center;justify-content:center}
+.pattern-dot::after{content:'';width:12px;height:12px;border-radius:50%;background:var(--border);transition:all .12s}
+.pattern-dot.active{border-color:var(--accent);box-shadow:0 0 12px rgba(74,158,255,.5)}
+.pattern-dot.active::after{background:var(--accent);width:16px;height:16px}
+.pattern-dot.hover{border-color:var(--accent-h)}
+.pattern-svg{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none}
+.pattern-svg path{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 4px rgba(74,158,255,.6))}
+.pattern-svg path.live{stroke:var(--accent-h);stroke-dasharray:6 4;opacity:.7}
+.steps{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap}
+.step{padding:6px 14px;border-radius:20px;font-size:11px;background:var(--card2);color:var(--muted);border:1px solid var(--border)}
+.step.active{background:rgba(74,158,255,.15);color:var(--accent);border-color:rgba(74,158,255,.4)}
+.step.done{background:rgba(46,204,113,.1);color:var(--success);border-color:rgba(46,204,113,.3)}
+.tx-result{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px}
+.tx-result h4{font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+.log-entry{display:flex;gap:12px;padding:8px 0;border-bottom:1px dashed var(--border);font-size:12px;font-family:monospace}
+.log-entry:last-child{border-bottom:none}
+.log-time{color:var(--muted);min-width:150px}
+.log-type{min-width:140px;font-weight:600}
+.log-type.info{color:var(--accent)}
+.log-type.ok{color:var(--success)}
+.log-type.warn{color:var(--warning)}
+.log-type.err{color:var(--danger)}
+.hidden{display:none !important}
+.warning-box{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.35);color:var(--warning);padding:11px 14px;border-radius:7px;font-size:12.5px;margin:10px 0}
+.danger-box{background:rgba(255,71,87,.08);border:1px solid rgba(255,71,87,.35);color:var(--danger);padding:11px 14px;border-radius:7px;font-size:12.5px;margin:10px 0}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+footer{text-align:center;color:var(--muted);font-size:11px;margin-top:36px;font-family:monospace;line-height:1.8}
+.seed-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;background:var(--card2);padding:16px;border-radius:8px;margin:10px 0}
+.seed-word{background:var(--bg);padding:6px 10px;border-radius:5px;font-family:monospace;font-size:12px;border:1px solid var(--border)}
+.seed-word .num{color:var(--muted);margin-right:6px;font-size:10px}
+.seed-word .w{color:var(--text);font-weight:500}
+.share-item{padding:9px 12px;background:var(--card2);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;font-family:monospace;font-size:11px;word-break:break-all;gap:10px}
+.share-item code{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.code-block{background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:14px;font-family:monospace;font-size:12px;color:var(--gold);letter-spacing:2px;text-align:center;word-break:break-all}
+.q-hint{font-size:12.5px;color:var(--gold);margin-top:12px;margin-bottom:4px;padding:8px 12px;background:rgba(255,215,0,.06);border-left:3px solid var(--gold);border-radius:3px}
+.q-hint .qnum{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-right:8px}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>CLANDAI Secure Vault &amp; Signer</h1>
+  <div class="subtitle">v1.0 · local-only · UI is untrusted · trusted recovery contract: <span id="trustedContractLabel">loading…</span></div>
+
+  <div id="status" class="status"></div>
+
+  <!-- ================= SETUP ================= -->
+  <div id="viewSetup" class="view hidden">
+    <div class="steps" id="setupSteps">
+      <div class="step active" data-step="1">1. Seed</div>
+      <div class="step" data-step="2">2. 3 вопроса</div>
+      <div class="step" data-step="3">3. Графический</div>
+      <div class="step" data-step="4">4. PIN</div>
+      <div class="step" data-step="5">5. Recovery code</div>
+      <div class="step" data-step="6">6. Готово</div>
+    </div>
+
+    <div class="card" data-setup="1">
+      <h2>Шаг 1. Мнемоника (BIP-39)</h2>
+      <textarea id="setupMnemonic" placeholder="Введите 12/24 слова или сгенерируйте..." spellcheck="false"></textarea>
+      <div class="row">
+        <button id="setupGen12">Сгенерировать 12</button>
+        <button id="setupGen24">Сгенерировать 24</button>
+      </div>
+      <label>BIP-39 passphrase (опционально)</label>
+      <input id="setupPassphrase" type="password" placeholder="если не нужен — оставьте пустым">
+      <div class="warning-box">⚠ Если вы зададите passphrase — он потребуется <b>при каждом входе</b>. Восстановление без него невозможно.</div>
+      <div class="danger-box">⚠ Мнемоника сохраняется только внутри зашифрованного vault. Никогда не отправляйте её никому.</div>
+      <div class="row"><button class="primary" id="setupNext1">Далее →</button></div>
+    </div>
+
+    <div class="card hidden" data-setup="2">
+      <h2>Шаг 2. Три вопроса (Factor 1)</h2>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Вопросы будут показаны при входе как подсказки.</p>
+      <label>Вопрос 1</label><input id="q1" placeholder="Например: Ваша девичья фамилия матери?">
+      <label>Ответ 1</label><input id="a1" type="password">
+      <label>Вопрос 2</label><input id="q2" placeholder="Например: Город вашего рождения?">
+      <label>Ответ 2</label><input id="a2" type="password">
+      <label>Вопрос 3</label><input id="q3" placeholder="Например: Имя первого питомца?">
+      <label>Ответ 3</label><input id="a3" type="password">
+      <div class="warning-box">Ответы нормализуются (NFKC + lowercase + trim).</div>
+      <div class="row">
+        <button id="setupBack2">← Назад</button>
+        <button class="primary" id="setupNext2">Далее →</button>
+      </div>
+    </div>
+
+    <div class="card hidden" data-setup="3">
+      <h2>Шаг 3. Графический пароль (Factor 2)</h2>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+        Зажмите мышь и проведите линию через минимум 4 точки. Отпустите — фиксируется.
+      </p>
+      <div style="text-align:center">
+        <div class="pattern-wrap" id="setupPatternWrap"></div>
+      </div>
+      <div class="row tight"><span id="setupPatternLen" class="mono" style="color:var(--muted);font-size:11px">Выбрано: 0 точек</span></div>
+      <div class="row">
+        <button id="setupBack3">← Назад</button>
+        <button id="setupClear3">Очистить узор</button>
+        <button class="primary" id="setupNext3" disabled>Далее →</button>
+      </div>
+    </div>
+
+    <div class="card hidden" data-setup="4">
+      <h2>Шаг 4. Numeric password / PIN (Factor 3)</h2>
+      <label>PIN ровно 9 цифр</label>
+      <input id="pin1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="9" placeholder="•••••••••">
+      <label>Повторите PIN</label>
+      <input id="pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="9" placeholder="•••••••••">
+      <div class="warning-box">PIN не хранится. Он участвует в Argon2id вместе с остальными факторами.</div>
+      <div class="row">
+        <button id="setupBack4">← Назад</button>
+        <button class="primary" id="setupNext4">Создать vault →</button>
+      </div>
+    </div>
+
+    <div class="card hidden" data-setup="5">
+      <h2>Шаг 5. Recovery code <span class="badge lock">только один раз</span></h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">
+        Этот код будет запрошен для <b>Secret Reveal</b> (показать seed/private key).
+      </p>
+      <div class="code-block" id="recoveryCodeDisplay">—</div>
+      <div class="row">
+        <button id="copyRecoveryCode">📋 Скопировать</button>
+        <button id="regenRecoveryCode">↻ Перегенерировать</button>
+      </div>
+      <div class="row"><button class="primary" id="setupFinish">Я сохранил код, завершить →</button></div>
+    </div>
+
+    <div class="card hidden" data-setup="6">
+      <h2>Готово <span class="badge ok">vault создан</span></h2>
+      <p>Vault зашифрован и сохранён локально. Теперь можно войти.</p>
+      <div class="row"><button class="primary" id="goToLogin">Перейти ко входу →</button></div>
+    </div>
+  </div>
+
+  <!-- ================= LOGIN ================= -->
+  <div id="viewLogin" class="view hidden">
+    <div class="card">
+      <h2>Разблокировка vault</h2>
+      <div id="loginHints"></div>
+      <label>Ответ 1</label><input id="loginA1" type="password">
+      <label>Ответ 2</label><input id="loginA2" type="password">
+      <label>Ответ 3</label><input id="loginA3" type="password">
+      <label>Графический пароль (зажмите и ведите линию)</label>
+      <div style="text-align:center"><div class="pattern-wrap" id="loginPatternWrap"></div></div>
+      <div class="row tight">
+        <button id="loginClearPattern">Очистить узор</button>
+      </div>
+      <label>PIN (9 цифр)</label>
+      <input id="loginPin" type="password" inputmode="numeric" maxlength="9" placeholder="•••••••••">
+      <label>BIP-39 passphrase (если задавали)</label>
+      <input id="loginPassphrase" type="password" placeholder="оставьте пустым, если не задавали">
+      <div class="row">
+        <button class="primary" id="doLogin">🔓 Разблокировать</button>
+        <button class="danger" id="wipeVaultBtn">🗑 Удалить vault</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DASHBOARD ================= -->
+  <div id="viewDash" class="view hidden">
+    <div class="card">
+      <h2>Ключи <span class="badge ok" id="vaultStateBadge">unlocked</span></h2>
+      <div id="keysList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Подпись транзакции</h2>
+      <label>Ключ</label>
+      <select id="signKey">
+        <option value="1">Key 1 (always-on)</option>
+        <option value="2">Key 2 (always-on)</option>
+        <option value="3">Key 3 (locked — требуется повторный 3-факторный unlock)</option>
+      </select>
+      <div class="grid2">
+        <div><label>Chain ID</label><input id="txChainId" value="1"></div>
+        <div><label>Nonce</label><input id="txNonce" value="0"></div>
+      </div>
+      <label>To (address)</label><input id="txTo" class="mono" placeholder="0x...">
+      <div class="grid3">
+        <div><label>Value (wei)</label><input id="txValue" value="0"></div>
+        <div><label>Gas limit</label><input id="txGas" value="21000"></div>
+        <div><label>Max fee (gwei)</label><input id="txFee" value="20"></div>
+      </div>
+      <label>Data (hex, опц.)</label><input id="txData" class="mono" placeholder="0x">
+      <div class="row"><button class="primary" id="signTxBtn">✍️ Подписать</button></div>
+      <div id="policyResult"></div>
+      <div id="txSignature"></div>
+    </div>
+
+    <div class="card">
+      <h2>Backup</h2>
+      <div class="row">
+        <button id="backupFull">💾 Full backup (файл)</button>
+        <button id="backupShamir">🧩 Shamir backup</button>
+      </div>
+      <div class="grid2 hidden" id="shamirOpts">
+        <div><label>Total shares</label><select id="shamirTotal"><option>2</option><option>4</option><option selected>6</option></select></div>
+        <div><label>Threshold</label><select id="shamirThreshold"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select></div>
+      </div>
+      <div class="row hidden" id="shamirRunRow"><button class="primary" id="makeShares">Создать shares</button></div>
+      <div id="sharesOut"></div>
+    </div>
+
+    <div class="card">
+      <h2>Restore</h2>
+      <label>Backup file / shares (JSON)</label>
+      <textarea id="restoreInput" placeholder='{"type":"clandai-full-backup",...} или массив shares' spellcheck="false"></textarea>
+      <div class="row">
+        <input type="file" id="restoreFile" style="display:none" accept=".json">
+        <button id="pickRestoreFile">📁 Выбрать файл</button>
+        <button class="primary" id="doRestore">Восстановить</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recovery (Trusted Contract) <span class="badge lock">mocked</span></h2>
+      <div class="kv"><span class="kv-key">Chain ID</span><span class="kv-val" id="rcChainId">—</span></div>
+      <div class="kv"><span class="kv-key">Contract</span><span class="kv-val" id="rcAddress">—</span></div>
+      <div class="kv"><span class="kv-key">Delay</span><span class="kv-val" id="rcDelay">—</span></div>
+      <div class="row">
+        <button class="primary" id="rcRequest">requestRecovery()</button>
+        <button id="rcStatus">getRecoveryStatus()</button>
+        <button id="rcCode">getRecoveryCode()</button>
+        <button class="danger" id="rcCancel">cancelRecovery()</button>
+      </div>
+      <div id="rcOut" class="tx-result hidden"></div>
+    </div>
+
+    <div class="card">
+      <h2>Secret Reveal <span class="badge lock">high-risk</span></h2>
+      <label>Recovery code</label><input id="revealCode" class="mono" placeholder="вставьте код">
+      <div class="row"><button class="danger" id="revealBtn">👁 Reveal seed</button></div>
+      <div id="revealOut"></div>
+    </div>
+
+    <div class="card">
+      <h2>Безопасность</h2>
+      <div class="row">
+        <button class="danger" id="lockBtn">🔒 Emergency LOCK VAULT</button>
+        <button id="auditBtn">📜 Audit log</button>
+      </div>
+      <div id="auditOut" class="hidden"></div>
+    </div>
+  </div>
+
+  <footer>
+    CLANDAI Secure Vault &amp; Signer v1.0 · prototype<br>
+    UI не имеет доступа к private keys · всё локально · никуда не отправляется
+  </footer>
+</div>
+
+<script type="module">
+// ============================================================
+// IMPORTS
+// ============================================================
+const CDN = {
+  argon2:  'https://esm.sh/hash-wasm@4.11.0',
+  bip39:   'https://esm.sh/@scure/bip39@1.4.0',
+  bip39en: 'https://esm.sh/@scure/bip39@1.4.0/wordlists/english',
+  bip32:   'https://esm.sh/@scure/bip32@1.5.0',
+  sha256:  'https://esm.sh/@noble/hashes@1.5.0/sha256',
+  sha512:  'https://esm.sh/@noble/hashes@1.5.0/sha512',
+  hmac:    'https://esm.sh/@noble/hashes@1.5.0/hmac',
+  keccak:  'https://esm.sh/@noble/hashes@1.5.0/sha3',
+  secp:    'https://esm.sh/@noble/secp256k1@2.1.0',
+  base:    'https://esm.sh/@scure/base@1.1.9',
+  rlp:     'https://esm.sh/@ethereumjs/rlp@5.0.2',
+};
+let L = null;
+async function loadLibs(){
+  if (L) return L;
+  const mods = await Promise.all(Object.values(CDN).map(u => import(/* @vite-ignore */ u)));
+  const [argon, bip39, bip39en, bip32, sha256m, sha512m, hmacm, keccakm, secp, base, rlp] = mods;
+  L = {
+    argon2id: argon.argon2id,
+    bip39, wordlist: bip39en.wordlist,
+    HDKey: bip32.HDKey,
+    sha256: sha256m.sha256,
+    sha512: sha512m.sha512,
+    hmac: hmacm.hmac,
+    keccak_256: keccakm.keccak_256,
+    secp, base58: base.base58, base58check: base.base58check,
+    rlp: rlp.RLP,
+  };
+  return L;
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const STORAGE_KEY   = 'clandai.vault.v1';
+const AUDIT_KEY     = 'clandai.audit.v1';
+const NORM_VERSION  = 1;
+const KDF_VERSION   = 1;
+const ENC_VERSION   = 1;
+const VAULT_VERSION = 1;
+const ARGON_PARAMS  = { parallelism: 1, iterations: 3, memorySize: 65536, hashLength: 32 };
+const RECOVERY_DELAY_MS = 60 * 1000;
+const PIN_LENGTH = 9;
+
+const TRUSTED_CONTRACT = Object.freeze({
+  chainId: 1,
+  address: '0x00000000000000000000000000000000DEADBEEF',
+  protocolVersion: '1.0.0',
+  delayMs: RECOVERY_DELAY_MS,
+  functions: ['requestRecovery','cancelRecovery','getRecoveryStatus','getRecoveryCode'],
+});
+
+// ============================================================
+// HELPERS
+// ============================================================
+const $ = id => document.getElementById(id);
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+const bytesToHex = b => Array.from(b, x => x.toString(16).padStart(2,'0')).join('');
+const hexToBytes = h => { h = h.replace(/^0x/,''); const o = new Uint8Array(h.length/2); for (let i=0;i<o.length;i++) o[i]=parseInt(h.substr(i*2,2),16); return o; };
+const randomBytes = n => { const b = new Uint8Array(n); crypto.getRandomValues(b); return b; };
+
+function setStatus(msg, kind='info', ms=0){
+  const el = $('status');
+  el.className = 'status show ' + kind;
+  el.innerHTML = msg;
+  if (ms) setTimeout(()=>{ el.className='status'; }, ms);
+}
+function show(viewId){
+  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+  $(viewId).classList.remove('hidden');
+}
+
+// ============================================================
+// AUDIT
+// ============================================================
+const Audit = {
+  _load(){ try { return JSON.parse(localStorage.getItem(AUDIT_KEY) || '[]'); } catch { return []; } },
+  _save(list){ localStorage.setItem(AUDIT_KEY, JSON.stringify(list.slice(-500))); },
+  log(type, msg){
+    const list = this._load();
+    list.push({ t: Date.now(), type, msg: String(msg).slice(0,200) });
+    this._save(list);
+  },
+  all(){ return this._load(); },
+  clear(){ localStorage.removeItem(AUDIT_KEY); }
+};
+
+// ============================================================
+// SHAMIR
+// ============================================================
+const Shamir = (() => {
+  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  (function(){ let x=1; for (let i=0;i<255;i++){ EXP[i]=x; LOG[x]=i; x = x ^ ((x<<1) ^ ((x&0x80)?0x11b:0)); x &= 0xff; } for (let i=255;i<512;i++) EXP[i]=EXP[i-255]; })();
+  const mul=(a,b)=> (a===0||b===0)?0:EXP[(LOG[a]+LOG[b])%255];
+  const div=(a,b)=> { if(b===0) throw new Error('div0'); if(a===0) return 0; return EXP[(LOG[a]-LOG[b]+255)%255]; };
+  function split(secret, total, threshold){
+    if (threshold > total) throw new Error('threshold > total');
+    const shares = [];
+    for (let t=0;t<total;t++) shares.push({ x: t+1, y: new Uint8Array(secret.length) });
+    for (let i=0;i<secret.length;i++){
+      const coefs = new Uint8Array(threshold);
+      coefs[0] = secret[i];
+      if (threshold>1){ const r=randomBytes(threshold-1); for(let j=1;j<threshold;j++) coefs[j]=r[j-1]||1; }
+      for (let t=0;t<total;t++){
+        let val=0, xp=1;
+        for (let j=0;j<threshold;j++){ val ^= mul(coefs[j],xp); xp = mul(xp, shares[t].x); }
+        shares[t].y[i] = val;
+      }
+    }
+    return shares;
+  }
+  function combine(shares){
+    const len = shares[0].y.length;
+    const secret = new Uint8Array(len);
+    for (let i=0;i<len;i++){
+      let s = 0;
+      for (let j=0;j<shares.length;j++){
+        let num=1, den=1;
+        for (let k=0;k<shares.length;k++){
+          if (k===j) continue;
+          num = mul(num, shares[k].x);
+          den = mul(den, shares[j].x ^ shares[k].x);
+        }
+        s ^= mul(shares[j].y[i], div(num,den));
+      }
+      secret[i] = s;
+    }
+    return secret;
+  }
+  return { split, combine };
+})();
+
+// ============================================================
+// CORE
+// ============================================================
+const Core = (() => {
+  const state = {
+    unlocked: false, key3Unlocked: false,
+    vaultKey: null, vault: null, seed: null,
+    keys: { 1:null, 2:null, 3:null },
+    unlockTimer: null, key3Timer: null,
+    recoveryRequests: {},
+  };
+
+  const normalizeAnswer = s => String(s).normalize('NFKC').toLowerCase().trim().replace(/\s+/g,' ');
+  const normalizePattern = arr => arr.join('-');
+
+  async function deriveVaultKey(factors, salt){
+    const combined = [
+      'clandai-kdf-v1',
+      normalizeAnswer(factors.a1),
+      normalizeAnswer(factors.a2),
+      normalizeAnswer(factors.a3),
+      normalizePattern(factors.pattern),
+      String(factors.pin || ''),
+      String(factors.passphrase || ''),
+    ].join('\u0001');
+    const hash = await L.argon2id({
+      password: combined, salt,
+      parallelism: ARGON_PARAMS.parallelism,
+      iterations: ARGON_PARAMS.iterations,
+      memorySize: ARGON_PARAMS.memorySize,
+      hashLength: ARGON_PARAMS.hashLength,
+      outputType: 'binary',
+    });
+    return crypto.subtle.importKey('raw', hash, { name:'AES-GCM' }, false, ['encrypt','decrypt']);
+  }
+
+  async function aesEncrypt(key, plaintextBytes, aad){
+    const iv = randomBytes(12);
+    const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv, additionalData: aad, tagLength:128 }, key, plaintextBytes);
+    return { iv, ct: new Uint8Array(ct) };
+  }
+  async function aesDecrypt(key, iv, ct, aad){
+    const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv, additionalData: aad, tagLength:128 }, key, ct);
+    return new Uint8Array(pt);
+  }
+
+  function deriveEvmKey(seed, path){
+    const root = L.HDKey.fromMasterSeed(seed);
+    const child = root.derive(path);
+    const pubU = L.secp.getPublicKey(child.privateKey, false);
+    const pubC = L.secp.getPublicKey(child.privateKey, true);
+    const addrHex = bytesToHex(L.keccak_256(pubU.slice(1)).slice(-20));
+    return { privateKey: child.privateKey, publicKey: pubC, address: '0x' + addrHex, path };
+  }
+  const KEY_PATHS = { 1: "m/44'/60'/0'/0/0", 2: "m/44'/60'/0'/0/1", 3: "m/44'/60'/0'/0/2" };
+
+  function wipeBytes(b){ if (b) { const r = randomBytes(b.length); b.set(r); } }
+  function wipeState(){
+    if (state.seed) wipeBytes(state.seed);
+    for (const k of [1,2,3]) {
+      const kk = state.keys[k];
+      if (kk && kk.privateKey) wipeBytes(kk.privateKey);
+      state.keys[k] = null;
+    }
+    state.seed = null; state.vault = null; state.vaultKey = null;
+    state.unlocked = false; state.key3Unlocked = false;
+    clearTimeout(state.unlockTimer); clearTimeout(state.key3Timer);
+  }
+  function scheduleUnlockTimeout(ms){ clearTimeout(state.unlockTimer); state.unlockTimer = setTimeout(()=>Core.lock('idle'), ms); }
+  function scheduleKey3Timeout(ms){ clearTimeout(state.key3Timer); state.key3Timer = setTimeout(()=>Core.lockKey3(), ms); }
+
+  function loadRawVault(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } }
+  function saveRawVault(v){ localStorage.setItem(STORAGE_KEY, JSON.stringify(v)); }
+
+  function rcRequest(walletAddr){
+    const id = bytesToHex(randomBytes(16));
+    const now = Date.now();
+    state.recoveryRequests[id] = {
+      id, wallet: walletAddr, chainId: TRUSTED_CONTRACT.chainId,
+      contract: TRUSTED_CONTRACT.address, requestedAt: now,
+      readyAt: now + TRUSTED_CONTRACT.delayMs, cancelled: false,
+      code: null, used: false, nonce: bytesToHex(randomBytes(8)),
+      version: TRUSTED_CONTRACT.protocolVersion,
+    };
+    Audit.log('ok', `Recovery requested id=${id.slice(0,12)}…`);
+    return { id, readyAt: state.recoveryRequests[id].readyAt, delayMs: TRUSTED_CONTRACT.delayMs };
+  }
+  function rcStatus(id){
+    const r = state.recoveryRequests[id];
+    if (!r) return { state: 'not_found' };
+    if (r.cancelled) return { state: 'cancelled' };
+    const remain = r.readyAt - Date.now();
+    return { id: r.id, state: remain <= 0 ? 'ready' : 'pending', remainingMs: Math.max(0, remain), readyAt: r.readyAt, wallet: r.wallet };
+  }
+  function rcGetCode(id){
+    const r = state.recoveryRequests[id];
+    if (!r) throw new Error('Unknown recovery request');
+    if (r.cancelled) throw new Error('Cancelled');
+    if (Date.now() < r.readyAt) throw new Error('Delay not elapsed yet');
+    if (r.used) throw new Error('Code already used');
+    if (!r.code){ r.code = bytesToHex(randomBytes(24)).match(/.{1,4}/g).join('-'); }
+    return { id: r.id, code: r.code };
+  }
+  function rcCancel(id){
+    const r = state.recoveryRequests[id];
+    if (!r) throw new Error('Unknown recovery request');
+    r.cancelled = true;
+    Audit.log('warn', `Recovery cancelled id=${id.slice(0,12)}…`);
+    return { ok: true };
+  }
+
+  const API = {
+    async init(){
+      await loadLibs();
+      const raw = loadRawVault();
+      return { exists: !!raw, vaultVersion: raw?.vault_version, questions: raw?.questions || null };
+    },
+
+    async createVault({ mnemonic, passphrase, factors }){
+      await loadLibs();
+      mnemonic = mnemonic.trim().toLowerCase().replace(/\s+/g,' ');
+      if (!L.bip39.validateMnemonic(mnemonic, L.wordlist)) throw new Error('Невалидная BIP-39 мнемоника');
+      passphrase = passphrase || '';
+
+      const salt = randomBytes(16);
+      const vaultKey = await deriveVaultKey({ ...factors, passphrase }, salt);
+      const seedBytes = L.bip39.mnemonicToSeedSync(mnemonic, passphrase);
+
+      const subSalt = randomBytes(16);
+      const subKey = await deriveVaultKey({ ...factors, passphrase, pin: (factors.pin||'') + '|k3' }, subSalt);
+
+      const k1 = deriveEvmKey(seedBytes, KEY_PATHS[1]);
+      const k2 = deriveEvmKey(seedBytes, KEY_PATHS[2]);
+      const k3 = deriveEvmKey(seedBytes, KEY_PATHS[3]);
+      const wrap = await aesEncrypt(subKey, k3.privateKey, enc.encode('k3'));
+
+      const payload = {
+        mnemonic, passphrase,
+        keys: {
+          1: { path: KEY_PATHS[1], privateKey: bytesToHex(k1.privateKey), publicKey: bytesToHex(k1.publicKey), address: k1.address },
+          2: { path: KEY_PATHS[2], privateKey: bytesToHex(k2.privateKey), publicKey: bytesToHex(k2.publicKey), address: k2.address },
+        },
+        key3: {
+          path: KEY_PATHS[3], address: k3.address, publicKey: bytesToHex(k3.publicKey),
+          wrapped: { iv: bytesToHex(wrap.iv), ct: bytesToHex(wrap.ct) },
+          subSalt: bytesToHex(subSalt),
+        },
+        createdAt: Date.now(),
+      };
+
+      const aad = enc.encode(`clandai-vault|v${VAULT_VERSION}`);
+      const { iv, ct } = await aesEncrypt(vaultKey, enc.encode(JSON.stringify(payload)), aad);
+
+      const raw = {
+        vault_version: VAULT_VERSION, kdf_version: KDF_VERSION,
+        normalization_version: NORM_VERSION, encryption_version: ENC_VERSION,
+        kdf: { name: 'argon2id', ...ARGON_PARAMS },
+        salt: bytesToHex(salt),
+        cipher: { name: 'AES-256-GCM', iv: bytesToHex(iv), ct: bytesToHex(ct) },
+        aad: 'clandai-vault|v1',
+        trusted_contract: { ...TRUSTED_CONTRACT },
+        recovery_code_hash: null,
+        questions: { q1: factors.q1 || '', q2: factors.q2 || '', q3: factors.q3 || '' },
+        has_passphrase: !!passphrase,
+      };
+
+      saveRawVault(raw);
+      Audit.log('ok', 'Vault created');
+      wipeBytes(seedBytes);
+      return { ok: true, key1Address: k1.address, key2Address: k2.address, key3Address: k3.address };
+    },
+
+    async setRecoveryCodeHash(code){
+      await loadLibs();
+      const raw = loadRawVault();
+      if (!raw) throw new Error('No vault');
+      raw.recovery_code_hash = bytesToHex(L.sha256(enc.encode(code)));
+      saveRawVault(raw);
+    },
+
+    async unlock(factors){
+      await loadLibs();
+      const raw = loadRawVault();
+      if (!raw) throw new Error('Vault не создан');
+      const salt = hexToBytes(raw.salt);
+      const vaultKey = await deriveVaultKey({
+        a1: factors.a1, a2: factors.a2, a3: factors.a3,
+        pattern: factors.pattern, pin: factors.pin,
+        passphrase: factors.passphrase || '',
+      }, salt);
+      const iv = hexToBytes(raw.cipher.iv);
+      const ct = hexToBytes(raw.cipher.ct);
+      const aad = enc.encode(raw.aad || 'clandai-vault|v1');
+      let pt;
+      try { pt = await aesDecrypt(vaultKey, iv, ct, aad); }
+      catch { Audit.log('err', 'Vault unlock failed'); throw new Error('Неверные факторы или повреждённый vault'); }
+
+      const vault = JSON.parse(dec.decode(pt));
+      state.vault = vault; state.vaultKey = vaultKey;
+      state.seed = L.bip39.mnemonicToSeedSync(vault.mnemonic, vault.passphrase || '');
+
+      state.keys[1] = { privateKey: hexToBytes(vault.keys[1].privateKey), publicKey: hexToBytes(vault.keys[1].publicKey), address: vault.keys[1].address, path: vault.keys[1].path };
+      state.keys[2] = { privateKey: hexToBytes(vault.keys[2].privateKey), publicKey: hexToBytes(vault.keys[2].publicKey), address: vault.keys[2].address, path: vault.keys[2].path };
+      state.keys[3] = null;
+
+      state.unlocked = true; state.key3Unlocked = false;
+      Audit.log('ok', 'Vault unlocked');
+      scheduleUnlockTimeout(10 * 60 * 1000);
+      return { addresses: { 1: state.keys[1].address, 2: state.keys[2].address, 3: vault.key3.address }, key3Locked: true };
+    },
+
+    async unlockKey3(factors){
+      if (!state.unlocked) throw new Error('Vault не разблокирован');
+      await loadLibs();
+      const v = state.vault;
+      const subSalt = hexToBytes(v.key3.subSalt);
+      const subKey = await deriveVaultKey({
+        a1: factors.a1, a2: factors.a2, a3: factors.a3,
+        pattern: factors.pattern, pin: factors.pin,
+        passphrase: v.passphrase || '',
+      }, subSalt);
+      const iv = hexToBytes(v.key3.wrapped.iv);
+      const ct = hexToBytes(v.key3.wrapped.ct);
+      let priv;
+      try { priv = await aesDecrypt(subKey, iv, ct, enc.encode('k3')); }
+      catch { Audit.log('err', 'Key3 unlock failed'); throw new Error('Неверные факторы для Key 3'); }
+      state.keys[3] = { privateKey: priv, publicKey: hexToBytes(v.key3.publicKey), address: v.key3.address, path: v.key3.path };
+      state.key3Unlocked = true;
+      Audit.log('ok', 'Key 3 unlocked');
+      scheduleKey3Timeout(5 * 60 * 1000);
+      return { ok: true, address: state.keys[3].address };
+    },
+
+    lockKey3(){
+      if (state.keys[3]?.privateKey) wipeBytes(state.keys[3].privateKey);
+      state.keys[3] = null; state.key3Unlocked = false;
+      clearTimeout(state.key3Timer);
+      Audit.log('warn', 'Key 3 locked');
+    },
+    lock(reason='manual'){ wipeState(); Audit.log('warn', `Vault locked (${reason})`); },
+
+    getState(){
+      return {
+        unlocked: state.unlocked, key3Unlocked: state.key3Unlocked,
+        addresses: { 1: state.keys[1]?.address || null, 2: state.keys[2]?.address || null, 3: state.vault?.key3?.address || null },
+        paths: { 1: KEY_PATHS[1], 2: KEY_PATHS[2], 3: KEY_PATHS[3] },
+      };
+    },
+
+    _checkPolicy(tx){
+      const errors = []; const warnings = [];
+      if (!tx.chainId || Number.isNaN(Number(tx.chainId))) errors.push('chainId отсутствует');
+      if (!/^0x[0-9a-fA-F]{40}$/.test(tx.to || '')) errors.push('Некорректный "to" адрес');
+      if (tx.to && tx.to.toLowerCase() === TRUSTED_CONTRACT.address.toLowerCase() && tx.data && tx.data.length > 10) warnings.push('Транзакция направлена на trusted recovery contract');
+      if (tx.value && BigInt(tx.value || 0) > 0n) warnings.push(`Value > 0: ${tx.value} wei`);
+      if (tx.data && tx.data.length > 2 && tx.data.length < 10) errors.push('data слишком короткий');
+      if (tx.gasLimit && (Number(tx.gasLimit) < 21000)) errors.push('gasLimit < 21000');
+      return { ok: errors.length === 0, errors, warnings };
+    },
+
+    async signTransaction(tx, keyId=1){
+      if (!state.unlocked) throw new Error('Vault не разблокирован');
+      if (keyId === 3 && !state.key3Unlocked) throw new Error('Key 3 заблокирован: требуется 3-факторный unlock');
+      const k = state.keys[keyId];
+      if (!k) throw new Error(`Key ${keyId} недоступен`);
+
+      const policy = this._checkPolicy(tx);
+      Audit.log(policy.ok ? 'info' : 'err', `Policy check key=${keyId} ok=${policy.ok} errors=${policy.errors.join(';')}`);
+      if (!policy.ok) throw new Error('Policy check failed: ' + policy.errors.join('; '));
+
+      await loadLibs();
+      const chainId = BigInt(tx.chainId);
+      const nonce = BigInt(tx.nonce || 0);
+      const gasPrice = BigInt(Math.floor(Number(tx.maxFeeGwei || 20) * 1e9));
+      const gasLimit = BigInt(tx.gasLimit || 21000);
+      const to = hexToBytes(tx.to);
+      const value = BigInt(tx.value || 0);
+      const data = hexToBytes(tx.data && tx.data !== '0x' ? tx.data : '0x');
+
+      const toRlp = to.length ? to : new Uint8Array(0);
+      const unsigned = [nonce, gasPrice, gasLimit, toRlp, value, data, chainId, 0, 0];
+      const rlpEncoded = L.rlp.encode(unsigned);
+      const msgHash = L.keccak_256(rlpEncoded);
+
+      const sig = L.secp.sign(msgHash, k.privateKey, { lowS: true });
+      const sigBytes = sig.toCompactRawBytes ? sig.toCompactRawBytes() : sig;
+      const r = sigBytes.slice(0, 32);
+      const s = sigBytes.slice(32, 64);
+      const v = BigInt(sig.recovery ?? 0);
+      const vEip155 = v + 35n + chainId * 2n;
+
+      const signed = [nonce, gasPrice, gasLimit, toRlp, value, data, vEip155, r, s];
+      const rawTx = '0x' + bytesToHex(L.rlp.encode(signed));
+
+      Audit.log('ok', `Tx signed key=${keyId} to=${tx.to.slice(0,10)}…`);
+      return { rawTransaction: rawTx, txHash: '0x' + bytesToHex(L.keccak_256(L.rlp.encode(signed))), signer: k.address, policy };
+    },
+
+    async createFullBackup(){
+      const raw = loadRawVault();
+      if (!raw) throw new Error('Vault не найден');
+      Audit.log('info', 'Full backup created');
+      return { type: 'clandai-full-backup', version: 1, createdAt: Date.now(), vault: raw };
+    },
+
+    async createShamirBackup(total, threshold){
+      const raw = loadRawVault();
+      if (!raw) throw new Error('Vault не найден');
+      if (threshold < 2 || threshold > total) throw new Error('threshold должен быть 2..total');
+      const vaultBytes = enc.encode(JSON.stringify(raw));
+      const shares = Shamir.split(vaultBytes, total, threshold);
+      const meta = { type: 'clandai-shamir-share', version: 1, createdAt: Date.now(), total, threshold, vault_version: raw.vault_version };
+      const out = shares.map(s => ({ ...meta, x: s.x, y: bytesToHex(s.y) }));
+      Audit.log('info', `Shamir backup created ${threshold}/${total}`);
+      return out;
+    },
+
+    async restoreFromFull(backup, factors){
+      await loadLibs();
+      if (!backup || backup.type !== 'clandai-full-backup') throw new Error('Неверный формат backup');
+      const raw = backup.vault;
+      if (!raw || !raw.cipher || !raw.salt) throw new Error('Повреждённый backup');
+      const salt = hexToBytes(raw.salt);
+      const vaultKey = await deriveVaultKey({
+        a1: factors.a1, a2: factors.a2, a3: factors.a3,
+        pattern: factors.pattern, pin: factors.pin,
+        passphrase: factors.passphrase || '',
+      }, salt);
+      const iv = hexToBytes(raw.cipher.iv);
+      const ct = hexToBytes(raw.cipher.ct);
+      const aad = enc.encode(raw.aad || 'clandai-vault|v1');
+      let pt;
+      try { pt = await aesDecrypt(vaultKey, iv, ct, aad); }
+      catch { throw new Error('Не удалось расшифровать backup: неверные факторы или повреждение'); }
+      const parsed = JSON.parse(dec.decode(pt));
+      if (!parsed.mnemonic || !parsed.keys) throw new Error('Vault payload невалиден');
+      saveRawVault(raw);
+      Audit.log('ok', 'Vault restored from full backup');
+      return { ok: true, key1Address: parsed.keys[1].address, key2Address: parsed.keys[2].address };
+    },
+
+    async restoreFromShares(shares, factors){
+      await loadLibs();
+      if (!Array.isArray(shares) || shares.length < 2) throw new Error('Нужно минимум 2 shares');
+      const threshold = shares[0].threshold;
+      if (shares.length < threshold) throw new Error(`Нужно минимум ${threshold} shares (у вас ${shares.length})`);
+      const seen = new Set();
+      for (const s of shares){
+        if (s.type !== 'clandai-shamir-share') throw new Error('Неверный тип share');
+        if (seen.has(s.x)) continue;
+        seen.add(s.x);
+      }
+      const picked = shares.slice(0, threshold).map(s => ({ x: s.x, y: hexToBytes(s.y) }));
+      let vaultBytes;
+      try { vaultBytes = Shamir.combine(picked); }
+      catch { throw new Error('Не удалось объединить shares'); }
+      let raw;
+      try { raw = JSON.parse(dec.decode(vaultBytes)); }
+      catch { throw new Error('Восстановленный payload повреждён'); }
+      return this.restoreFromFull({ type: 'clandai-full-backup', version: 1, vault: raw }, factors);
+    },
+
+    rcRequest(){ return rcRequest(this.getState().addresses[1] || '0x0'); },
+    rcStatus(id){ return rcStatus(id); },
+    rcGetCode(id){ return rcGetCode(id); },
+    rcCancel(id){ return rcCancel(id); },
+
+    async revealSeed(recoveryCode){
+      await loadLibs();
+      if (!state.unlocked) throw new Error('Сначала разблокируйте vault');
+      const raw = loadRawVault();
+      if (!raw.recovery_code_hash) throw new Error('Recovery code не установлен');
+      const h = bytesToHex(L.sha256(enc.encode(recoveryCode)));
+      if (h !== raw.recovery_code_hash){ Audit.log('err', 'Secret reveal failed (bad code)'); throw new Error('Неверный recovery code'); }
+      Audit.log('ok', 'Secret reveal');
+      return { mnemonic: state.vault.mnemonic };
+    },
+
+    audit(){ return Audit.all(); },
+    auditClear(){ Audit.clear(); },
+    _wipe(){ wipeState(); },
+  };
+
+  setInterval(()=>{
+    for (const id in state.recoveryRequests){
+      const r = state.recoveryRequests[id];
+      if (!r.cancelled && r.code && !r.used && Date.now() - r.readyAt > 24*60*60*1000) delete state.recoveryRequests[id];
+    }
+  }, 60_000);
+
+  return API;
+})();
+
+// ============================================================
+// PATTERN WIDGET (drag-based)
+// ============================================================
+function mountPattern(wrapEl, onChange){
+  wrapEl.innerHTML = '';
+  wrapEl.classList.add('pattern-wrap');
+
+  const grid = document.createElement('div');
+  grid.className = 'pattern-grid';
+  wrapEl.appendChild(grid);
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','pattern-svg');
+  svg.setAttribute('preserveAspectRatio','none');
+  const pathDone = document.createElementNS('http://www.w3.org/2000/svg','path');
+  const pathLive = document.createElementNS('http://www.w3.org/2000/svg','path');
+  pathLive.setAttribute('class','live');
+  svg.appendChild(pathDone);
+  svg.appendChild(pathLive);
+  wrapEl.appendChild(svg);
+
+  const dots = [];
+  for (let i = 0; i < 9; i++){
+    const d = document.createElement('div');
+    d.className = 'pattern-dot';
+    d.dataset.idx = i;
+    grid.appendChild(d);
+    dots.push(d);
+  }
+
+  const seq = [];
+  let dragging = false;
+  let startDot = null;
+
+  function dotCenter(idx){
+    const d = dots[idx];
+    const r = d.getBoundingClientRect();
+    const w = wrapEl.getBoundingClientRect();
+    return { x: r.left - w.left + r.width/2, y: r.top - w.top + r.height/2 };
+  }
+
+  function updateSvg(){
+    const w = wrapEl.clientWidth, h = wrapEl.clientHeight;
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+
+    if (seq.length >= 2){
+      const pts = seq.map(i => dotCenter(i));
+      pathDone.setAttribute('d', pts.map((p,k)=> (k===0?'M':'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' '));
+    } else {
+      pathDone.setAttribute('d','');
+    }
+    pathLive.setAttribute('d','');
+  }
+
+  function hitDot(clientX, clientY){
+    for (let i = 0; i < dots.length; i++){
+      const r = dots[i].getBoundingClientRect();
+      const cx = r.left + r.width/2, cy = r.top + r.height/2;
+      const rr = Math.max(r.width, r.height) * 0.75;
+      const dx = clientX - cx, dy = clientY - cy;
+      if (dx*dx + dy*dy <= rr*rr) return i;
+    }
+    return -1;
+  }
+
+  function addDot(i){
+    if (seq.includes(i)) return;
+    seq.push(i);
+    dots[i].classList.add('active');
+    onChange(seq.slice());
+    updateSvg();
+  }
+
+  function onDown(e){
+    e.preventDefault();
+    wrapEl.setPointerCapture?.(e.pointerId);
+    const i = hitDot(e.clientX, e.clientY);
+    if (i < 0) return;
+    dragging = true;
+    startDot = i;
+    seq.length = 0;
+    dots.forEach(d=>d.classList.remove('active'));
+    addDot(i);
+  }
+
+  function onMove(e){
+    if (!dragging) return;
+    e.preventDefault();
+    const i = hitDot(e.clientX, e.clientY);
+    if (i >= 0 && !seq.includes(i)) addDot(i);
+    // live line
+    if (seq.length){
+      const w = wrapEl.getBoundingClientRect();
+      const last = dotCenter(seq[seq.length-1]);
+      const cur = { x: e.clientX - w.left, y: e.clientY - w.top };
+      const pts = seq.map(k => dotCenter(k));
+      const d = pts.map((p,k)=> (k===0?'M':'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ')
+              + ` L ${cur.x.toFixed(1)} ${cur.y.toFixed(1)}`;
+      pathLive.setAttribute('d', d);
+    }
+  }
+
+  function onUp(e){
+    if (!dragging) return;
+    dragging = false;
+    pathLive.setAttribute('d','');
+    try { wrapEl.releasePointerCapture?.(e.pointerId); } catch(_){}
+  }
+
+  wrapEl.addEventListener('pointerdown', onDown);
+  wrapEl.addEventListener('pointermove', onMove);
+  wrapEl.addEventListener('pointerup', onUp);
+  wrapEl.addEventListener('pointercancel', onUp);
+  wrapEl.addEventListener('pointerleave', onUp);
+  wrapEl.addEventListener('contextmenu', e=>e.preventDefault());
+
+  // Поправка размеров при resize/первом layout
+  requestAnimationFrame(updateSvg);
+  window.addEventListener('resize', updateSvg);
+
+  const reset = () => {
+    seq.length = 0;
+    dots.forEach(d=>d.classList.remove('active'));
+    pathDone.setAttribute('d','');
+    pathLive.setAttribute('d','');
+    onChange(seq.slice());
+  };
+
+  return { reset, value: () => seq.slice() };
+}
+
+// ============================================================
+// UI
+// ============================================================
+const UI = (() => {
+  const setupState = { mnemonic: '', passphrase: '', answers: {}, pattern: [], pin: '', recoveryCode: '' };
+  let currentRecoveryRequestId = null;
+  let loginPatternWidget = null;
+
+  async function initSetup(){
+    const steps = document.querySelectorAll('[data-setup]');
+    function go(n){
+      steps.forEach(s => s.classList.toggle('hidden', s.dataset.setup !== String(n)));
+      document.querySelectorAll('.step').forEach(s => {
+        const k = Number(s.dataset.step);
+        s.classList.toggle('active', k === n);
+        s.classList.toggle('done', k < n);
+      });
+    }
+
+    $('setupGen12').onclick = async () => { await loadLibs(); $('setupMnemonic').value = L.bip39.generateMnemonic(L.wordlist, 128); setStatus('Сгенерировано 12 слов. Сохраните их!', 'success', 2500); };
+    $('setupGen24').onclick = async () => { await loadLibs(); $('setupMnemonic').value = L.bip39.generateMnemonic(L.wordlist, 256); setStatus('Сгенерировано 24 слова. Сохраните их!', 'success', 2500); };
+
+    $('setupNext1').onclick = async () => {
+      await loadLibs();
+      const m = $('setupMnemonic').value.trim().toLowerCase().replace(/\s+/g,' ');
+      if (!L.bip39.validateMnemonic(m, L.wordlist)) return setStatus('Невалидная BIP-39 мнемоника', 'error', 3000);
+      setupState.mnemonic = m;
+      setupState.passphrase = $('setupPassphrase').value || '';
+      go(2);
+    };
+    $('setupBack2').onclick = ()=>go(1);
+    $('setupNext2').onclick = ()=>{
+      const q1=$('q1').value.trim(), a1=$('a1').value, q2=$('q2').value.trim(), a2=$('a2').value, q3=$('q3').value.trim(), a3=$('a3').value;
+      if (!q1||!a1||!q2||!a2||!q3||!a3) return setStatus('Заполните все вопросы и ответы', 'error', 3000);
+      setupState.answers = { q1,a1,q2,a2,q3,a3 };
+      go(3);
+    };
+
+    const setupP = mountPattern($('setupPatternWrap'), seq=>{
+      $('setupPatternLen').textContent = `Выбрано: ${seq.length} точек`;
+      $('setupNext3').disabled = seq.length < 4;
+      setupState.pattern = seq;
+    });
+    $('setupClear3').onclick = ()=>setupP.reset();
+    $('setupBack3').onclick = ()=>{ setupP.reset(); go(2); };
+    $('setupNext3').onclick = ()=>{ if (setupState.pattern.length<4) return; go(4); };
+
+    $('setupBack4').onclick = ()=>go(3);
+    $('setupNext4').onclick = async ()=>{
+      const p1=$('pin1').value, p2=$('pin2').value;
+      if (!new RegExp(`^\\d{${PIN_LENGTH}}$`).test(p1)) return setStatus(`PIN должен содержать ровно ${PIN_LENGTH} цифр`, 'error', 3000);
+      if (p1!==p2) return setStatus('PIN не совпадает', 'error', 3000);
+      setupState.pin = p1;
+
+      try {
+        setStatus('<span class="spinner"></span> Создание vault (Argon2id, ~0.5 сек)…', 'info');
+        await Core.init();
+        await Core.createVault({
+          mnemonic: setupState.mnemonic, passphrase: setupState.passphrase,
+          factors: {
+            q1: setupState.answers.q1, q2: setupState.answers.q2, q3: setupState.answers.q3,
+            a1: setupState.answers.a1, a2: setupState.answers.a2, a3: setupState.answers.a3,
+            pattern: setupState.pattern, pin: setupState.pin,
+          },
+        });
+        setStatus('Vault создан', 'success', 2500);
+        const code = bytesToHex(randomBytes(18)).match(/.{1,4}/g).join('-');
+        setupState.recoveryCode = code;
+        $('recoveryCodeDisplay').textContent = code;
+        await Core.setRecoveryCodeHash(code);
+        go(5);
+      } catch(e){ setStatus('Ошибка: ' + e.message, 'error'); }
+    };
+
+    $('copyRecoveryCode').onclick = async ()=>{ await navigator.clipboard.writeText(setupState.recoveryCode); setStatus('Код скопирован. Сохраните его в надёжном месте.', 'warn', 3000); };
+    $('regenRecoveryCode').onclick = async ()=>{
+      const code = bytesToHex(randomBytes(18)).match(/.{1,4}/g).join('-');
+      setupState.recoveryCode = code;
+      $('recoveryCodeDisplay').textContent = code;
+      await Core.setRecoveryCodeHash(code);
+    };
+    $('setupFinish').onclick = ()=>go(6);
+    $('goToLogin').onclick = ()=>{
+      show('viewLogin');
+      renderLoginHints();
+      loginPatternWidget = mountPattern($('loginPatternWrap'), ()=>{});
+    };
+  }
+
+  function renderLoginHints(){
+    const raw = (()=>{ try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } })();
+    const el = $('loginHints');
+    if (!raw || !raw.questions) { el.innerHTML = ''; return; }
+    const qs = [raw.questions.q1, raw.questions.q2, raw.questions.q3].filter(Boolean);
+    if (!qs.length) { el.innerHTML = ''; return; }
+    el.innerHTML = qs.map((q,i)=>`<div class="q-hint"><span class="qnum">Вопрос ${i+1}:</span>${q}</div>`).join('');
+  }
+
+  async function doLogin(){
+    const a1=$('loginA1').value, a2=$('loginA2').value, a3=$('loginA3').value;
+    const pattern = loginPatternWidget ? loginPatternWidget.value() : [];
+    const pin = $('loginPin').value;
+    const passphrase = $('loginPassphrase').value || '';
+    if (!a1||!a2||!a3||pattern.length<4||!pin) return setStatus('Заполните все факторы', 'error', 3000);
+    if (!new RegExp(`^\\d{${PIN_LENGTH}}$`).test(pin)) return setStatus(`PIN должен быть ${PIN_LENGTH} цифр`, 'error', 3000);
+    setStatus('<span class="spinner"></span> Расшифровка vault (Argon2id)…', 'info');
+    try {
+      await Core.unlock({ a1, a2, a3, pattern, pin, passphrase });
+      setStatus('Vault разблокирован', 'success', 2000);
+      show('viewDash');
+      renderDash();
+    } catch(e){ setStatus(e.message, 'error', 4000); }
+  }
+
+  function wipeVault(){
+    if (!confirm('Удалить vault безвозвратно? Это действие необратимо.')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    Audit.log('warn', 'Vault wiped by user');
+    setStatus('Vault удалён', 'warn', 2500);
+    location.reload();
+  }
+
+  function renderDash(){
+    const st = Core.getState();
+    $('vaultStateBadge').textContent = st.unlocked ? 'unlocked' : 'locked';
+    $('vaultStateBadge').className = 'badge ' + (st.unlocked ? 'ok' : 'lock');
+    const keys = $('keysList');
+    keys.innerHTML = '';
+    for (const id of [1,2,3]){
+      const available = id===3 ? st.key3Unlocked : st.unlocked;
+      const el = document.createElement('div');
+      el.className = 'kv';
+      el.innerHTML = `<span class="kv-key">Key ${id}</span><span class="kv-val"><div>${st.addresses[id] || '—'}</div><div style="color:var(--muted);font-size:10.5px">${st.paths[id]} · ${available ? 'READY' : (id===3?'LOCKED':'—')}</div></span>`;
+      keys.appendChild(el);
+    }
+    $('trustedContractLabel').textContent = TRUSTED_CONTRACT.address;
+    $('rcChainId').textContent = TRUSTED_CONTRACT.chainId;
+    $('rcAddress').textContent = TRUSTED_CONTRACT.address;
+    $('rcDelay').textContent = (TRUSTED_CONTRACT.delayMs/60000) + ' мин';
+  }
+
+  async function signTx(){
+    const keyId = Number($('signKey').value);
+    const tx = {
+      chainId: Number($('txChainId').value) || 1,
+      nonce: Number($('txNonce').value) || 0,
+      to: $('txTo').value.trim(),
+      value: $('txValue').value || '0',
+      gasLimit: Number($('txGas').value) || 21000,
+      maxFeeGwei: Number($('txFee').value) || 20,
+      data: $('txData').value.trim() || '0x',
+    };
+    if (keyId === 3 && !Core.getState().key3Unlocked){
+      const a1 = prompt('Answer 1:'); const a2 = prompt('Answer 2:'); const a3 = prompt('Answer 3:');
+      const pin = prompt(`PIN (${PIN_LENGTH} цифр):`);
+      const patternInput = prompt('Pattern (например 0-1-2-5):');
+      const pattern = patternInput ? patternInput.split('-').map(Number) : [];
+      setStatus('<span class="spinner"></span> Unlock Key 3…', 'info');
+      try { await Core.unlockKey3({ a1,a2,a3, pattern, pin }); }
+      catch(e){ return setStatus('Key 3: '+e.message, 'error'); }
+      renderDash();
+    }
+    setStatus('<span class="spinner"></span> Policy check + подпись…', 'info');
+    try {
+      const r = await Core.signTransaction(tx, keyId);
+      $('policyResult').innerHTML = `<div class="warning-box">Policy: <b>${r.policy.ok?'OK':'FAIL'}</b>${r.policy.warnings.map(w=>'<div>⚠ '+w+'</div>').join('')}</div>`;
+      $('txSignature').innerHTML = `<div class="tx-result"><h4>Signed transaction</h4>
+        <div class="kv"><span class="kv-key">Hash</span><span class="kv-val">${r.txHash}</span></div>
+        <div class="kv"><span class="kv-key">Signer</span><span class="kv-val">${r.signer}</span></div>
+        <div class="kv"><span class="kv-key">Raw</span><span class="kv-val">${r.rawTransaction.slice(0,120)}…</span></div></div>`;
+      setStatus('Транзакция подписана', 'success', 2500);
+    } catch(e){ setStatus('Ошибка подписи: '+e.message, 'error', 4000); }
+  }
+
+  async function backupFull(){
+    try {
+      const b = await Core.createFullBackup();
+      downloadJson(b, `clandai-backup-${Date.now()}.json`);
+      setStatus('Backup сохранён', 'success', 2500);
+    } catch(e){ setStatus(e.message, 'error'); }
+  }
+  async function backupShamir(){
+    $('shamirOpts').classList.remove('hidden');
+    $('shamirRunRow').classList.remove('hidden');
+  }
+  async function makeShares(){
+    const total = Number($('shamirTotal').value);
+    const th = Number($('shamirThreshold').value);
+    try {
+      const shares = await Core.createShamirBackup(total, th);
+      const out = $('sharesOut');
+      out.innerHTML = `<div class="warning-box">Создано ${total} shares, threshold = ${th}. Любые ${th} восстановят vault.</div>`;
+      shares.forEach((s,i)=>{
+        const el = document.createElement('div');
+        el.className = 'share-item';
+        el.innerHTML = `<code>#${i+1} x=${s.x} · ${s.y.slice(0,40)}…</code>`;
+        const btn = document.createElement('button');
+        btn.textContent = '💾';
+        btn.onclick = ()=>downloadJson(s, `clandai-share-${i+1}.json`);
+        el.appendChild(btn);
+        out.appendChild(el);
+      });
+      setStatus('Shares созданы', 'success', 2500);
+    } catch(e){ setStatus(e.message, 'error'); }
+  }
+
+  async function doRestore(){
+    let raw = $('restoreInput').value.trim();
+    if (!raw) return setStatus('Вставьте backup или shares', 'error');
+    let data;
+    try { data = JSON.parse(raw); } catch { return setStatus('Невалидный JSON', 'error'); }
+    const a1 = prompt('Answer 1:'); const a2 = prompt('Answer 2:'); const a3 = prompt('Answer 3:');
+    const pin = prompt(`PIN (${PIN_LENGTH} цифр):`);
+    const patternInput = prompt('Pattern (например 0-1-2-5):');
+    const pattern = patternInput ? patternInput.split('-').map(Number) : [];
+    const passphrase = prompt('BIP-39 passphrase (пусто — если не задавали):') || '';
+    setStatus('<span class="spinner"></span> Restore…', 'info');
+    try {
+      if (Array.isArray(data)) await Core.restoreFromShares(data, { a1, a2, a3, pattern, pin, passphrase });
+      else await Core.restoreFromFull(data, { a1, a2, a3, pattern, pin, passphrase });
+      setStatus('Vault восстановлен. Войдите.', 'success', 3000);
+      show('viewLogin');
+      renderLoginHints();
+      loginPatternWidget = mountPattern($('loginPatternWrap'), ()=>{});
+    } catch(e){ setStatus('Restore: '+e.message, 'error', 4000); }
+  }
+
+  function downloadJson(obj, name){
+    const blob = new Blob([JSON.stringify(obj,null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function rcRequest(){
+    const r = Core.rcRequest();
+    currentRecoveryRequestId = r.id;
+    Audit.log('info', 'requestRecovery()');
+    showRc({ id: r.id, readyAt: new Date(r.readyAt).toISOString(), delaySec: r.delayMs/1000 });
+    setStatus('Recovery запрошен. Ждите окончания задержки.', 'info', 4000);
+  }
+  function rcStatus(){
+    if (!currentRecoveryRequestId) return setStatus('Нет активного запроса', 'warn');
+    showRc(Core.rcStatus(currentRecoveryRequestId));
+  }
+  function rcCode(){
+    if (!currentRecoveryRequestId) return setStatus('Нет активного запроса', 'warn');
+    try {
+      const c = Core.rcGetCode(currentRecoveryRequestId);
+      showRc({ ...c, note: 'Скопируйте и используйте для Secret Reveal' });
+      setStatus('Recovery code получен', 'success', 3000);
+    } catch(e){ setStatus(e.message, 'warn', 3000); }
+  }
+  function rcCancel(){
+    if (!currentRecoveryRequestId) return;
+    Core.rcCancel(currentRecoveryRequestId);
+    setStatus('Запрос отменён', 'warn', 2000);
+    currentRecoveryRequestId = null;
+  }
+  function showRc(obj){
+    const el = $('rcOut');
+    el.classList.remove('hidden');
+    el.innerHTML = '<h4>Trusted Contract response</h4>' + Object.entries(obj).map(([k,v])=>
+      `<div class="kv"><span class="kv-key">${k}</span><span class="kv-val">${String(v)}</span></div>`).join('');
+  }
+
+  async function revealSeed(){
+    const code = $('revealCode').value.trim();
+    if (!code) return setStatus('Введите recovery code', 'error');
+    try {
+      const r = await Core.revealSeed(code);
+      const words = r.mnemonic.split(' ');
+      $('revealOut').innerHTML = `<div class="danger-box">⚠️ Seed phrase показана. Экран будет очищен через 60 секунд.</div>
+        <div class="seed-grid">${words.map((w,i)=>`<div class="seed-word"><span class="num">${i+1}</span><span class="w">${w}</span></div>`).join('')}</div>`;
+      setStatus('Seed revealed', 'warn', 3000);
+      setTimeout(()=>{ $('revealOut').innerHTML = ''; $('revealCode').value=''; }, 60000);
+    } catch(e){ setStatus(e.message, 'error', 4000); }
+  }
+
+  function lockVault(){
+    Core.lock('emergency');
+    renderDash();
+    setStatus('VAULT LOCKED', 'warn', 3000);
+    show('viewLogin');
+    renderLoginHints();
+    loginPatternWidget = mountPattern($('loginPatternWrap'), ()=>{});
+  }
+
+  function showAudit(){
+    const list = Core.audit();
+    const el = $('auditOut');
+    el.classList.remove('hidden');
+    if (!list.length) return el.innerHTML = '<div class="warning-box">Журнал пуст.</div>';
+    el.innerHTML = list.slice().reverse().map(e=>{
+      const t = new Date(e.t).toLocaleTimeString();
+      return `<div class="log-entry"><span class="log-time">${t}</span><span class="log-type ${e.type}">${e.type}</span><span>${e.msg}</span></div>`;
+    }).join('');
+  }
+
+  async function boot(){
+    await Core.init();
+    $('trustedContractLabel').textContent = TRUSTED_CONTRACT.address;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      show('viewLogin');
+      renderLoginHints();
+      loginPatternWidget = mountPattern($('loginPatternWrap'), ()=>{});
+    } else {
+      show('viewSetup');
+      await initSetup();
+    }
+
+    $('doLogin').onclick = doLogin;
+    $('wipeVaultBtn').onclick = wipeVault;
+    $('signTxBtn').onclick = signTx;
+    $('backupFull').onclick = backupFull;
+    $('backupShamir').onclick = backupShamir;
+    $('makeShares').onclick = makeShares;
+    $('doRestore').onclick = doRestore;
+    $('pickRestoreFile').onclick = ()=>$('restoreFile').click();
+    $('restoreFile').onchange = async e=>{
+      const f = e.target.files[0]; if (!f) return;
+      $('restoreInput').value = await f.text();
+    };
+    $('rcRequest').onclick = rcRequest;
+    $('rcStatus').onclick = rcStatus;
+    $('rcCode').onclick = rcCode;
+    $('rcCancel').onclick = rcCancel;
+    $('revealBtn').onclick = revealSeed;
+    $('lockBtn').onclick = lockVault;
+    $('auditBtn').onclick = showAudit;
+  }
+
+  return { boot, renderDash };
+})();
+
+// ============================================================
+// Anti-tamper
+// ============================================================
+(function integrityCheck(){
+  const expected = '0x00000000000000000000000000000000DEADBEEF';
+  if (TRUSTED_CONTRACT.address !== expected){
+    document.body.innerHTML = '<div style="padding:40px;color:#ff4757;font-family:monospace">SECURITY ERROR<br>APPLICATION INTEGRITY CHECK FAILED</div>';
+    throw new Error('Integrity check failed');
+  }
+})();
+
+window.addEventListener('error', e=>{ console.error('UI error:', e.message); });
+UI.boot().catch(e=>{ console.error(e); setStatus('Ошибка инициализации: '+e.message, 'error'); });
+</script>
+</body>
+</html>

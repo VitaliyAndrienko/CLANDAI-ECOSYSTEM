@@ -1,0 +1,2648 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI SUBSCRIPTIONS</title>
+<style>
+:root{
+  --bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);
+  --neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--pink:#ff2bd6;
+  --text:#d8dee6;--muted:#5b6672;--danger:#ff3b6b;--radius:14px;--gold:#ffd400;
+  --verified:#00d9ff;--verified-dim:rgba(0,217,255,.35);
+  color-scheme: dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+
+.app{position:relative;z-index:1;max-width:520px;margin:0 auto;min-height:100vh;
+  padding:22px 18px 40px;display:flex;flex-direction:column;gap:16px}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px}
+.logo{font-weight:700;letter-spacing:3px;font-size:14px;opacity:.78;white-space:nowrap}
+.logo b{color:var(--neon)}
+.topbar-actions{display:flex;gap:6px;align-items:center}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);
+  width:34px;height:34px;border-radius:9px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .15s,color .15s;flex-shrink:0}
+.icon-btn:hover{border-color:var(--neon);color:var(--neon)}
+.icon-btn:active{transform:scale(.94)}
+.icon-btn svg{width:15px;height:15px}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  backdrop-filter:blur(18px);padding:18px;position:relative}
+.section-title{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;
+  margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.section-title .link{color:var(--cyan);cursor:pointer;letter-spacing:1px;font-weight:700}
+.section-title .link:hover{text-decoration:underline}
+
+/* ============ TABS ============ */
+.tabs{display:flex;gap:4px;background:rgba(0,0,0,.4);padding:4px;border-radius:12px;
+  border:1px solid var(--border)}
+.tab{flex:1;padding:11px 8px;background:transparent;border:none;color:var(--muted);
+  font-family:inherit;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;
+  cursor:pointer;border-radius:9px;transition:all .15s;font-weight:700;position:relative}
+.tab.active{background:var(--neon-dim);color:var(--neon);
+  box-shadow:inset 0 0 14px -4px var(--neon)}
+.tab .tab-count{
+  display:inline-block;min-width:18px;padding:1px 5px;margin-left:6px;
+  background:rgba(0,0,0,.5);border-radius:999px;font-size:9px;
+  color:var(--text);letter-spacing:.5px}
+.tab.active .tab-count{background:var(--neon);color:#08090b}
+
+/* ============ ROTATING LOGO ============ */
+@keyframes coinSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.token-logo{width:44px;height:44px;border-radius:50%;flex-shrink:0;
+  display:grid;place-items:center;overflow:hidden;position:relative;
+  background:radial-gradient(circle at 30% 30%,var(--neon-dim),rgba(0,217,255,.08) 60%,rgba(0,0,0,.5));
+  border:1.5px solid var(--neon-dim);box-shadow:0 0 12px var(--neon-dim)}
+.token-logo.sm{width:26px;height:26px;border-width:1px}
+.token-logo.lg{width:52px;height:52px}
+.token-logo > img,
+.token-logo > .fb{
+  animation:coinSpin 3s linear infinite;
+  transform-origin:center center;
+  display:block;width:100%;height:100%;
+  will-change:transform;
+}
+.token-logo > img{object-fit:cover;border-radius:50%}
+.token-logo > .fb{font-size:16px;font-weight:800;color:var(--neon);
+  text-shadow:0 0 10px var(--neon-dim);display:grid;place-items:center;
+  letter-spacing:-.5px}
+.token-logo.sm > .fb{font-size:9px}
+.token-logo.lg > .fb{font-size:20px}
+.token-logo::after{content:'';position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(120deg,transparent 35%,rgba(255,255,255,.18) 50%,transparent 65%);
+  pointer-events:none;z-index:2}
+
+/* ============ SUBSCRIPTION CARD ============ */
+.sub-list{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.sub-empty{color:var(--muted);font-size:12px;text-align:center;padding:32px 0;letter-spacing:1px}
+
+.sub-card{
+  position:relative;
+  background:linear-gradient(135deg,rgba(0,255,170,.03),rgba(0,0,0,.3));
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  transition:border-color .25s,background .35s,opacity .4s;
+  animation:slideIn .35s cubic-bezier(.2,.9,.3,1.1);
+}
+@keyframes slideIn{
+  from{opacity:0;transform:translateY(-8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.sub-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--neon);box-shadow:0 0 12px var(--neon-dim);
+  transition:background .4s,box-shadow .4s}
+.sub-card:hover{border-color:rgba(0,255,170,.35)}
+.sub-card.deleted{background:linear-gradient(135deg,rgba(255,59,107,.04),rgba(0,0,0,.3));
+  border-color:rgba(255,59,107,.28)}
+.sub-card.deleted::before{background:var(--danger);box-shadow:0 0 12px var(--danger)}
+.sub-card.removing{opacity:0;transform:translateX(20px);transition:opacity .5s,transform .5s}
+
+.sub-head{
+  display:flex;align-items:center;gap:12px;padding:14px;
+  cursor:pointer;user-select:none;
+}
+.sub-head-left{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+.sub-name-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sub-name{font-size:13px;color:var(--text);font-weight:700;letter-spacing:.4px;
+  transition:color .35s}
+.sub-card.deleted .sub-name{color:var(--muted);text-decoration:line-through;
+  text-decoration-color:var(--danger);text-decoration-thickness:1.5px}
+
+.verified-badge{
+  display:inline-grid;place-items:center;
+  width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%,#5ee7ff,var(--verified) 70%);
+  color:#08090b;flex-shrink:0;
+  box-shadow:0 0 8px var(--verified-dim),0 0 0 1px rgba(255,255,255,.15);
+  animation:verifiedGlow 2.6s ease-in-out infinite;
+}
+.verified-badge svg{width:10px;height:10px;display:block}
+@keyframes verifiedGlow{
+  0%,100%{box-shadow:0 0 8px var(--verified-dim),0 0 0 1px rgba(255,255,255,.15)}
+  50%{box-shadow:0 0 14px var(--verified),0 0 0 1px rgba(255,255,255,.25)}
+}
+
+.sub-addr{font-size:11px;color:var(--muted);letter-spacing:.4px;margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  position:relative;display:inline-block;max-width:100%}
+.sub-addr::after{
+  content:'';position:absolute;left:-2px;right:-2px;top:50%;height:1.5px;
+  background:var(--danger);box-shadow:0 0 8px var(--danger);
+  transform:scaleX(0);transform-origin:left center;
+  transition:transform .5s cubic-bezier(.2,.8,.2,1);
+}
+.sub-card.deleted .sub-addr::after{transform:scaleX(1)}
+
+.sub-chevron{color:var(--muted);transition:transform .25s,color .2s;flex-shrink:0}
+.sub-card.open .sub-chevron{transform:rotate(180deg);color:var(--neon)}
+.sub-card.deleted .sub-chevron{color:var(--muted)}
+.sub-chevron svg{width:16px;height:16px;display:block}
+
+.sub-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.badge{display:inline-flex;align-items:center;gap:5px;
+  padding:3px 8px;border-radius:999px;
+  background:rgba(0,0,0,.4);border:1px solid var(--border);
+  font-size:10px;letter-spacing:.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.badge svg{width:10px;height:10px}
+.badge b{color:var(--text);font-weight:700}
+.badge.freq{border-color:rgba(0,217,255,.35);color:var(--cyan);background:rgba(0,217,255,.06)}
+.badge.freq b{color:var(--cyan)}
+.badge.amount{border-color:rgba(0,255,170,.35);color:var(--neon);background:rgba(0,255,170,.06)}
+.badge.amount b{color:var(--neon)}
+.badge.deadline{border-color:rgba(255,212,0,.35);color:var(--gold);background:rgba(255,212,0,.06)}
+.badge.deadline b{color:var(--gold)}
+.badge.deadline.expired{border-color:rgba(255,59,107,.4);color:var(--danger);
+  background:rgba(255,59,107,.08)}
+
+/* ============ EXPANDABLE BODY ============ */
+.sub-body{
+  max-height:0;overflow:hidden;
+  transition:max-height .35s cubic-bezier(.2,.8,.2,1);
+  border-top:1px solid transparent;
+}
+.sub-card.open .sub-body{
+  max-height:1200px;
+  border-top-color:rgba(255,255,255,.05);
+}
+.sub-body-inner{padding:14px;display:flex;flex-direction:column;gap:14px}
+
+.detail-block{display:flex;flex-direction:column;gap:8px}
+.detail-block-title{font-size:10px;letter-spacing:2px;color:var(--muted);
+  text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.detail-block-title::after{content:'';flex:1;height:1px;
+  background:linear-gradient(90deg,rgba(255,255,255,.08),transparent)}
+
+.detail-row{display:flex;justify-content:space-between;font-size:12px;gap:12px;
+  padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.detail-row:last-child{border-bottom:none}
+.detail-row .lbl{color:var(--muted);flex-shrink:0;letter-spacing:.5px;font-size:11px}
+.detail-row .val{color:var(--text);text-align:right;word-break:break-all;font-weight:700;font-size:12px;
+  font-variant-numeric:tabular-nums}
+.detail-row .val.good{color:var(--neon);text-shadow:0 0 8px var(--neon-dim)}
+.detail-row .val.cy{color:var(--cyan)}
+.detail-row .val.gold{color:var(--gold)}
+
+.token-list{display:flex;flex-direction:column;gap:6px}
+.token-line{display:flex;align-items:center;gap:10px;padding:8px 10px;
+  background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px}
+.token-line-info{flex:1;min-width:0}
+.token-line-sym{font-size:12px;color:var(--text);font-weight:700;letter-spacing:.4px}
+.token-line-name{font-size:10px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.token-line-amt{font-size:13px;color:var(--neon);font-weight:800;
+  text-align:right;font-variant-numeric:tabular-nums;
+  text-shadow:0 0 10px var(--neon-dim);white-space:nowrap}
+.token-line-amt small{display:block;color:var(--muted);font-size:9px;font-weight:400;
+  margin-top:2px;letter-spacing:.5px;text-shadow:none}
+
+.func-chips{display:flex;flex-wrap:wrap;gap:6px}
+.func-chip{padding:5px 10px;border-radius:8px;
+  background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.3);
+  color:#c084fc;font-size:10px;letter-spacing:.6px;text-transform:uppercase;
+  font-weight:700}
+.func-chip.neon{background:var(--neon-dim);border-color:var(--neon);color:var(--neon)}
+.func-chip.cy{background:rgba(0,217,255,.08);border-color:rgba(0,217,255,.35);color:var(--cyan)}
+
+.sub-actions{
+  display:flex;align-items:center;justify-content:flex-end;
+  gap:8px;padding:0 14px 14px;flex-wrap:wrap;
+}
+.wl-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 12px;
+  background:transparent;
+  border:1px solid var(--border);
+  border-radius:9px;
+  color:var(--muted);
+  font-family:inherit;font-size:10px;
+  letter-spacing:1.2px;text-transform:uppercase;
+  cursor:pointer;transition:all .2s;font-weight:700;
+  position:relative;overflow:hidden;
+}
+.wl-btn svg{width:13px;height:13px;transition:transform .2s;position:relative;z-index:1}
+.wl-btn > span { position: relative; z-index: 1; }
+.wl-btn.edit:hover{border-color:var(--cyan);color:var(--cyan);
+  box-shadow:0 0 18px -4px var(--cyan)}
+.wl-btn.del{border-color:rgba(255,59,107,.4);color:var(--danger)}
+.wl-btn.del:hover{border-color:var(--danger);color:#fff;background:rgba(255,59,107,.15);
+  box-shadow:0 0 18px -4px var(--danger)}
+.wl-btn.del:hover svg{transform:rotate(-12deg)}
+.wl-btn.lock{
+  border-color:var(--danger);color:var(--danger);
+  background:linear-gradient(180deg,rgba(255,59,107,.12),transparent);
+  cursor:default;box-shadow:0 0 18px -6px var(--danger);
+}
+.wl-btn.lock:hover{border-color:var(--danger);color:var(--danger)}
+.wl-btn.restore{
+  border-color:rgba(0,255,170,.4);color:var(--neon);
+  position:relative;overflow:hidden;
+  padding-right: 14px; /* extra padding since no text number */
+}
+.wl-btn.restore:hover{border-color:var(--neon);background:var(--neon-dim)}
+.wl-btn .progress-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0,255,170,.22);
+  width: 100%;
+  transform-origin: left center;
+  transition: transform .1s linear;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ============ FORM ============ */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:7px}
+input[type="text"],input[type="number"],textarea{
+  width:100%;padding:12px 14px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);
+  font-family:inherit;font-size:13px;outline:none;
+  transition:border-color .15s,box-shadow .15s;resize:none}
+input:focus,textarea:focus{border-color:var(--neon);
+  box-shadow:0 0 0 3px var(--neon-dim)}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+textarea{min-height:60px;line-height:1.5}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input:disabled, textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: rgba(255,255,255,.06);
+  background: rgba(0,0,0,.25);
+}
+
+.input-with-copy { position: relative; }
+.input-with-copy input { padding-right: 40px; }
+.copy-btn {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: transparent; border: none;
+  color: var(--muted); cursor: pointer; padding: 4px;
+  display: grid; place-items: center;
+  transition: color .15s;
+}
+.copy-btn:hover { color: var(--neon); }
+.copy-btn svg { width: 14px; height: 14px; }
+
+/* ============ CUSTOM DATETIME FIELD ============ */
+.datetime-field {
+  position: relative;
+  width: 100%;
+}
+.datetime-display {
+  width: 100%;
+  padding: 12px 40px 12px 14px;
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  user-select: none;
+  position: relative;
+}
+.datetime-display:hover { border-color: var(--neon); }
+.datetime-display.active { border-color: var(--neon); box-shadow: 0 0 0 3px var(--neon-dim); }
+.datetime-display .dt-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--neon);
+  pointer-events: none;
+}
+.datetime-display .dt-value { flex: 1; }
+.datetime-display.empty .dt-value { color: var(--muted); }
+
+/* ============ CUSTOM SELECT ============ */
+.custom-select{position:relative;width:100%}
+.custom-select-btn{
+  width:100%;padding:12px 14px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);
+  font-family:inherit;font-size:13px;outline:none;
+  display:flex;justify-content:space-between;align-items:center;
+  cursor:pointer;transition:border-color .15s, box-shadow .15s;
+}
+.custom-select-btn:hover{border-color:var(--neon)}
+.custom-select.open .custom-select-btn{border-color:var(--neon);box-shadow:0 0 0 3px var(--neon-dim)}
+.custom-select-btn .arrow{color:var(--muted);transition:transform .2s}
+.custom-select.open .custom-select-btn .arrow{transform:rotate(180deg);color:var(--neon)}
+.custom-select-menu{
+  position:absolute;top:calc(100% + 6px);left:0;right:0;
+  background:#0e1014;border:1px solid var(--border);border-radius:10px;
+  padding:6px;z-index:50;display:none;max-height:220px;overflow-y:auto;
+  box-shadow:0 12px 40px rgba(0,0,0,.75),0 0 0 1px var(--neon-dim);
+}
+.custom-select.open .custom-select-menu{display:block}
+.custom-select-opt{
+  padding:10px 12px;border-radius:7px;cursor:pointer;font-size:13px;
+  color:var(--text);transition:background .12s,color .12s;
+}
+.custom-select-opt:hover{background:var(--neon-dim);color:var(--neon)}
+.custom-select-opt.active{background:var(--neon-dim);color:var(--neon)}
+
+/* ============ TOKEN PICKER ============ */
+.token-picker{position:relative;width:100%}
+.token-picker-trigger{
+  width:100%;padding:12px 14px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);
+  font-family:inherit;font-size:13px;outline:none;
+  display:flex;flex-wrap:wrap;gap:4px;align-items:center;
+  cursor:pointer;transition:border-color .15s, box-shadow .15s;
+  min-height:46px;
+}
+.token-picker-trigger:hover{border-color:var(--neon)}
+.token-picker.open .token-picker-trigger{border-color:var(--neon);box-shadow:0 0 0 3px var(--neon-dim)}
+.token-picker-trigger .placeholder{color:var(--muted);flex:1}
+.token-picker-trigger .tag{
+  background:transparent;
+  border:1px solid var(--neon-dim);
+  color:var(--neon);
+  padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;
+  display:inline-flex;align-items:center;gap:4px;
+}
+.token-picker-trigger .tag .remove{
+  cursor:pointer;color:var(--muted);font-size:14px;line-height:1;
+  transition:color .15s;
+}
+.token-picker-trigger .tag .remove:hover{color:var(--danger)}
+.token-picker-trigger .arrow{color:var(--muted);margin-left:auto;transition:transform .2s}
+.token-picker.open .token-picker-trigger .arrow{transform:rotate(180deg);color:var(--neon)}
+
+.token-picker-menu{
+  position:absolute;top:calc(100% + 6px);left:0;right:0;
+  background:#0e1014;border:1px solid var(--border);border-radius:10px;
+  padding:10px;z-index:50;display:none;
+  box-shadow:0 12px 40px rgba(0,0,0,.75),0 0 0 1px var(--neon-dim);
+  max-height:320px;overflow-y:auto;
+}
+.token-picker.open .token-picker-menu{display:block}
+.token-picker-search{
+  width:100%;padding:10px 12px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:8px;color:var(--text);
+  font-family:inherit;font-size:12px;outline:none;margin-bottom:8px;
+}
+.token-picker-search:focus{border-color:var(--neon)}
+.token-picker-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.token-picker-item{
+  display:flex;align-items:center;gap:10px;padding:8px;
+  border-radius:8px;cursor:pointer;transition:all .15s;
+  border:1px solid transparent;
+  background: transparent;
+}
+.token-picker-item:hover{background:rgba(255,255,255,.03);border-color:var(--border)}
+.token-picker-item.selected{
+  background: transparent;
+  border-color: rgba(0,255,170,.4);
+}
+.token-picker-item.selected:hover{
+  background: rgba(0,255,170,.03);
+  border-color: rgba(0,255,170,.6);
+}
+.token-picker-item .checkbox{
+  width:18px;height:18px;border-radius:4px;border:1.5px solid var(--muted);
+  display:grid;place-items:center;flex-shrink:0;transition:all .15s;
+  background: rgba(0,0,0,.4);
+}
+.token-picker-item.selected .checkbox{
+  background:var(--neon);border-color:var(--neon);
+  box-shadow: 0 0 8px var(--neon-dim);
+}
+.token-picker-item .checkbox svg{width:12px;height:12px;color:#08090b;display:none}
+.token-picker-item.selected .checkbox svg{display:block}
+.token-picker-item .info{flex:1;min-width:0}
+.token-picker-item .sym{font-size:12px;font-weight:700;color:var(--text)}
+.token-picker-item.selected .sym{color: var(--neon)}
+.token-picker-item .name{font-size:10px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.token-picker-item .addr{font-size:10px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.token-picker-item .select-all-row{
+  display:flex;align-items:center;gap:10px;padding:10px;
+  border-bottom:1px solid var(--border);margin-bottom:6px;
+  font-size:12px;font-weight:700;color:var(--cyan);cursor:pointer;
+  background: transparent;border-radius: 0;border: none;
+  border-bottom: 1px solid var(--border);
+}
+.token-picker-item .select-all-row:hover { background: rgba(0,217,255,.04); }
+.token-picker-item .select-all-row .checkbox{
+  border-color:var(--cyan);
+  background: rgba(0,0,0,.4);
+}
+.token-picker-item .select-all-row.selected .checkbox{
+  background:var(--cyan);border-color:var(--cyan);
+  box-shadow: 0 0 8px rgba(0,217,255,.4);
+}
+.token-picker-item .select-all-row.selected .checkbox svg{display:block}
+
+.token-picker-footer {
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+.btn-confirm-tokens {
+  width: 100%;
+  padding: 10px;
+  background: var(--neon-dim);
+  border: 1px solid var(--neon);
+  border-radius: 8px;
+  color: var(--neon);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all .15s;
+}
+.btn-confirm-tokens:hover {
+  background: var(--neon);
+  color: #08090b;
+  box-shadow: 0 0 20px var(--neon-dim);
+}
+
+/* ============ FORM LAYOUT ============ */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-grid .field{margin-bottom:0}
+.form-grid .field.full{grid-column:1/-1}
+
+/* Locked checkbox row (auto-detected) */
+.checkbox-row{display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;
+  cursor:pointer;transition:border-color .15s;user-select:none}
+.checkbox-row:hover{border-color:var(--verified)}
+.checkbox-row input[type="checkbox"]{
+  appearance:none;width:20px;height:20px;border-radius:6px;
+  border:1.5px solid var(--border);background:rgba(0,0,0,.4);
+  cursor:pointer;flex-shrink:0;position:relative;
+  transition:all .15s}
+.checkbox-row input[type="checkbox"]:checked{
+  background:radial-gradient(circle at 30% 30%,#5ee7ff,var(--verified));
+  border-color:var(--verified);
+  box-shadow:0 0 12px var(--verified-dim)}
+.checkbox-row input[type="checkbox"]:checked::after{
+  content:'';position:absolute;left:6px;top:2px;
+  width:5px;height:10px;border:2px solid #08090b;
+  border-top:0;border-left:0;transform:rotate(45deg)}
+.checkbox-row span{font-size:12px;color:var(--text);flex:1}
+.checkbox-row span small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+
+/* Auto-detected / locked state */
+.checkbox-row.locked {
+  cursor: default;
+  pointer-events: none;
+  border-color: rgba(0,217,255,.3);
+  background: linear-gradient(180deg, rgba(0,217,255,.05), rgba(0,0,0,.35));
+}
+.checkbox-row.locked input[type="checkbox"] {
+  cursor: default;
+}
+.checkbox-row.locked span small {
+  color: var(--cyan);
+}
+
+/* ============ THICK SLIDER ============ */
+.slider-field { margin-bottom: 14px; }
+.slider-field .slider-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+}
+.slider-field .slider-top label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin: 0;
+}
+.slider-field .slider-top .slider-value-input {
+  width: 100px;
+  padding: 4px 8px;
+  background: rgba(0,0,0,.5);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--neon);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.slider-field .slider-top .slider-value-input:focus {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 2px var(--neon-dim);
+}
+.limit-slider{
+  position:relative;
+  height:56px;
+  background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.35));
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+  cursor:grab;
+  touch-action:none;
+  user-select:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+.limit-slider:active{cursor:grabbing}
+.limit-slider.dragging{border-color:var(--neon);box-shadow:0 0 0 3px var(--neon-dim),inset 0 0 30px -12px var(--neon)}
+.limit-slider-grid{position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(90deg, var(--neon-dim) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 0 calc(25% - 1px), rgba(0,255,170,.35) 25%, transparent calc(25% + 1px)),
+    linear-gradient(90deg, transparent 0 calc(50% - 1px), rgba(0,255,170,.35) 50%, transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent 0 calc(75% - 1px), rgba(0,255,170,.35) 75%, transparent calc(75% + 1px));
+  background-size:5% 100%, 100% 100%, 100% 100%, 100% 100%;
+  opacity:.18}
+.limit-slider-fill{position:absolute;left:0;top:0;bottom:0;width:0%;
+  background:linear-gradient(90deg,rgba(0,255,170,.05),rgba(0,255,170,.28));
+  transition:width .05s linear;
+  pointer-events:none}
+.limit-slider-fill::after{content:'';position:absolute;right:-1px;top:0;bottom:0;width:2px;
+  background:var(--neon);box-shadow:0 0 18px var(--neon),0 0 4px #fff inset}
+.limit-slider-thumb{position:absolute;top:6px;bottom:6px;width:16px;
+  background:var(--neon);
+  border-radius:8px;
+  box-shadow:0 0 22px var(--neon),0 0 4px #fff inset,0 0 0 1px rgba(255,255,255,.15);
+  transition:left .05s linear,transform .12s;
+  pointer-events:none}
+.limit-slider.dragging .limit-slider-thumb{transform:scaleY(1.04)}
+.limit-slider-thumb::before{content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:6px;height:22px;
+  background:rgba(8,9,11,.6);border-radius:3px}
+.limit-slider-value{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  color:var(--neon);font-size:18px;font-weight:800;letter-spacing:1px;
+  text-shadow:0 0 14px var(--neon-dim);
+  pointer-events:none;
+  font-variant-numeric:tabular-nums;
+  z-index:2}
+/* "ТЯНИ" moved to the left so it doesn't overlap the value */
+.limit-slider-hint{position:absolute;top:50%;left:16px;transform:translateY(-50%);
+  color:var(--muted);font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  pointer-events:none;transition:opacity .2s;z-index:1;white-space:nowrap}
+.limit-slider.dragged .limit-slider-hint{opacity:0}
+
+/* ============ BUTTONS ============ */
+.btn-full{width:100%;padding:15px;background:linear-gradient(180deg,var(--neon-dim),transparent);
+  border:1px solid var(--neon);border-radius:12px;color:var(--neon);font-family:inherit;
+  font-size:13px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;
+  transition:box-shadow .15s,transform .1s;margin-top:6px;font-weight:700}
+.btn-full:hover{box-shadow:0 0 24px var(--neon-dim)}
+.btn-full:active{transform:translateY(1px)}
+.btn-full:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:10px}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted);box-shadow:none}
+
+/* ============ MODALS ============ */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:18px;
+  overflow-y:auto}
+.modal-bg.show{display:flex}
+.modal{background:#0e1014;border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px;max-width:480px;width:100%;box-shadow:0 0 40px var(--neon-dim);
+  max-height:92vh;overflow-y:auto;position:relative;animation:modalIn .25s cubic-bezier(.2,.8,.2,1)}
+@keyframes modalIn{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+.modal h3{font-size:13px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;
+  margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.modal h3 .close-x{margin-left:auto;background:transparent;border:1px solid var(--border);
+  color:var(--text);width:28px;height:28px;border-radius:8px;cursor:pointer;
+  display:grid;place-items:center;transition:all .15s}
+.modal h3 .close-x:hover{border-color:var(--danger);color:var(--danger)}
+
+/* ============ CUSTOM DATETIME PICKER MODAL ============ */
+.dt-picker { text-align: center; }
+.dt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 14px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  margin-bottom: 14px;
+}
+.dt-nav {
+  width: 32px; height: 32px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+}
+.dt-nav:hover { border-color: var(--neon); color: var(--neon); }
+.dt-nav svg { width: 14px; height: 14px; }
+.dt-title {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: capitalize;
+}
+.dt-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.dt-weekdays span {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  padding: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.dt-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.dt-day {
+  aspect-ratio: 1;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  border: 1px solid transparent;
+  transition: all .12s;
+  background: transparent;
+  font-family: inherit;
+}
+.dt-day:hover { background: var(--neon-dim); border-color: var(--neon); }
+.dt-day.other { color: var(--muted); opacity: .35; }
+.dt-day.today { border-color: rgba(0,217,255,.5); color: var(--cyan); }
+.dt-day.selected { background: var(--neon); color: #08090b; font-weight: 800; border-color: var(--neon); }
+.dt-day.selected:hover { background: var(--neon); }
+.dt-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255,255,255,.05);
+  margin-bottom: 14px;
+}
+.dt-time-label {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+.dt-time-input {
+  width: 60px;
+  padding: 8px 6px;
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.dt-time-input:focus { border-color: var(--neon); box-shadow: 0 0 0 2px var(--neon-dim); }
+.dt-time-sep { color: var(--muted); font-size: 18px; font-weight: 700; }
+.dt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.dt-actions button {
+  padding: 12px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-weight: 700;
+  transition: all .15s;
+}
+.dt-actions .cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.dt-actions .cancel:hover { color: var(--text); border-color: var(--muted); }
+.dt-actions .confirm {
+  background: linear-gradient(180deg,var(--neon-dim),transparent);
+  border: 1px solid var(--neon);
+  color: var(--neon);
+}
+.dt-actions .confirm:hover { box-shadow: 0 0 20px var(--neon-dim); }
+
+/* ============ ANIMATION MODAL ============ */
+.animation-modal { text-align: center; }
+.anim-stage {
+    position: relative;
+    height: 340px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: 16px;
+    overflow: hidden;
+    padding-top: 10px;
+}
+/* MATTE GLASS CLOCK */
+.clock-face {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,217,255,.55);
+    position: relative;
+    background: rgba(0,217,255,.06);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow:
+      0 0 30px rgba(0,217,255,.25),
+      inset 0 0 20px rgba(0,217,255,.12),
+      inset 0 1px 0 rgba(255,255,255,.15);
+    z-index: 3;
+}
+.clock-hand {
+    position: absolute;
+    bottom: 50%;
+    left: 50%;
+    transform-origin: bottom center;
+    background: var(--neon);
+    border-radius: 4px;
+    box-shadow: 0 0 8px var(--neon-dim);
+}
+.hour-hand {
+    width: 4px;
+    height: 22px;
+    margin-left: -2px;
+    animation: spinFast 2.4s linear infinite;
+}
+.minute-hand {
+    width: 2px;
+    height: 32px;
+    margin-left: -1px;
+    background: var(--cyan);
+    box-shadow: 0 0 8px rgba(0,217,255,.5);
+    animation: spinFast 1.2s linear infinite;
+}
+.clock-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 10px; height: 10px;
+    background: var(--neon);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px var(--neon);
+    z-index: 4;
+}
+@keyframes spinFast {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.token-drop-zone {
+    position: absolute;
+    top: 100px;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: 1; /* behind wallet */
+}
+.falling-token {
+    position: absolute;
+    top: -40px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: radial-gradient(circle at 30% 30%, var(--neon-dim), rgba(0,217,255,.08) 60%, rgba(0,0,0,.6));
+    border: 1.5px solid var(--neon);
+    box-shadow: 0 0 14px var(--neon-dim), inset 0 0 8px rgba(0,255,170,.15);
+    animation: fallDown 2.4s cubic-bezier(0.4, 0, 0.9, 1) forwards;
+    z-index: 1;
+}
+.falling-token > .fb {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--neon);
+    text-shadow: 0 0 8px var(--neon-dim);
+    display: block;
+    animation: coinSpin 1.5s linear infinite;
+    transform-origin: center center;
+}
+.falling-token::after {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(120deg, transparent 35%, rgba(255,255,255,.2) 50%, transparent 65%);
+    pointer-events: none;
+}
+@keyframes fallDown {
+    0% { top: -40px; opacity: 0; transform: scale(0.4); }
+    10% { opacity: 1; transform: scale(1); }
+    85% { opacity: 1; transform: scale(1); }
+    100% { top: 100%; opacity: 0; transform: scale(0.7); }
+}
+/* MATTE GLASS WALLET — fully rounded, floating above bottom */
+.wallet-target {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--neon);
+    z-index: 2;
+    padding: 20px 30px 16px;
+    background: rgba(0,255,170,.05);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border: 1.5px solid rgba(0,255,170,.4);
+    border-radius: 22px;
+    box-shadow:
+      0 0 40px rgba(0,255,170,.22),
+      inset 0 1px 0 rgba(255,255,255,.1),
+      inset 0 -1px 20px rgba(0,255,170,.08);
+    min-width: 180px;
+}
+.wallet-target svg {
+    width: 72px;
+    height: 72px;
+    filter: drop-shadow(0 0 12px var(--neon-dim));
+}
+.wallet-target span {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--neon);
+    text-shadow: 0 0 10px var(--neon-dim);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.anim-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 16px;
+    text-align: center;
+}
+.anim-desc b { color: var(--neon); }
+
+/* ============ TOAST ============ */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);
+  background:#0e1014;border:1px solid var(--neon);color:var(--neon);padding:12px 20px;
+  border-radius:999px;font-size:12px;letter-spacing:1px;z-index:200;opacity:0;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;
+  box-shadow:0 0 24px var(--neon-dim);max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--danger);color:var(--danger);
+  box-shadow:0 0 24px rgba(255,59,107,.25)}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:8px}
+
+@media (max-width:640px){
+  .panel,.modal{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(18,20,24,.95)}
+  .modal{background:#0e1014}
+  body::after{display:none}
+  .app{padding:16px 14px 32px;gap:14px}
+  .panel{padding:16px}
+  .token-logo{width:40px;height:40px}
+  .token-logo.lg{width:48px;height:48px}
+  .form-grid{grid-template-columns:1fr}
+  .anim-stage { height: 300px; }
+  .wallet-target svg { width: 60px; height: 60px; }
+  .wallet-target { bottom: 24px; padding: 16px 24px 12px; }
+  .limit-slider { height: 50px; }
+  .limit-slider-value { font-size: 16px; }
+  .limit-slider-hint { left: 12px; font-size: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">CLAN<b>DAI</b> SUBSCRIPTIONS</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btn-info" title="Info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="crypto">
+      КРИПТО-ПОДПИСКИ<span class="tab-count" id="cnt-crypto">0</span>
+    </button>
+    <button class="tab" data-tab="wallet">
+      АДРЕСА КОШЕЛЬКОВ<span class="tab-count" id="cnt-wallet">0</span>
+    </button>
+  </div>
+
+  <div class="panel" id="panel-crypto">
+    <div class="section-title">
+      <span>МОИ КРИПТО-ПОДПИСКИ</span>
+      <span class="link" id="btn-add-crypto">+ ДОБАВИТЬ</span>
+    </div>
+    <div class="sub-list" id="list-crypto"></div>
+  </div>
+
+  <div class="panel" id="panel-wallet" style="display:none">
+    <div class="section-title">
+      <span>ПОДПИСКИ АДРЕСОВ</span>
+      <span class="link" id="btn-add-wallet">+ ДОБАВИТЬ</span>
+    </div>
+    <div class="sub-list" id="list-wallet"></div>
+  </div>
+
+</div>
+
+<!-- ============ MODAL: CRYPTO SUBSCRIPTION ============ -->
+<div class="modal-bg" id="modal-crypto">
+  <div class="modal">
+    <h3>
+      <span id="crypto-modal-title">НОВАЯ КРИПТО-ПОДПИСКА</span>
+      <button class="close-x" data-close="modal-crypto">✕</button>
+    </h3>
+
+    <div class="field">
+      <label>АДРЕС КОНТРАКТА</label>
+      <div class="input-with-copy">
+        <input type="text" id="cr-addr" placeholder="0x..." autocomplete="off" spellcheck="false"/>
+        <button class="copy-btn" data-copy="cr-addr" title="Копировать">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5">
+        Софт автоматически определит имя и символ сервиса по адресу.
+      </div>
+    </div>
+    <div class="field">
+      <label>ИМЯ СЕРВИСА</label>
+      <div class="input-with-copy">
+        <input type="text" id="cr-name" placeholder="Заполнится автоматически" maxlength="40"/>
+        <button class="copy-btn" data-copy="cr-name" title="Копировать">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="field">
+      <label>СИМВОЛ ДЛЯ ЛОГОТИПА (2–4 буквы)</label>
+      <div class="input-with-copy">
+        <input type="text" id="cr-symbol" placeholder="AUTO" maxlength="5" style="text-transform:uppercase"/>
+        <button class="copy-btn" data-copy="cr-symbol" title="Копировать">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="checkbox-row locked" id="cr-verified-row">
+      <input type="checkbox" id="cr-verified" disabled checked/>
+      <span>Официальный контракт<small id="cr-verified-label">Автоматически проверяется софтом</small></span>
+    </div>
+
+    <div class="field" style="margin-top:14px">
+      <label>ДЕДЛАЙН СНЯТИЯ</label>
+      <div class="datetime-field">
+        <div class="datetime-display" id="cr-deadline-display" data-target="cr-deadline">
+          <span class="dt-value">Выберите дату...</span>
+          <svg class="dt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-full" id="cr-save">Сохранить подписку</button>
+    <button class="btn-full btn-ghost" id="cr-cancel" data-close="modal-crypto">Отмена</button>
+  </div>
+</div>
+
+<!-- ============ MODAL: WALLET SUBSCRIPTION ============ -->
+<div class="modal-bg" id="modal-wallet">
+  <div class="modal">
+    <h3>
+      <span id="wallet-modal-title">НОВАЯ ПОДПИСКА АДРЕСА</span>
+      <button class="close-x" data-close="modal-wallet">✕</button>
+    </h3>
+
+    <div class="field">
+      <label>АДРЕС КОШЕЛЬКА</label>
+      <input type="text" id="wl-addr" placeholder="0x..." autocomplete="off" spellcheck="false"/>
+    </div>
+    <div class="field">
+      <label>ИМЯ (необязательно)</label>
+      <input type="text" id="wl-name" placeholder="Например: Binance Hot Wallet" maxlength="40"/>
+    </div>
+    <div class="field">
+      <label>ОПИСАНИЕ (необязательно)</label>
+      <textarea id="wl-desc" maxlength="140" placeholder="Назначение, заметка..."></textarea>
+    </div>
+
+    <div class="form-grid">
+      <div class="field full">
+        <label>ТОКЕН</label>
+        <div class="token-picker" id="token-picker">
+          <div class="token-picker-trigger" id="token-picker-trigger">
+            <span class="placeholder">Выберите токены...</span>
+            <span class="arrow">▼</span>
+          </div>
+          <div class="token-picker-menu">
+            <input type="text" class="token-picker-search" id="token-search" placeholder="Поиск (тикер, название, адрес)..."/>
+            <div class="token-picker-list" id="token-list"></div>
+            <div class="token-picker-footer">
+              <button class="btn-confirm-tokens" id="btn-confirm-tokens">Подтвердить выбор</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>ЧАСТОТА</label>
+        <div class="custom-select" id="freq-select">
+          <div class="custom-select-btn">
+            <span class="selected-label">Ежемесячно</span>
+            <span class="arrow">▼</span>
+          </div>
+          <div class="custom-select-menu">
+            <div class="custom-select-opt" data-v="daily">Ежедневно</div>
+            <div class="custom-select-opt" data-v="weekly">Еженедельно</div>
+            <div class="custom-select-opt active" data-v="monthly">Ежемесячно</div>
+            <div class="custom-select-opt" data-v="quarterly">Раз в квартал</div>
+            <div class="custom-select-opt" data-v="yearly">Ежегодно</div>
+            <div class="custom-select-opt" data-v="once">Единоразово</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slider-field" style="margin-top:14px">
+      <div class="slider-top">
+        <label>СУММА (USD)</label>
+        <input type="number" class="slider-value-input" id="wl-amount-input" step="0.01" min="0" placeholder="0.00"/>
+      </div>
+      <div class="limit-slider" id="wl-amount-slider">
+        <div class="limit-slider-grid"></div>
+        <div class="limit-slider-fill" id="wl-amount-fill"></div>
+        <div class="limit-slider-thumb" id="wl-amount-thumb"></div>
+        <div class="limit-slider-hint">ТЯНИ →</div>
+        <div class="limit-slider-value" id="wl-amount-value">$0</div>
+      </div>
+    </div>
+
+    <div class="slider-field">
+      <div class="slider-top">
+        <label>ИЛИ КОЛИЧЕСТВО</label>
+        <input type="number" class="slider-value-input" id="wl-qty-input" step="0.0001" min="0" placeholder="0.00"/>
+      </div>
+      <div class="limit-slider" id="wl-qty-slider">
+        <div class="limit-slider-grid"></div>
+        <div class="limit-slider-fill" id="wl-qty-fill"></div>
+        <div class="limit-slider-thumb" id="wl-qty-thumb"></div>
+        <div class="limit-slider-hint">ТЯНИ →</div>
+        <div class="limit-slider-value" id="wl-qty-value">0</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>ДЕДЛАЙН ОТПРАВКИ</label>
+      <div class="datetime-field">
+        <div class="datetime-display" id="wl-deadline-display" data-target="wl-deadline">
+          <span class="dt-value">Выберите дату...</span>
+          <svg class="dt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:10px;color:var(--muted);line-height:1.5;margin:4px 0 10px">
+      Заполните «Сумму» если у токена есть функция просмотра цены. Иначе — «Количество».
+    </div>
+
+    <button class="btn-full" id="wl-save">Сохранить подписку</button>
+    <button class="btn-full btn-ghost" data-close="modal-wallet">Отмена</button>
+  </div>
+</div>
+
+<!-- ============ MODAL: DATETIME PICKER ============ -->
+<div class="modal-bg" id="modal-datetime">
+  <div class="modal dt-picker">
+    <h3>
+      <span>ВЫБЕРИТЕ ДАТУ И ВРЕМЯ</span>
+      <button class="close-x" data-close="modal-datetime">✕</button>
+    </h3>
+
+    <div class="dt-header">
+      <button class="dt-nav" id="dt-prev">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="dt-title" id="dt-title">Месяц Год</div>
+      <button class="dt-nav" id="dt-next">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+
+    <div class="dt-weekdays">
+      <span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span>
+    </div>
+
+    <div class="dt-days" id="dt-days"></div>
+
+    <div class="dt-time">
+      <span class="dt-time-label">ВРЕМЯ</span>
+      <input type="number" class="dt-time-input" id="dt-hour" min="0" max="23" value="12"/>
+      <span class="dt-time-sep">:</span>
+      <input type="number" class="dt-time-input" id="dt-minute" min="0" max="59" value="00"/>
+    </div>
+
+    <div class="dt-actions">
+      <button class="cancel" id="dt-cancel">Отмена</button>
+      <button class="confirm" id="dt-confirm">Подтвердить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: ANIMATION ============ -->
+<div class="modal-bg" id="modal-animation">
+  <div class="modal animation-modal">
+    <h3>ПОДПИСКА ОФОРМЛЕНА</h3>
+    <div class="anim-stage">
+      <div class="clock-face">
+        <div class="clock-hand hour-hand"></div>
+        <div class="clock-hand minute-hand"></div>
+        <div class="clock-center"></div>
+      </div>
+      <div class="token-drop-zone" id="token-drop-zone"></div>
+      <div class="wallet-target">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <path d="M16 12h4"/>
+          <circle cx="17.5" cy="12" r="1" fill="currentColor"/>
+        </svg>
+        <span id="anim-service-name">Service</span>
+      </div>
+    </div>
+    <div class="anim-desc" id="anim-desc"></div>
+    <button class="btn-full" id="btn-anim-close">Закрыть</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   CLANDAI SUBSCRIPTIONS
+   ========================================================= */
+const STORAGE_KEY = 'clandai_subscriptions_v3';
+const DELETE_TIMEOUT = 60000;
+
+const MOCK_TOKENS = [
+  { symbol: 'USDT', name: 'Tether USD', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7' },
+  { symbol: 'USDC', name: 'USD Coin', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' },
+  { symbol: 'DAI', name: 'Dai Stablecoin', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F' },
+  { symbol: 'ETH', name: 'Ethereum', address: '0x0000000000000000000000000000000000000000' },
+  { symbol: 'WBTC', name: 'Wrapped Bitcoin', address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' },
+  { symbol: 'LINK', name: 'Chainlink', address: '0x514910771AF9Ca656af840dff83E8264EcF986CA' },
+  { symbol: 'UNI', name: 'Uniswap', address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984' },
+  { symbol: 'AAVE', name: 'Aave', address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9' },
+  { symbol: 'MATIC', name: 'Polygon', address: '0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0' },
+  { symbol: 'SOL', name: 'Solana', address: '0xD31a59c85aE9D8edF9F38c7E5c2C1f5E9c4B4B4B' }
+];
+
+const MOCK_SERVICES = [
+  { name: 'Netflix Crypto', symbol: 'NFLX' },
+  { name: 'Spotify Premium', symbol: 'SPOT' },
+  { name: 'Amazon Prime', symbol: 'AMZN' },
+  { name: 'Apple Music', symbol: 'AAPL' },
+  { name: 'Google One', symbol: 'GOOG' },
+  { name: 'Microsoft 365', symbol: 'MSFT' },
+  { name: 'Discord Nitro', symbol: 'NITRO' },
+  { name: 'GitHub Pro', symbol: 'GIT' },
+  { name: 'Figma Pro', symbol: 'FIG' },
+  { name: 'Notion Plus', symbol: 'NTN' },
+  { name: 'ChatGPT Plus', symbol: 'GPT' },
+  { name: 'YouTube Premium', symbol: 'YT' },
+  { name: 'Twitch Turbo', symbol: 'TWT' },
+  { name: 'Dropbox Plus', symbol: 'DROP' },
+  { name: 'iCloud+', symbol: 'ICLD' }
+];
+
+const state = {
+  tab: 'crypto',
+  crypto: [],
+  wallet: [],
+  editingCryptoId: null,
+  editingWalletId: null,
+  selectedTokens: [],
+  customFreq: 'monthly',
+  dtTarget: null,
+  dtValue: null,
+  dtViewDate: new Date(),
+  deleteTimers: new Map()
+};
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+function toast(msg, err=false){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => el.className = 'toast', 2400);
+}
+function vibrate(ms=6){ if (navigator.vibrate) navigator.vibrate(ms); }
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
+function shortAddr(a, n=6){
+  if (!a) return '';
+  if (a.length <= n*2+3) return a;
+  return a.slice(0, n) + '…' + a.slice(-4);
+}
+function isValidAddr(a){
+  const s = String(a || '').trim();
+  if (!s) return false;
+  if (/^0x[0-9a-fA-F]{40}$/.test(s)) return true;
+  if (/^0x[0-9a-fA-F]{6,}$/.test(s)) return true;
+  if (/^[a-zA-Z0-9_\-\:\.]{4,120}$/.test(s)) return true;
+  return false;
+}
+function pad2(n){ return String(n).padStart(2, '0'); }
+function fmtDate(ts){
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleString('ru-RU', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
+}
+function fmtDateShort(ts){
+  if (!ts) return 'Выберите дату...';
+  const d = new Date(ts);
+  return d.toLocaleString('ru-RU', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
+}
+function fmtMoney(n){
+  const num = parseFloat(n) || 0;
+  return '$' + num.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtNumber(n){
+  const num = parseFloat(n) || 0;
+  if (num === 0) return '0';
+  if (Math.abs(num) >= 1000) return num.toLocaleString('en-US', {maximumFractionDigits:2});
+  if (Math.abs(num) >= 1) return num.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');
+  return num.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+}
+const FREQ_LABELS = {
+  daily:'ЕЖЕДНЕВНО', weekly:'ЕЖЕНЕДЕЛЬНО', monthly:'ЕЖЕМЕСЯЧНО',
+  quarterly:'ЕЖЕКВАРТАЛЬНО', yearly:'ЕЖЕГОДНО', once:'ЕДИНОРАЗОВО'
+};
+
+function autoFillFromAddress(addr){
+  let hash = 0;
+  for (let i = 0; i < addr.length; i++) {
+    hash = ((hash << 5) - hash + addr.charCodeAt(i)) | 0;
+  }
+  return MOCK_SERVICES[Math.abs(hash) % MOCK_SERVICES.length];
+}
+
+function isOfficialAddress(addr){
+  if (!addr) return false;
+  // Mock: most valid addresses are considered official (~66%)
+  let hash = 0;
+  for (let i = 0; i < addr.length; i++) {
+    hash = ((hash << 5) - hash + addr.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 3 !== 0;
+}
+
+function load(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw){ seedDemo(); return; }
+    const obj = JSON.parse(raw);
+    if (Array.isArray(obj.crypto)) state.crypto = obj.crypto;
+    if (Array.isArray(obj.wallet)) state.wallet = obj.wallet;
+    if (!state.crypto.length && !state.wallet.length) seedDemo();
+  } catch { seedDemo(); }
+}
+function save(){
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      crypto: state.crypto,
+      wallet: state.wallet
+    }));
+  } catch {}
+}
+function uid(prefix){ return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
+
+function seedDemo(){
+  const now = Date.now();
+  state.crypto = [
+    {
+      id: uid('cs'),
+      address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+      name: 'Streaming Service',
+      symbol: 'STRM',
+      verified: true,
+      subscribedAt: now - 1000*60*60*24*120,
+      deadline: now + 1000*60*60*24*90,
+      totalSpent: 119.88,
+      tokens: [
+        {symbol:'USDT', amount:9.99, name:'Tether USD'},
+        {symbol:'ETH', amount:0.0021, name:'Ethereum'}
+      ],
+      functions: ['transferFrom', 'approve', 'withdraw'],
+      deleted: false
+    },
+    {
+      id: uid('cs'),
+      address: '0x6b175474e89094c44da98b954eedeac495271d0f',
+      name: 'Cloud Storage Pro',
+      symbol: 'CLD',
+      verified: true,
+      subscribedAt: now - 1000*60*60*24*40,
+      deadline: now + 1000*60*60*24*20,
+      totalSpent: 24.00,
+      tokens: [{symbol:'DAI', amount:6.00, name:'Dai Stablecoin'}],
+      functions: ['subscribe', 'charge'],
+      deleted: false
+    }
+  ];
+  state.wallet = [
+    {
+      id: uid('ws'),
+      address: '0x28c6c06298d514db089934071355e5743bf21d60',
+      name: 'Exchange Hot Wallet',
+      desc: 'Ежемесячная выплата за услугу',
+      token: 'USDT',
+      amount: 500,
+      qty: null,
+      frequency: 'monthly',
+      deadline: now + 1000*60*60*24*180,
+      deleted: false
+    }
+  ];
+  save();
+}
+
+function updateCounts(){
+  const activeC = state.crypto.filter(x => !x.deleted && !x.removing).length;
+  const activeW = state.wallet.filter(x => !x.deleted && !x.removing).length;
+  const totalC = state.crypto.filter(x => !x.removing).length;
+  const totalW = state.wallet.filter(x => !x.removing).length;
+  $('#cnt-crypto').textContent = totalC + (activeC !== totalC ? '/' + activeC : '');
+  $('#cnt-wallet').textContent = totalW + (activeW !== totalW ? '/' + activeW : '');
+}
+function renderAll(){ renderCrypto(); renderWallet(); updateCounts(); }
+
+function renderCrypto(){
+  const w = $('#list-crypto');
+  const visible = state.crypto.filter(x => !x.removing);
+  if (!visible.length){
+    w.innerHTML = '<div class="sub-empty">Пока нет крипто-подписок. Нажмите «+ ДОБАВИТЬ».</div>';
+    return;
+  }
+  w.innerHTML = '';
+  const fr = document.createDocumentFragment();
+  visible.forEach(item => fr.appendChild(buildCryptoCard(item)));
+  w.appendChild(fr);
+}
+
+function buildCryptoCard(item){
+  const el = document.createElement('div');
+  el.className = 'sub-card' + (item.deleted ? ' deleted' : '');
+  el.dataset.id = item.id;
+
+  const logo = document.createElement('div');
+  logo.className = 'token-logo';
+  const fb = document.createElement('span');
+  fb.className = 'fb';
+  fb.textContent = (item.symbol || '?').slice(0,4).toUpperCase();
+  logo.appendChild(fb);
+
+  const deadlineExpired = item.deadline && item.deadline < Date.now();
+
+  const head = document.createElement('div');
+  head.className = 'sub-head';
+  head.innerHTML = `
+    <div class="sub-head-left">
+      <div class="sub-name-row">
+        <div class="sub-name">${escapeHtml(item.name || 'Без названия')}</div>
+        ${item.verified ? `<span class="verified-badge" title="Официальный и безопасный">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"
+               stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="5 12 10 17 19 7"/>
+          </svg></span>` : ''}
+      </div>
+      <div class="sub-addr">${escapeHtml(item.address)}</div>
+    </div>
+    <div class="sub-chevron">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+  `;
+  head.insertBefore(logo, head.firstChild);
+
+  const badges = document.createElement('div');
+  badges.className = 'sub-badges';
+  badges.style.padding = '0 14px 12px 14px';
+  badges.innerHTML = `
+    ${item.deadline ? `
+      <span class="badge deadline ${deadlineExpired ? 'expired' : ''}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+        </svg>
+        ДО <b>${fmtDate(item.deadline).split(',')[0]}</b>
+      </span>
+    ` : ''}
+    ${typeof item.totalSpent === 'number' ? `
+      <span class="badge amount">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="2" x2="12" y2="22"/>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        ИТОГО <b>${fmtMoney(item.totalSpent)}</b>
+      </span>
+    ` : ''}
+    ${item.tokens && item.tokens.length ? `
+      <span class="badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>
+        </svg>
+        <b>${item.tokens.length}</b> ТОКЕН(а)
+      </span>
+    ` : ''}
+  `;
+
+  const body = document.createElement('div');
+  body.className = 'sub-body';
+  body.innerHTML = `
+    <div class="sub-body-inner">
+      <div class="detail-block">
+        <div class="detail-block-title">ПОДПИСКА</div>
+        <div class="detail-row"><span class="lbl">Оформлена</span><span class="val">${fmtDate(item.subscribedAt)}</span></div>
+        <div class="detail-row"><span class="lbl">Всего потрачено</span><span class="val good">${fmtMoney(item.totalSpent)}</span></div>
+        <div class="detail-row"><span class="lbl">Дедлайн снятия</span><span class="val ${deadlineExpired ? '' : 'gold'}">${fmtDate(item.deadline)}</span></div>
+      </div>
+      ${item.tokens && item.tokens.length ? `
+        <div class="detail-block">
+          <div class="detail-block-title">СПИСЫВАЕМЫЕ ТОКЕНЫ</div>
+          <div class="token-list" data-tokens></div>
+        </div>
+      ` : ''}
+      ${item.functions && item.functions.length ? `
+        <div class="detail-block">
+          <div class="detail-block-title">ФУНКЦИИ КОНТРАКТА</div>
+          <div class="func-chips">
+            ${item.functions.map((f,i) => `
+              <span class="func-chip ${i%3===1?'cy':i%3===2?'neon':''}">${escapeHtml(f)}</span>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  if (item.tokens && item.tokens.length){
+    const tl = body.querySelector('[data-tokens]');
+    item.tokens.forEach(tk => {
+      const line = document.createElement('div');
+      line.className = 'token-line';
+      const mini = document.createElement('div');
+      mini.className = 'token-logo sm';
+      const mfb = document.createElement('span');
+      mfb.className = 'fb';
+      mfb.textContent = (tk.symbol || '?').slice(0,4).toUpperCase();
+      mini.appendChild(mfb);
+      const info = document.createElement('div');
+      info.className = 'token-line-info';
+      info.innerHTML = `<div class="token-line-sym">${escapeHtml(tk.symbol)}</div><div class="token-line-name">${escapeHtml(tk.name || '')}</div>`;
+      const amt = document.createElement('div');
+      amt.className = 'token-line-amt';
+      amt.innerHTML = `${fmtNumber(tk.amount)}<small>за списание</small>`;
+      line.appendChild(mini); line.appendChild(info); line.appendChild(amt);
+      tl.appendChild(line);
+    });
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'sub-actions';
+  if (item.deleted){
+    actions.innerHTML = `
+      <button class="wl-btn lock" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          <circle cx="12" cy="16" r="1.2" fill="currentColor"/>
+        </svg>
+        <span>ЗАБЛОКИРОВАНО</span>
+      </button>
+      <button class="wl-btn restore" data-act="restore">
+        <div class="progress-bar" style="transform: scaleX(1)"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>
+        </svg>
+        <span>ВОССТАНОВИТЬ</span>
+      </button>
+    `;
+  } else {
+    actions.innerHTML = `
+      <button class="wl-btn edit" data-act="edit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>
+        </svg>
+        <span>ПРОСМОТР</span>
+      </button>
+      <button class="wl-btn del" data-act="del">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+        <span>УДАЛИТЬ</span>
+      </button>
+    `;
+  }
+
+  el.appendChild(head); el.appendChild(badges); el.appendChild(body); el.appendChild(actions);
+
+  head.addEventListener('click', e => {
+    if (e.target.closest('.sub-actions')) return;
+    el.classList.toggle('open');
+    vibrate(4);
+  });
+
+  actions.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    e.stopPropagation();
+    const act = b.dataset.act;
+    if (act === 'del') startDeleteCrypto(item.id, el, actions);
+    else if (act === 'restore') restoreCrypto(item.id);
+    else if (act === 'edit') openCryptoModal(item);
+  });
+
+  if (item.deleted && state.deleteTimers.has(item.id)) {
+    const elapsed = Date.now() - (item.deletedAt || Date.now());
+    const remaining = Math.max(0, DELETE_TIMEOUT - elapsed);
+    if (remaining > 0) {
+      startCountdownVisual(actions.querySelector('[data-act="restore"]'), remaining, item.id, 'crypto');
+    }
+  }
+
+  return el;
+}
+
+function renderWallet(){
+  const w = $('#list-wallet');
+  const visible = state.wallet.filter(x => !x.removing);
+  if (!visible.length){
+    w.innerHTML = '<div class="sub-empty">Пока нет подписок адресов. Нажмите «+ ДОБАВИТЬ».</div>';
+    return;
+  }
+  w.innerHTML = '';
+  const fr = document.createDocumentFragment();
+  visible.forEach(item => fr.appendChild(buildWalletCard(item)));
+  w.appendChild(fr);
+}
+
+function buildWalletCard(item){
+  const el = document.createElement('div');
+  el.className = 'sub-card' + (item.deleted ? ' deleted' : '');
+  el.dataset.id = item.id;
+
+  const logo = document.createElement('div');
+  logo.className = 'token-logo';
+  const fb = document.createElement('span');
+  fb.className = 'fb';
+  fb.textContent = (item.token || '?').slice(0,4).toUpperCase();
+  logo.appendChild(fb);
+
+  const deadlineExpired = item.deadline && item.deadline < Date.now();
+
+  const head = document.createElement('div');
+  head.className = 'sub-head';
+  head.innerHTML = `
+    <div class="sub-head-left">
+      <div class="sub-name-row"><div class="sub-name">${escapeHtml(item.name || 'Адрес кошелька')}</div></div>
+      <div class="sub-addr">${escapeHtml(item.address)}</div>
+    </div>
+    <div class="sub-chevron">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+  `;
+  head.insertBefore(logo, head.firstChild);
+
+  const badges = document.createElement('div');
+  badges.className = 'sub-badges';
+  badges.style.padding = '0 14px 12px 14px';
+  badges.innerHTML = `
+    <span class="badge freq">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+      </svg>
+      <b>${FREQ_LABELS[item.frequency] || '—'}</b>
+    </span>
+    ${item.amount != null ? `
+      <span class="badge amount">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="2" x2="12" y2="22"/>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        <b>${fmtMoney(item.amount)}</b>
+      </span>
+    ` : ''}
+    ${item.qty != null ? `
+      <span class="badge amount">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+        <b>${fmtNumber(item.qty)} ${escapeHtml(item.token)}</b>
+      </span>
+    ` : ''}
+    ${item.deadline ? `
+      <span class="badge deadline ${deadlineExpired ? 'expired' : ''}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+        </svg>
+        ДО <b>${fmtDate(item.deadline).split(',')[0]}</b>
+      </span>
+    ` : ''}
+  `;
+
+  const body = document.createElement('div');
+  body.className = 'sub-body';
+  body.innerHTML = `
+    <div class="sub-body-inner">
+      <div class="detail-block">
+        <div class="detail-block-title">ПАРАМЕТРЫ</div>
+        <div class="detail-row"><span class="lbl">Адрес</span><span class="val">${escapeHtml(item.address)}</span></div>
+        <div class="detail-row"><span class="lbl">Токен</span><span class="val cy">${escapeHtml(item.token)}</span></div>
+        <div class="detail-row"><span class="lbl">Сумма (USD)</span><span class="val good">${item.amount != null ? fmtMoney(item.amount) : '—'}</span></div>
+        <div class="detail-row"><span class="lbl">Количество</span><span class="val good">${item.qty != null ? fmtNumber(item.qty) + ' ' + escapeHtml(item.token) : '—'}</span></div>
+        <div class="detail-row"><span class="lbl">Частота</span><span class="val cy">${FREQ_LABELS[item.frequency] || '—'}</span></div>
+        <div class="detail-row"><span class="lbl">Дедлайн отправки</span><span class="val ${deadlineExpired ? '' : 'gold'}">${fmtDate(item.deadline)}</span></div>
+        ${item.desc ? `<div class="detail-row"><span class="lbl">Описание</span><span class="val">${escapeHtml(item.desc)}</span></div>` : ''}
+      </div>
+    </div>
+  `;
+
+  const actions = document.createElement('div');
+  actions.className = 'sub-actions';
+  if (item.deleted){
+    actions.innerHTML = `
+      <button class="wl-btn lock" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          <circle cx="12" cy="16" r="1.2" fill="currentColor"/>
+        </svg>
+        <span>ЗАБЛОКИРОВАНО</span>
+      </button>
+      <button class="wl-btn restore" data-act="restore">
+        <div class="progress-bar" style="transform: scaleX(1)"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>
+        </svg>
+        <span>ВОССТАНОВИТЬ</span>
+      </button>
+    `;
+  } else {
+    actions.innerHTML = `
+      <button class="wl-btn edit" data-act="edit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>
+        </svg>
+        <span>ПРОСМОТР</span>
+      </button>
+      <button class="wl-btn del" data-act="del">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+        <span>УДАЛИТЬ</span>
+      </button>
+    `;
+  }
+
+  el.appendChild(head); el.appendChild(badges); el.appendChild(body); el.appendChild(actions);
+
+  head.addEventListener('click', e => {
+    if (e.target.closest('.sub-actions')) return;
+    el.classList.toggle('open');
+    vibrate(4);
+  });
+  actions.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    e.stopPropagation();
+    const act = b.dataset.act;
+    if (act === 'del') startDeleteWallet(item.id, el, actions);
+    else if (act === 'restore') restoreWallet(item.id);
+    else if (act === 'edit') openWalletModal(item);
+  });
+
+  if (item.deleted && state.deleteTimers.has(item.id)) {
+    const elapsed = Date.now() - (item.deletedAt || Date.now());
+    const remaining = Math.max(0, DELETE_TIMEOUT - elapsed);
+    if (remaining > 0) {
+      startCountdownVisual(actions.querySelector('[data-act="restore"]'), remaining, item.id, 'wallet');
+    }
+  }
+
+  return el;
+}
+
+function startDeleteCrypto(id, el, actions){
+  const item = state.crypto.find(x => x.id === id);
+  if (!item || item.deleted) return;
+  item.deleted = true;
+  item.deletedAt = Date.now();
+  save();
+
+  el.classList.add('deleted');
+  actions.innerHTML = `
+    <button class="wl-btn lock" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        <circle cx="12" cy="16" r="1.2" fill="currentColor"/>
+      </svg>
+      <span>ЗАБЛОКИРОВАНО</span>
+    </button>
+    <button class="wl-btn restore" data-act="restore">
+      <div class="progress-bar" style="transform: scaleX(1)"></div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>
+      </svg>
+      <span>ВОССТАНОВИТЬ</span>
+    </button>
+  `;
+  actions.querySelector('[data-act="restore"]').onclick = (e) => {
+    e.stopPropagation(); restoreCrypto(id);
+  };
+  vibrate([12, 30, 12]);
+  toast('Удаление через 60 секунд');
+  startCountdownVisual(actions.querySelector('[data-act="restore"]'), DELETE_TIMEOUT, id, 'crypto');
+  updateCounts();
+}
+
+function startDeleteWallet(id, el, actions){
+  const item = state.wallet.find(x => x.id === id);
+  if (!item || item.deleted) return;
+  item.deleted = true;
+  item.deletedAt = Date.now();
+  save();
+
+  el.classList.add('deleted');
+  actions.innerHTML = `
+    <button class="wl-btn lock" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        <circle cx="12" cy="16" r="1.2" fill="currentColor"/>
+      </svg>
+      <span>ЗАБЛОКИРОВАНО</span>
+    </button>
+    <button class="wl-btn restore" data-act="restore">
+      <div class="progress-bar" style="transform: scaleX(1)"></div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>
+      </svg>
+      <span>ВОССТАНОВИТЬ</span>
+    </button>
+  `;
+  actions.querySelector('[data-act="restore"]').onclick = (e) => {
+    e.stopPropagation(); restoreWallet(id);
+  };
+  vibrate([12, 30, 12]);
+  toast('Удаление через 60 секунд');
+  startCountdownVisual(actions.querySelector('[data-act="restore"]'), DELETE_TIMEOUT, id, 'wallet');
+  updateCounts();
+}
+
+function startCountdownVisual(restoreBtn, remainingMs, id, type){
+  if (!restoreBtn) return;
+  const bar = restoreBtn.querySelector('.progress-bar');
+  if (!bar) return;
+
+  const startTime = Date.now();
+  const totalMs = remainingMs;
+
+  if (state.deleteTimers.has(id)) {
+    clearInterval(state.deleteTimers.get(id));
+  }
+
+  const tick = () => {
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, totalMs - elapsed);
+    const progress = remaining / totalMs;
+    bar.style.transform = `scaleX(${progress})`;
+    if (remaining <= 0) {
+      clearInterval(state.deleteTimers.get(id));
+      state.deleteTimers.delete(id);
+      if (type === 'crypto') {
+        state.crypto = state.crypto.filter(x => x.id !== id);
+      } else if (type === 'wallet') {
+        state.wallet = state.wallet.filter(x => x.id !== id);
+      }
+      save();
+      const card = document.querySelector(`.sub-card[data-id="${id}"]`);
+      if (card) {
+        card.classList.add('removing');
+        setTimeout(() => { renderAll(); }, 500);
+      } else {
+        renderAll();
+      }
+    }
+  };
+  tick();
+  const intervalId = setInterval(tick, 100);
+  state.deleteTimers.set(id, intervalId);
+}
+
+function restoreCrypto(id){
+  const item = state.crypto.find(x => x.id === id);
+  if (!item) return;
+  if (state.deleteTimers.has(id)) {
+    clearInterval(state.deleteTimers.get(id));
+    state.deleteTimers.delete(id);
+  }
+  item.deleted = false;
+  delete item.deletedAt;
+  save();
+  renderCrypto();
+  updateCounts();
+  toast('✓ Подписка восстановлена');
+}
+function restoreWallet(id){
+  const item = state.wallet.find(x => x.id === id);
+  if (!item) return;
+  if (state.deleteTimers.has(id)) {
+    clearInterval(state.deleteTimers.get(id));
+    state.deleteTimers.delete(id);
+  }
+  item.deleted = false;
+  delete item.deletedAt;
+  save();
+  renderWallet();
+  updateCounts();
+  toast('✓ Адрес восстановлен');
+}
+
+$$('.tab').forEach(tab => {
+  tab.onclick = () => {
+    state.tab = tab.dataset.tab;
+    $$('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    $('#panel-crypto').style.display = state.tab === 'crypto' ? '' : 'none';
+    $('#panel-wallet').style.display = state.tab === 'wallet' ? '' : 'none';
+    vibrate(5);
+  };
+});
+
+function openModal(id){ $('#' + id).classList.add('show'); }
+function closeModal(id){ $('#' + id).classList.remove('show'); }
+$$('[data-close]').forEach(b => {
+  b.onclick = () => closeModal(b.dataset.close);
+});
+$$('.modal-bg').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
+});
+
+$$('.copy-btn').forEach(btn => {
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const input = $('#' + btn.dataset.copy);
+    if (input) {
+      navigator.clipboard.writeText(input.value).then(() => {
+        toast('Скопировано'); vibrate(10);
+      }).catch(() => toast('Ошибка копирования', true));
+    }
+  };
+});
+
+/* =========================================================
+   CUSTOM DATETIME PICKER
+   ========================================================= */
+function openDateTimePicker(displayEl, currentValue, onConfirm){
+  state.dtTarget = displayEl;
+  state.dtValue = currentValue ? new Date(currentValue) : new Date();
+  state.dtViewDate = new Date(state.dtValue.getFullYear(), state.dtValue.getMonth(), 1);
+  renderDateTimePicker();
+  openModal('modal-datetime');
+  state._dtConfirm = onConfirm;
+  document.querySelectorAll('.datetime-display').forEach(el => el.classList.remove('active'));
+  displayEl.classList.add('active');
+}
+
+function renderDateTimePicker(){
+  const view = state.dtViewDate;
+  const selected = state.dtValue;
+  const title = view.toLocaleString('ru-RU', { month: 'long', year: 'numeric' });
+  $('#dt-title').textContent = title.charAt(0).toUpperCase() + title.slice(1);
+
+  const daysContainer = $('#dt-days');
+  daysContainer.innerHTML = '';
+
+  const firstDay = new Date(view.getFullYear(), view.getMonth(), 1);
+  const startDayOfWeek = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const prevMonthDays = new Date(view.getFullYear(), view.getMonth(), 0).getDate();
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  const selectedStr = selected ? `${selected.getFullYear()}-${selected.getMonth()}-${selected.getDate()}` : '';
+
+  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    const d = prevMonthDays - i;
+    const btn = document.createElement('button');
+    btn.className = 'dt-day other';
+    btn.textContent = d;
+    btn.onclick = () => {
+      state.dtViewDate = new Date(view.getFullYear(), view.getMonth() - 1, d);
+      state.dtValue.setFullYear(view.getFullYear(), view.getMonth() - 1, d);
+      renderDateTimePicker();
+    };
+    daysContainer.appendChild(btn);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const btn = document.createElement('button');
+    btn.className = 'dt-day';
+    const dStr = `${view.getFullYear()}-${view.getMonth()}-${d}`;
+    if (dStr === todayStr) btn.classList.add('today');
+    if (dStr === selectedStr) btn.classList.add('selected');
+    btn.textContent = d;
+    btn.onclick = () => {
+      state.dtValue.setFullYear(view.getFullYear(), view.getMonth(), d);
+      renderDateTimePicker();
+    };
+    daysContainer.appendChild(btn);
+  }
+
+  const totalCells = 42;
+  const remaining = totalCells - (startDayOfWeek + daysInMonth);
+  for (let d = 1; d <= remaining; d++) {
+    const btn = document.createElement('button');
+    btn.className = 'dt-day other';
+    btn.textContent = d;
+    btn.onclick = () => {
+      state.dtViewDate = new Date(view.getFullYear(), view.getMonth() + 1, d);
+      state.dtValue.setFullYear(view.getFullYear(), view.getMonth() + 1, d);
+      renderDateTimePicker();
+    };
+    daysContainer.appendChild(btn);
+  }
+
+  $('#dt-hour').value = pad2(selected.getHours());
+  $('#dt-minute').value = pad2(selected.getMinutes());
+}
+
+$('#dt-prev').onclick = () => {
+  state.dtViewDate.setMonth(state.dtViewDate.getMonth() - 1);
+  renderDateTimePicker();
+};
+$('#dt-next').onclick = () => {
+  state.dtViewDate.setMonth(state.dtViewDate.getMonth() + 1);
+  renderDateTimePicker();
+};
+$('#dt-cancel').onclick = () => {
+  closeModal('modal-datetime');
+  if (state.dtTarget) state.dtTarget.classList.remove('active');
+};
+$('#dt-confirm').onclick = () => {
+  const h = parseInt($('#dt-hour').value) || 0;
+  const m = parseInt($('#dt-minute').value) || 0;
+  state.dtValue.setHours(Math.max(0, Math.min(23, h)));
+  state.dtValue.setMinutes(Math.max(0, Math.min(59, m)));
+  if (state._dtConfirm) state._dtConfirm(state.dtValue.getTime());
+  closeModal('modal-datetime');
+  if (state.dtTarget) state.dtTarget.classList.remove('active');
+};
+
+document.addEventListener('click', e => {
+  const display = e.target.closest('.datetime-display');
+  if (!display) return;
+  const targetId = display.dataset.target;
+  let currentValue = null;
+  if (targetId === 'cr-deadline') {
+    currentValue = state._crDeadline;
+  } else if (targetId === 'wl-deadline') {
+    currentValue = state._wlDeadline;
+  }
+  openDateTimePicker(display, currentValue, (ts) => {
+    if (targetId === 'cr-deadline') state._crDeadline = ts;
+    else if (targetId === 'wl-deadline') state._wlDeadline = ts;
+    display.querySelector('.dt-value').textContent = fmtDateShort(ts);
+    display.classList.remove('empty');
+  });
+});
+
+/* =========================================================
+   SLIDER LOGIC
+   ========================================================= */
+function initSlider(sliderId, fillId, thumbId, valueElId, inputId, min, max, formatter, onInput){
+  const slider = $('#' + sliderId);
+  const fill = $('#' + fillId);
+  const thumb = $('#' + thumbId);
+  const valueEl = $('#' + valueElId);
+  const input = $('#' + inputId);
+  let value = min;
+  let dragging = false;
+  let dragStartX = 0, dragStartValue = 0;
+
+  function updateDisplay() {
+    const trackW = slider.clientWidth;
+    const thumbW = thumb.offsetWidth || 16;
+    const pad = 6;
+    const maxLeft = trackW - thumbW - pad * 2;
+    const pct = max === min ? 0 : (value - min) / (max - min);
+    const left = pad + pct * maxLeft;
+    thumb.style.left = left + 'px';
+    fill.style.width = (left + thumbW / 2) + 'px';
+    valueEl.textContent = formatter(value);
+    slider.classList.toggle('dragged', value > min + (max - min) * 0.005);
+    input.value = value.toFixed(2);
+  }
+
+  function setValue(v) {
+    value = Math.max(min, Math.min(max, v));
+    updateDisplay();
+    if (onInput) onInput(value);
+  }
+
+  slider.addEventListener('pointerdown', e => {
+    const rect = slider.getBoundingClientRect();
+    const thumbRect = thumb.getBoundingClientRect();
+    if (e.clientX >= thumbRect.left && e.clientX <= thumbRect.right) {
+      dragging = true;
+      dragStartX = e.clientX;
+      dragStartValue = value;
+    } else {
+      const trackW = slider.clientWidth;
+      const thumbW = thumb.offsetWidth || 16;
+      const pad = 6;
+      const maxLeft = trackW - thumbW - pad * 2;
+      const relX = e.clientX - rect.left - pad - thumbW / 2;
+      const pct = Math.max(0, Math.min(1, relX / maxLeft));
+      setValue(min + pct * (max - min));
+      dragging = true;
+      dragStartX = e.clientX;
+      dragStartValue = value;
+    }
+    slider.classList.add('dragging');
+    slider.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  slider.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const trackW = slider.clientWidth;
+    const thumbW = thumb.offsetWidth || 16;
+    const pad = 6;
+    const maxLeft = trackW - thumbW - pad * 2;
+    const dx = e.clientX - dragStartX;
+    const newLeft = Math.max(0, Math.min(maxLeft, dragStartValue * maxLeft / (max - min) + dx));
+    const pct = newLeft / maxLeft;
+    setValue(min + pct * (max - min));
+  });
+  slider.addEventListener('pointerup', () => {
+    if (!dragging) return;
+    dragging = false;
+    slider.classList.remove('dragging');
+  });
+  slider.addEventListener('pointercancel', () => {
+    dragging = false;
+    slider.classList.remove('dragging');
+  });
+
+  input.addEventListener('input', e => {
+    const v = parseFloat(e.target.value);
+    if (!isNaN(v)) setValue(v);
+  });
+
+  window.addEventListener('resize', updateDisplay);
+  requestAnimationFrame(updateDisplay);
+
+  return { setValue, getValue: () => value, update: updateDisplay };
+}
+
+let wlAmountSlider, wlQtySlider;
+function initSliders() {
+  wlAmountSlider = initSlider('wl-amount-slider', 'wl-amount-fill', 'wl-amount-thumb', 'wl-amount-value', 'wl-amount-input', 0, 10000, v => '$' + Math.round(v).toLocaleString('en-US'));
+  wlQtySlider = initSlider('wl-qty-slider', 'wl-qty-fill', 'wl-qty-thumb', 'wl-qty-value', 'wl-qty-input', 0, 100, v => v.toFixed(4).replace(/\.?0+$/, ''));
+}
+
+/* =========================================================
+   CUSTOM SELECT
+   ========================================================= */
+function initCustomSelect(selector, onChange) {
+  const el = $(selector);
+  const btn = el.querySelector('.custom-select-btn');
+  const label = el.querySelector('.selected-label');
+  const opts = el.querySelectorAll('.custom-select-opt');
+  btn.onclick = (e) => { e.stopPropagation(); el.classList.toggle('open'); };
+  opts.forEach(opt => {
+    opt.onclick = (e) => {
+      e.stopPropagation();
+      const val = opt.dataset.v;
+      label.textContent = opt.textContent;
+      opts.forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      el.classList.remove('open');
+      if (onChange) onChange(val, opt.textContent);
+    };
+  });
+  document.addEventListener('click', () => el.classList.remove('open'));
+}
+
+/* =========================================================
+   TOKEN PICKER
+   ========================================================= */
+function renderTokenList(filter = '') {
+  const listContainer = $('#token-list');
+  const q = filter.toLowerCase().trim();
+  const filtered = MOCK_TOKENS.filter(t =>
+    t.symbol.toLowerCase().includes(q) ||
+    t.name.toLowerCase().includes(q) ||
+    t.address.toLowerCase().includes(q)
+  );
+  listContainer.innerHTML = '';
+
+  const selectAllRow = document.createElement('div');
+  selectAllRow.className = 'token-picker-item select-all-row';
+  if (state.selectedTokens.length === MOCK_TOKENS.length && MOCK_TOKENS.length > 0) {
+    selectAllRow.classList.add('selected');
+  }
+  selectAllRow.innerHTML = `
+    <div class="checkbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <div class="info"><div class="sym">ВЫБРАТЬ ВСЕ</div></div>
+  `;
+  selectAllRow.onclick = (e) => {
+    e.stopPropagation();
+    if (state.selectedTokens.length === MOCK_TOKENS.length) state.selectedTokens = [];
+    else state.selectedTokens = MOCK_TOKENS.map(t => t.symbol);
+    updateTokenPickerTrigger();
+    renderTokenList($('#token-search').value);
+  };
+  listContainer.appendChild(selectAllRow);
+
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.padding = '10px';
+    empty.style.textAlign = 'center';
+    empty.style.color = 'var(--muted)';
+    empty.style.fontSize = '12px';
+    empty.textContent = 'Ничего не найдено';
+    listContainer.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach(token => {
+    const isSelected = state.selectedTokens.includes(token.symbol);
+    const item = document.createElement('div');
+    item.className = 'token-picker-item' + (isSelected ? ' selected' : '');
+
+    const logo = document.createElement('div');
+    logo.className = 'token-logo sm';
+    const fb = document.createElement('span');
+    fb.className = 'fb';
+    fb.textContent = token.symbol.slice(0, 4);
+    logo.appendChild(fb);
+
+    const checkbox = document.createElement('div');
+    checkbox.className = 'checkbox';
+    checkbox.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    `;
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    info.innerHTML = `
+      <div class="sym">${token.symbol}</div>
+      <div class="name">${token.name}</div>
+      <div class="addr">${shortAddr(token.address)}</div>
+    `;
+
+    item.appendChild(logo); item.appendChild(checkbox); item.appendChild(info);
+
+    item.onclick = (e) => {
+      e.stopPropagation();
+      if (state.selectedTokens.includes(token.symbol)) {
+        state.selectedTokens = state.selectedTokens.filter(s => s !== token.symbol);
+      } else {
+        state.selectedTokens.push(token.symbol);
+      }
+      updateTokenPickerTrigger();
+      renderTokenList($('#token-search').value);
+    };
+
+    listContainer.appendChild(item);
+  });
+}
+
+function updateTokenPickerTrigger() {
+  const trigger = $('#token-picker-trigger');
+  const arrow = trigger.querySelector('.arrow');
+  trigger.innerHTML = '';
+  if (state.selectedTokens.length === 0) {
+    const placeholder = document.createElement('span');
+    placeholder.className = 'placeholder';
+    placeholder.textContent = 'Выберите токены...';
+    trigger.appendChild(placeholder);
+  } else {
+    state.selectedTokens.forEach(sym => {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.innerHTML = `${sym} <span class="remove" data-sym="${sym}">×</span>`;
+      tag.querySelector('.remove').onclick = (e) => {
+        e.stopPropagation();
+        state.selectedTokens = state.selectedTokens.filter(s => s !== sym);
+        updateTokenPickerTrigger();
+        renderTokenList($('#token-search').value);
+      };
+      trigger.appendChild(tag);
+    });
+  }
+  trigger.appendChild(arrow);
+}
+
+/* =========================================================
+   CRYPTO MODAL
+   ========================================================= */
+function openCryptoModal(item){
+  state.editingCryptoId = item ? item.id : null;
+  const isReadOnly = !!item;
+
+  $('#crypto-modal-title').textContent = isReadOnly ? 'ПРОСМОТР ПОДПИСКИ' : 'НОВАЯ КРИПТО-ПОДПИСКА';
+  $('#cr-save').textContent = isReadOnly ? 'Закрыть' : 'Сохранить подписку';
+  $('#cr-cancel').style.display = isReadOnly ? 'none' : 'block';
+
+  $('#cr-addr').disabled = isReadOnly;
+  $('#cr-name').disabled = isReadOnly;
+  $('#cr-symbol').disabled = isReadOnly;
+
+  $('#cr-addr').value = item ? item.address : '';
+  $('#cr-name').value = item ? (item.name || '') : '';
+  $('#cr-symbol').value = item ? (item.symbol || '') : '';
+
+  // Verified — auto-detected, cannot be changed
+  const isVerified = item ? !!item.verified : isOfficialAddress($('#cr-addr').value);
+  $('#cr-verified').checked = isVerified;
+  $('#cr-verified-label').textContent = isVerified
+    ? 'Адрес подтверждён как официальный'
+    : 'Адрес не входит в реестр официальных';
+
+  // Datetime
+  state._crDeadline = item && item.deadline ? item.deadline : (Date.now() + 30*24*60*60*1000);
+  const display = $('#cr-deadline-display');
+  display.querySelector('.dt-value').textContent = fmtDateShort(state._crDeadline);
+  display.classList.remove('empty');
+  display.style.pointerEvents = isReadOnly ? 'none' : 'auto';
+  display.style.opacity = isReadOnly ? '0.55' : '1';
+
+  openModal('modal-crypto');
+}
+
+$('#btn-add-crypto').onclick = () => {
+  state._crDeadline = Date.now() + 30*24*60*60*1000;
+  openCryptoModal(null);
+};
+
+// Auto-fill from address + auto-verify
+$('#cr-addr').addEventListener('input', e => {
+  const addr = e.target.value.trim();
+  if (!isValidAddr(addr) || addr.length < 10) {
+    // Reset verified state
+    $('#cr-verified').checked = false;
+    $('#cr-verified-label').textContent = 'Введите адрес для проверки';
+    return;
+  }
+  if (!$('#cr-name').value.trim()) {
+    const svc = autoFillFromAddress(addr);
+    $('#cr-name').value = svc.name;
+  }
+  if (!$('#cr-symbol').value.trim()) {
+    const svc = autoFillFromAddress(addr);
+    $('#cr-symbol').value = svc.symbol;
+  }
+  const isVerified = isOfficialAddress(addr);
+  $('#cr-verified').checked = isVerified;
+  $('#cr-verified-label').textContent = isVerified
+    ? 'Адрес подтверждён как официальный'
+    : 'Адрес не входит в реестр официальных';
+});
+
+$('#cr-save').onclick = () => {
+  if (state.editingCryptoId) {
+    closeModal('modal-crypto');
+    state.editingCryptoId = null;
+    return;
+  }
+
+  const address = $('#cr-addr').value.trim();
+  let name = $('#cr-name').value.trim();
+  let symbol = $('#cr-symbol').value.trim().toUpperCase();
+  const verified = $('#cr-verified').checked;
+
+  if (!isValidAddr(address)){ toast('Введите корректный адрес', true); return; }
+
+  if (!name || !symbol) {
+    const svc = autoFillFromAddress(address);
+    if (!name) name = svc.name;
+    if (!symbol) symbol = svc.symbol;
+  }
+
+  const mockTokens = [
+    { symbol: 'USDT', amount: parseFloat((Math.random() * 20 + 1).toFixed(2)), name: 'Tether USD' },
+    { symbol: 'ETH', amount: parseFloat((Math.random() * 0.01).toFixed(5)), name: 'Ethereum' }
+  ];
+  const mockFunctions = ['transferFrom', 'approve', 'withdraw'].slice(0, 2 + Math.floor(Math.random() * 2));
+
+  const payload = {
+    address, name,
+    symbol: symbol || name.slice(0, 4).toUpperCase(),
+    verified,
+    subscribedAt: Date.now(),
+    deadline: state._crDeadline,
+    totalSpent: parseFloat((Math.random() * 100 + 10).toFixed(2)),
+    tokens: mockTokens,
+    functions: mockFunctions,
+    deleted: false
+  };
+
+  state.crypto.unshift({ id: uid('cs'), ...payload });
+  save(); renderCrypto(); updateCounts();
+  closeModal('modal-crypto');
+  runSubscriptionAnimation(name, mockTokens, 'крипто-контракт');
+};
+
+/* =========================================================
+   WALLET MODAL
+   ========================================================= */
+function openWalletModal(item){
+  state.editingWalletId = item ? item.id : null;
+  $('#wallet-modal-title').textContent = item ? 'ПРОСМОТР ПОДПИСКИ' : 'НОВАЯ ПОДПИСКА АДРЕСА';
+  $('#wl-addr').value = item ? item.address : '';
+  $('#wl-name').value = item ? (item.name || '') : '';
+  $('#wl-desc').value = item ? (item.desc || '') : '';
+  state.selectedTokens = item && item.token ? [item.token] : [];
+  updateTokenPickerTrigger();
+
+  const freq = item ? (item.frequency || 'monthly') : 'monthly';
+  state.customFreq = freq;
+  const freqSelect = $('#freq-select');
+  const freqBtn = freqSelect.querySelector('.selected-label');
+  const freqOpts = freqSelect.querySelectorAll('.custom-select-opt');
+  freqOpts.forEach(o => {
+    o.classList.toggle('active', o.dataset.v === freq);
+    if (o.dataset.v === freq) freqBtn.textContent = o.textContent;
+  });
+
+  const amount = item && item.amount != null ? item.amount : 0;
+  const qty = item && item.qty != null ? item.qty : 0;
+  wlAmountSlider.setValue(amount);
+  wlQtySlider.setValue(qty);
+
+  state._wlDeadline = item && item.deadline ? item.deadline : (Date.now() + 30*24*60*60*1000);
+  const display = $('#wl-deadline-display');
+  display.querySelector('.dt-value').textContent = fmtDateShort(state._wlDeadline);
+  display.classList.remove('empty');
+
+  openModal('modal-wallet');
+}
+
+$('#btn-add-wallet').onclick = () => {
+  wlAmountSlider.setValue(0);
+  wlQtySlider.setValue(0);
+  state._wlDeadline = Date.now() + 30*24*60*60*1000;
+  const display = $('#wl-deadline-display');
+  display.querySelector('.dt-value').textContent = fmtDateShort(state._wlDeadline);
+  display.classList.remove('empty');
+  openWalletModal(null);
+};
+
+$('#wl-save').onclick = () => {
+  const address = $('#wl-addr').value.trim();
+  const name = $('#wl-name').value.trim();
+  const desc = $('#wl-desc').value.trim();
+
+  if (!isValidAddr(address)){ toast('Введите корректный адрес', true); return; }
+  if (state.selectedTokens.length === 0){ toast('Выберите хотя бы один токен', true); return; }
+
+  const amount = wlAmountSlider.getValue();
+  const qty = wlQtySlider.getValue();
+  if (amount === 0 && qty === 0){
+    toast('Укажите сумму или количество', true); return;
+  }
+
+  const primaryToken = state.selectedTokens[0];
+  const payload = {
+    address, name, desc, token: primaryToken,
+    frequency: state.customFreq,
+    amount: amount > 0 ? amount : null,
+    qty: qty > 0 ? qty : null,
+    deadline: state._wlDeadline,
+    deleted: false
+  };
+
+  if (state.editingWalletId){
+    const it = state.wallet.find(x => x.id === state.editingWalletId);
+    if (it) Object.assign(it, payload);
+    toast('✓ Подписка обновлена');
+    closeModal('modal-wallet');
+    state.editingWalletId = null;
+    save(); renderWallet(); updateCounts();
+    return;
+  }
+
+  state.wallet.unshift({ id: uid('ws'), ...payload });
+  save(); renderWallet(); updateCounts();
+  closeModal('modal-wallet');
+
+  const animTokens = state.selectedTokens.map(sym => ({
+    symbol: sym,
+    amount: amount > 0 ? '$' + amount : qty
+  }));
+  const animName = name || shortAddr(address, 8);
+  runSubscriptionAnimation(animName, animTokens, 'адрес кошелька');
+};
+
+/* =========================================================
+   ANIMATION
+   ========================================================= */
+function runSubscriptionAnimation(serviceName, tokens, typeLabel) {
+  const zone = $('#token-drop-zone');
+  zone.innerHTML = '';
+  $('#anim-service-name').textContent = serviceName;
+
+  let desc = '';
+  if (typeLabel === 'адрес кошелька') {
+    desc = `Вы подписали <b>${serviceName}</b> на регулярные отправки.<br>Списание: `;
+  } else {
+    desc = `Вы подписались на <b>${serviceName}</b>.<br>Списание токенов: `;
+  }
+  if (tokens && tokens.length > 0) {
+    desc += tokens.map(t => `${t.amount || '—'} ${t.symbol}`).join(', ');
+  } else {
+    desc += 'не указано';
+  }
+  $('#anim-desc').innerHTML = desc;
+
+  if (tokens && tokens.length > 0) {
+    tokens.forEach((t, i) => {
+      for (let k = 0; k < 2; k++) {
+        setTimeout(() => {
+          const el = document.createElement('div');
+          el.className = 'falling-token';
+          el.style.left = `${15 + Math.random() * 70}%`;
+          el.innerHTML = `<span class="fb">${t.symbol}</span>`;
+          el.style.animationDuration = `${2 + Math.random() * 0.8}s`;
+          zone.appendChild(el);
+          setTimeout(() => { if (el.parentNode) el.remove(); }, 3400);
+        }, i * 250 + k * 600);
+      }
+    });
+  }
+
+  openModal('modal-animation');
+
+  $('#btn-anim-close').onclick = () => {
+    closeModal('modal-animation');
+    zone.innerHTML = '';
+  };
+}
+
+$('#btn-info').onclick = () => {
+  toast('Крипто-подписки и подписки адресов кошельков');
+};
+
+/* =========================================================
+   INIT
+   ========================================================= */
+(function init(){
+  load();
+  renderAll();
+
+  initCustomSelect('#freq-select', (val) => { state.customFreq = val; });
+  initSliders();
+
+  const picker = $('#token-picker');
+  const trigger = $('#token-picker-trigger');
+  const searchInput = $('#token-search');
+
+  trigger.onclick = (e) => {
+    e.stopPropagation();
+    picker.classList.toggle('open');
+    if (picker.classList.contains('open')) {
+      searchInput.value = '';
+      renderTokenList();
+      setTimeout(() => searchInput.focus(), 100);
+    }
+  };
+  searchInput.oninput = (e) => renderTokenList(e.target.value);
+
+  $('#btn-confirm-tokens').onclick = (e) => {
+    e.stopPropagation();
+    picker.classList.remove('open');
+    toast('Токены выбраны');
+  };
+
+  document.addEventListener('click', (e) => {
+    if (!picker.contains(e.target)) picker.classList.remove('open');
+  });
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.custom-select').forEach(el => el.classList.remove('open'));
+  });
+
+  state._crDeadline = Date.now() + 30*24*60*60*1000;
+  state._wlDeadline = Date.now() + 30*24*60*60*1000;
+})();
+</script>
+</body>
+</html>

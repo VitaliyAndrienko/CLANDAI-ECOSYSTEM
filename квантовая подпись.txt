@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI QUANTUM</title>
+<style>
+:root{
+  --bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);
+  --neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--pink:#ff2bd6;
+  --text:#d8dee6;--muted:#5b6672;--danger:#ff3b6b;--radius:14px;--gold:#ffd400;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+.app{position:relative;z-index:1;max-width:440px;margin:0 auto;min-height:100vh;
+  padding:22px 18px 40px;display:flex;flex-direction:column;gap:16px}
+
+/* ============ TOPBAR ============ */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px}
+.logo{font-weight:700;letter-spacing:3px;font-size:14px;opacity:.78;white-space:nowrap}
+.logo b{color:var(--neon)}
+.topbar-actions{display:flex;gap:8px;align-items:center}
+
+/* ============ SPINNING COIN LOGO ============ */
+.coin-logo{
+  width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  display:grid;place-items:center;position:relative;overflow:hidden;
+  background:radial-gradient(circle at 30% 30%,var(--neon-dim),
+    rgba(0,217,255,.06) 60%,rgba(0,0,0,.4));
+  border:2px solid var(--neon-dim);
+  box-shadow:0 0 14px var(--neon-dim), inset 0 0 8px var(--neon-dim);
+  transition:border-color .25s, box-shadow .25s;
+}
+.coin-logo::after{content:'';position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(120deg,transparent 35%,
+    rgba(255,255,255,.18) 50%,transparent 65%);
+  pointer-events:none;z-index:3}
+@keyframes coinSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.coin-logo .coin-inner{
+  display:block;width:100%;height:100%;
+  animation:coinSpin 2s linear infinite;
+  transform-origin:center center;
+  will-change:transform;
+  position:relative;z-index:2;
+}
+.coin-logo .coin-inner img{
+  width:100%;height:100%;object-fit:cover;border-radius:50%;
+  display:block;
+}
+.coin-logo .coin-inner .fb{
+  position:absolute;inset:0;
+  display:grid;place-items:center;
+  font-size:11px;font-weight:700;
+  color:var(--neon);
+  text-shadow:0 0 8px var(--neon-dim);
+  letter-spacing:.5px;
+}
+
+/* ============ NET PILL ============ */
+.net-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;
+  border:1px solid var(--border);border-radius:999px;background:var(--panel);
+  backdrop-filter:blur(14px);font-size:11px;color:var(--text);
+  cursor:pointer;transition:border-color .15s,box-shadow .15s;
+  font-family:inherit;max-width:200px}
+.net-pill:hover{border-color:var(--neon);box-shadow:0 0 18px -6px var(--neon)}
+.net-pill:active{transform:scale(.97)}
+.net-pill .pill-sym{color:var(--muted);font-size:10px;letter-spacing:1px}
+.net-pill .chev{color:var(--muted);flex-shrink:0;transition:transform .2s}
+.net-pill:hover .chev{color:var(--neon)}
+.net-pill .pill-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 8px var(--neon);animation:pulseDot 1.8s infinite;flex-shrink:0}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ============ PANEL ============ */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  backdrop-filter:blur(18px);padding:18px;position:relative;overflow:hidden}
+.section-title{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;
+  margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;
+  position:relative;z-index:2}
+.section-title .link{color:var(--cyan);cursor:pointer;letter-spacing:1px}
+.section-title .link:hover{text-decoration:underline}
+
+/* ============ QUANTUM PARTICLES CANVAS (TOP-RIGHT) ============ */
+.quantum-canvas{
+  position:absolute;
+  top:6px;right:6px;
+  width:140px;height:100px;
+  pointer-events:none;
+  z-index:1;
+  opacity:.95;
+  mask-image:radial-gradient(ellipse at 60% 40%, black 40%, transparent 90%);
+  -webkit-mask-image:radial-gradient(ellipse at 60% 40%, black 40%, transparent 90%);
+}
+
+/* ============ QUANTITY DISPLAY ============ */
+.qty-label{font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;
+  margin-bottom:6px;position:relative;z-index:2}
+.qty-display{display:flex;align-items:baseline;gap:8px;line-height:1;
+  font-weight:700;color:#fff;text-shadow:0 0 26px var(--neon-dim);letter-spacing:-1px;
+  position:relative;z-index:2}
+#qty-num{font-size:clamp(38px,12vw,56px);font-variant-numeric:tabular-nums;
+  transition:color .2s}
+#qty-num.bump{color:var(--neon)}
+.qty-unit{font-size:clamp(15px,5vw,20px);color:var(--neon);
+  text-shadow:0 0 14px var(--neon-dim);letter-spacing:2px}
+.qty-hint{font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:.5px;
+  position:relative;z-index:2}
+
+/* ============ THICK SLIDER ============ */
+.thick-slider{
+  position:relative;height:76px;margin:20px 0 6px;
+  background:rgba(0,0,0,.55);border:1px solid var(--border);
+  border-radius:16px;overflow:hidden;cursor:grab;
+  touch-action:none;user-select:none;
+  box-shadow:inset 0 0 30px -14px var(--neon);
+  z-index:2
+}
+.thick-slider:active{cursor:grabbing}
+.ts-pattern{position:absolute;inset:0;pointer-events:none;opacity:.35;
+  background-image:linear-gradient(90deg,var(--neon-dim) 2px,transparent 2px);
+  background-size:16px 100%}
+.ts-fill{position:absolute;inset:0 auto 0 0;width:0%;
+  background:linear-gradient(90deg,transparent,var(--neon-dim));
+  box-shadow:0 0 30px var(--neon-dim);pointer-events:none;
+  transition:width .05s linear}
+.ts-thumb{
+  position:absolute;top:8px;bottom:8px;left:8px;width:104px;
+  background:linear-gradient(180deg,var(--neon),#00cc88);
+  border-radius:12px;display:grid;place-items:center;
+  color:#04231a;font-weight:700;font-size:22px;
+  box-shadow:0 0 24px var(--neon),0 0 6px #fff inset;
+  transition:left .05s linear,transform .12s;
+  z-index:3;touch-action:none;will-change:left}
+.ts-thumb.dragging{transform:scale(1.04)}
+.ts-thumb::after{content:'';position:absolute;inset:0;border-radius:12px;
+  background:linear-gradient(120deg,transparent 40%,rgba(255,255,255,.28) 50%,transparent 60%);
+  pointer-events:none}
+.ts-thumb span{position:relative;z-index:2}
+.ts-hint{position:absolute;inset:0;display:grid;place-items:center;
+  color:var(--muted);font-size:10px;letter-spacing:3px;
+  text-transform:uppercase;pointer-events:none;z-index:1;
+  transition:opacity .25s}
+.thick-slider.dragged .ts-hint{opacity:0}
+
+.ts-ticks{display:flex;justify-content:space-between;
+  font-size:9px;color:var(--muted);letter-spacing:.5px;
+  padding:0 6px;margin-bottom:14px;position:relative;z-index:2}
+
+/* ============ QUICK CHIPS ============ */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;position:relative;z-index:2}
+.chip{padding:7px 12px;border:1px solid var(--border);border-radius:999px;
+  background:rgba(0,0,0,.35);color:var(--muted);font-family:inherit;
+  font-size:11px;font-weight:700;letter-spacing:.5px;cursor:pointer;
+  transition:all .15s}
+.chip:hover{border-color:var(--neon);color:var(--neon)}
+.chip.active{border-color:var(--neon);color:var(--neon);
+  background:var(--neon-dim);box-shadow:0 0 14px -4px var(--neon)}
+
+/* ============ PRICE BREAKDOWN ============ */
+.price-breakdown{margin-top:20px;padding-top:16px;
+  border-top:1px solid rgba(255,255,255,.06);
+  display:flex;flex-direction:column;gap:10px;position:relative;z-index:2}
+.info-row{display:flex;justify-content:space-between;font-size:11px;
+  color:var(--muted);align-items:center;gap:10px}
+.info-row b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+.info-row.total{margin-top:6px;padding-top:12px;
+  border-top:1px dashed rgba(0,255,170,.22);font-size:12px}
+.info-row.total b{color:var(--neon);font-size:16px;
+  text-shadow:0 0 14px var(--neon-dim)}
+.disc-badge{display:inline-block;padding:1px 6px;margin-left:6px;
+  font-size:9px;letter-spacing:1px;color:var(--gold);
+  border:1px solid rgba(255,212,0,.45);border-radius:5px;
+  background:rgba(255,212,0,.08)}
+.fee-net-badge{font-size:9px;letter-spacing:.5px;color:var(--muted);
+  margin-left:6px;opacity:.8}
+
+/* ============ BUTTON ============ */
+.btn-full{width:100%;padding:16px;margin-top:18px;
+  background:linear-gradient(180deg,var(--neon-dim),transparent);
+  border:1px solid var(--neon);border-radius:12px;color:var(--neon);
+  font-family:inherit;font-size:13px;letter-spacing:2px;text-transform:uppercase;
+  cursor:pointer;transition:box-shadow .15s,transform .1s;font-weight:700;
+  position:relative;z-index:2}
+.btn-full:hover{box-shadow:0 0 28px var(--neon-dim)}
+.btn-full:active{transform:translateY(1px)}
+.btn-full:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
+.btn-ghost{background:transparent;border:1px solid var(--border);
+  color:var(--muted);margin-top:10px}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted);box-shadow:none}
+
+/* ============ STOCK ============ */
+.stock-row{display:flex;justify-content:space-between;align-items:center;
+  padding:11px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+.stock-row:last-child{border-bottom:none}
+.stock-row .lbl{color:var(--muted);font-size:11px;letter-spacing:1.2px;
+  text-transform:uppercase}
+.stock-row .val{color:var(--neon);font-weight:700;font-size:15px;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 12px var(--neon-dim)}
+.stock-row .val.empty{color:var(--muted);text-shadow:none;font-weight:400}
+.stock-row .net-mini{display:inline-flex;align-items:center;gap:6px;font-size:11px}
+.stock-row .net-mini .badge-sym{font-size:10px;letter-spacing:1px;
+  color:var(--text);font-weight:700}
+.stock-row .net-mini .badge-chain{font-size:9px;color:var(--muted)}
+
+/* ============ MODALS ============ */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);
+  backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;
+  z-index:100;padding:18px}
+.modal-bg.show{display:flex}
+.modal{background:#0e1014;border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px;max-width:400px;width:100%;box-shadow:0 0 40px var(--neon-dim);
+  max-height:92vh;overflow-y:auto;position:relative;
+  animation:modalIn .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes modalIn{from{transform:translateY(14px) scale(.97);opacity:0}
+  to{transform:none;opacity:1}}
+.modal h3{font-size:13px;letter-spacing:2px;color:var(--neon);
+  text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.modal h3 .close-x{margin-left:auto;background:transparent;
+  border:1px solid var(--border);color:var(--text);width:28px;height:28px;
+  border-radius:8px;cursor:pointer;display:grid;place-items:center;
+  transition:all .15s;font-size:12px}
+.modal h3 .close-x:hover{border-color:var(--danger);color:var(--danger)}
+.modal p{font-size:12px;color:var(--muted);line-height:1.65;margin-bottom:14px}
+
+/* ============ CONFIRM ============ */
+.confirm-box{display:flex;flex-direction:column;gap:2px}
+.confirm-row{display:flex;justify-content:space-between;font-size:12px;gap:12px;
+  padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05);
+  align-items:center}
+.confirm-row:last-of-type{border-bottom:none}
+.confirm-row .lbl{color:var(--muted);flex-shrink:0}
+.confirm-row .val{color:var(--text);text-align:right;word-break:break-all;font-weight:700;
+  font-variant-numeric:tabular-nums}
+.confirm-row .val.good{color:var(--neon);text-shadow:0 0 12px var(--neon-dim)}
+.confirm-total{display:flex;justify-content:space-between;align-items:baseline;
+  margin-top:10px;padding:14px;border-radius:10px;
+  background:rgba(0,255,170,.05);border:1px solid rgba(0,255,170,.25)}
+.confirm-total .lbl{font-size:11px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase}
+.confirm-total .val{font-size:20px;font-weight:700;color:var(--neon);
+  text-shadow:0 0 16px var(--neon-dim);font-variant-numeric:tabular-nums}
+
+/* ============ TX MODAL ============ */
+.tx-modal{max-width:430px;padding:22px}
+.tx-close{position:absolute;top:12px;right:12px;width:30px;height:30px;
+  background:transparent;border:1px solid var(--border);color:var(--text);
+  border-radius:8px;cursor:pointer;display:grid;place-items:center;
+  transition:all .15s;z-index:5;font-size:12px}
+.tx-close:hover{border-color:var(--danger);color:var(--danger)}
+.tx-view{display:none}
+.tx-view.active{display:block}
+
+.q-stage{position:relative;width:100%;aspect-ratio:1;max-height:340px;
+  margin:6px auto 4px;display:grid;place-items:center}
+#qcanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.q-caption{position:absolute;bottom:6px;left:0;right:0;text-align:center;
+  font-size:10px;letter-spacing:2.5px;color:var(--muted);
+  text-transform:uppercase;pointer-events:none;z-index:3}
+
+.tx-status{text-align:center;font-size:11px;letter-spacing:2px;
+  color:var(--muted);text-transform:uppercase;
+  margin:10px 0 4px;min-height:16px}
+.tx-status.done{color:var(--neon);text-shadow:0 0 12px var(--neon-dim)}
+
+/* ============ RESULT ============ */
+.result-wrap{display:flex;flex-direction:column;align-items:center;
+  padding:22px 0 8px;text-align:center}
+.result-orb{width:170px;height:170px;border-radius:50%;
+  display:grid;place-items:center;position:relative;
+  border:3px solid var(--neon);color:var(--neon);
+  box-shadow:0 0 44px var(--neon),0 0 80px var(--neon-dim),
+    inset 0 0 40px var(--neon-dim);
+  background:radial-gradient(circle,rgba(0,255,170,.18),transparent 70%);
+  animation:orbPop .5s cubic-bezier(.2,.9,.3,1.4);
+  margin-bottom:20px}
+@keyframes orbPop{0%{transform:scale(.35);opacity:0}
+  100%{transform:scale(1);opacity:1}}
+.result-orb::before{content:'';position:absolute;inset:-14px;border-radius:50%;
+  border:1px solid var(--neon-dim);animation:orbRing 2.4s ease-out infinite}
+.result-orb::after{content:'';position:absolute;inset:-14px;border-radius:50%;
+  border:1px solid var(--neon-dim);animation:orbRing 2.4s ease-out infinite;
+  animation-delay:1.2s}
+@keyframes orbRing{0%{transform:scale(1);opacity:.8}
+  100%{transform:scale(1.55);opacity:0}}
+#result-count{font-size:64px;font-weight:700;line-height:1;
+  text-shadow:0 0 30px var(--neon),0 0 60px var(--neon-dim);
+  font-variant-numeric:tabular-nums}
+.result-label{font-size:11px;letter-spacing:4px;color:var(--neon);
+  text-transform:uppercase;margin-bottom:14px;
+  text-shadow:0 0 12px var(--neon-dim)}
+.result-valid{font-size:12px;color:var(--muted);letter-spacing:1px}
+.result-valid b{color:var(--text);font-weight:700}
+.result-net{font-size:11px;color:var(--muted);letter-spacing:1px;
+  margin-top:8px}
+.result-net b{color:var(--cyan)}
+.result-hash{margin-top:18px;width:100%;
+  font-size:10px;color:var(--muted);letter-spacing:.5px;
+  background:rgba(0,0,0,.4);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;
+  word-break:break-all;text-align:center;
+  font-variant-numeric:tabular-nums}
+.result-hash b{color:var(--cyan);font-weight:400}
+
+/* ============ NETWORK LIST ============ */
+.search-box{position:relative;margin-bottom:12px}
+.search-box input{width:100%;padding:12px 14px 12px 38px;
+  background:rgba(0,0,0,.4);border:1px solid var(--border);
+  border-radius:10px;color:var(--text);font-family:inherit;
+  font-size:13px;outline:none;transition:border-color .15s}
+.search-box input:focus{border-color:var(--neon);
+  box-shadow:0 0 0 3px var(--neon-dim)}
+.search-box input::placeholder{color:var(--muted)}
+.search-box svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  width:15px;height:15px;color:var(--muted);pointer-events:none}
+
+.net-list{display:flex;flex-direction:column;gap:4px;
+  max-height:56vh;overflow-y:auto;margin:0 -4px;padding:0 4px}
+.net-item{display:flex;align-items:center;gap:12px;
+  padding:11px 12px;border:1px solid transparent;border-radius:10px;
+  cursor:pointer;transition:all .15s;font-size:12px;
+  background:rgba(0,0,0,.25)}
+.net-item:hover{border-color:var(--border);background:rgba(0,255,170,.06)}
+.net-item.active{border-color:var(--neon);background:var(--neon-dim);
+  box-shadow:0 0 14px -6px var(--neon)}
+
+/* ============ NET LOGO IN LIST (SPINNING) ============ */
+.net-logo{width:28px;height:28px;border-radius:50%;flex-shrink:0;
+  display:grid;place-items:center;
+  background:radial-gradient(circle at 30% 30%,var(--neon-dim),
+    rgba(0,217,255,.06) 60%,rgba(0,0,0,.4));
+  border:1px solid var(--neon-dim);
+  box-shadow:0 0 8px var(--neon-dim);
+  position:relative;overflow:hidden}
+.net-symbol{
+  animation:coinSpin 2s linear infinite;
+  display:block;
+  transform-origin:center center;
+  will-change:transform;
+  font-size:10px;font-weight:700;color:var(--neon);
+  text-shadow:0 0 6px var(--neon-dim);
+  position:relative;z-index:2;
+}
+.net-logo::after{content:'';position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(120deg,transparent 35%,
+    rgba(255,255,255,.14) 50%,transparent 65%);
+  pointer-events:none;z-index:3}
+
+.net-info{flex:1;min-width:0}
+.net-name{color:var(--text);font-weight:700;font-size:13px}
+.net-meta{color:var(--muted);font-size:10px;margin-top:2px;
+  letter-spacing:.5px;display:flex;gap:6px;flex-wrap:wrap}
+.net-meta .fee-tag{color:var(--cyan)}
+.net-item .net-check{color:var(--neon);opacity:0;transition:opacity .15s;
+  font-size:14px;flex-shrink:0}
+.net-item.active .net-check{opacity:1}
+
+/* ============ TOAST ============ */
+.toast{position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(100px);
+  background:#0e1014;border:1px solid var(--neon);color:var(--neon);
+  padding:12px 20px;border-radius:999px;font-size:12px;letter-spacing:1px;
+  z-index:200;opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;
+  box-shadow:0 0 24px var(--neon-dim);max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--danger);color:var(--danger);
+  box-shadow:0 0 24px rgba(255,59,107,.25)}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:8px}
+
+@media (max-width:640px){
+  .panel,.modal{backdrop-filter:none;-webkit-backdrop-filter:none;
+    background:rgba(18,20,24,.95)}
+  .modal{background:#0e1014}
+  body::after{display:none}
+  .app{padding:16px 14px 32px;gap:14px}
+  .panel{padding:16px}
+  .thick-slider{height:70px}
+  .ts-thumb{width:92px;font-size:20px}
+  .result-orb{width:150px;height:150px}
+  #result-count{font-size:56px}
+  .q-stage{max-height:290px}
+  .net-pill{max-width:170px}
+  .quantum-canvas{width:120px;height:85px;top:4px;right:4px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">CLAN<b>DAI</b> QUANTUM</div>
+    <div class="topbar-actions">
+      <div class="coin-logo" id="coin-logo" title="Текущая сеть">
+        <span class="coin-inner" id="coin-inner">
+          <span class="fb" id="coin-fb">ETH</span>
+        </span>
+      </div>
+      <button class="net-pill" id="btn-net" type="button" title="Сменить сеть">
+        <span class="dot"></span>
+        <span class="pill-name" id="pill-name">Ethereum</span>
+        <span class="pill-sym" id="pill-sym">ETH</span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" width="11" height="11">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <!-- КВАНТОВАЯ АНИМАЦИЯ ЧАСТИЦ -->
+    <canvas class="quantum-canvas" id="quantumCanvas"></canvas>
+
+    <div class="section-title">
+      <span>ПРЕДЗАКАЗ ПОДПИСЕЙ</span>
+      <span class="link" id="btn-why">Что это?</span>
+    </div>
+
+    <div class="qty-label">Количество подписей</div>
+    <div class="qty-display">
+      <span id="qty-num">25</span>
+      <span class="qty-unit">QS</span>
+    </div>
+    <div class="qty-hint">Действительны 30 дней с момента выпуска</div>
+
+    <div class="thick-slider" id="slider">
+      <div class="ts-pattern"></div>
+      <div class="ts-fill" id="slider-fill"></div>
+      <div class="ts-hint">ТЯНИТЕ →</div>
+      <div class="ts-thumb" id="slider-thumb"><span id="thumb-val">25</span></div>
+    </div>
+    <div class="ts-ticks">
+      <span>1</span><span>100</span><span>250</span><span>500</span>
+    </div>
+
+    <div class="chips" id="chips">
+      <button class="chip" data-v="10">10</button>
+      <button class="chip active" data-v="25">25</button>
+      <button class="chip" data-v="50">50</button>
+      <button class="chip" data-v="100">100</button>
+      <button class="chip" data-v="250">250</button>
+      <button class="chip" data-v="500">500</button>
+    </div>
+
+    <div class="price-breakdown">
+      <div class="info-row">
+        <span>Цена за подпись</span>
+        <b id="per-sig">$1.60<span class="disc-badge" id="disc-badge" style="display:none">−20%</span></b>
+      </div>
+      <div class="info-row">
+        <span>Стоимость пакета</span>
+        <b id="pack-cost">$40.00</b>
+      </div>
+      <div class="info-row">
+        <span>Комиссия сети<span class="fee-net-badge" id="fee-net-badge">· ETH</span></span>
+        <b id="net-fee">$2.85</b>
+      </div>
+      <div class="info-row total">
+        <span>Итого</span>
+        <b id="total-cost">$42.85</b>
+      </div>
+    </div>
+
+    <button class="btn-full" id="btn-sign">Подписать</button>
+  </div>
+
+  <div class="panel">
+    <div class="section-title"><span>ВАШ ЗАПАС</span></div>
+    <div class="stock-row">
+      <span class="lbl">Активных подписей</span>
+      <span class="val empty" id="stock-count">0 QS</span>
+    </div>
+    <div class="stock-row">
+      <span class="lbl">Сеть выпуска</span>
+      <span class="val empty" id="stock-net">—</span>
+    </div>
+    <div class="stock-row">
+      <span class="lbl">Годны до</span>
+      <span class="val empty" id="stock-until">—</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ NETWORK MODAL ============ -->
+<div class="modal-bg" id="modal-net">
+  <div class="modal">
+    <h3>
+      <span>ВЫБОР СЕТИ</span>
+      <button class="close-x" data-close="modal-net">✕</button>
+    </h3>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input id="net-search" placeholder="Поиск сети или тикера"/>
+    </div>
+    <div class="net-list" id="net-list"></div>
+  </div>
+</div>
+
+<!-- ============ CONFIRM MODAL ============ -->
+<div class="modal-bg" id="modal-confirm">
+  <div class="modal">
+    <h3>
+      <span>ПОДТВЕРЖДЕНИЕ</span>
+      <button class="close-x" data-close="modal-confirm">✕</button>
+    </h3>
+    <div class="confirm-box">
+      <div class="confirm-row">
+        <span class="lbl">Количество подписей</span>
+        <span class="val good" id="c-qty">25 QS</span>
+      </div>
+      <div class="confirm-row">
+        <span class="lbl">Цена за подпись</span>
+        <span class="val" id="c-per">$1.60</span>
+      </div>
+      <div class="confirm-row">
+        <span class="lbl">Сеть</span>
+        <span class="val" id="c-net">Ethereum</span>
+      </div>
+      <div class="confirm-row">
+        <span class="lbl">Комиссия сети</span>
+        <span class="val" id="c-fee">$2.85</span>
+      </div>
+      <div class="confirm-row">
+        <span class="lbl">Срок действия</span>
+        <span class="val">30 дней</span>
+      </div>
+    </div>
+    <div class="confirm-total">
+      <span class="lbl">Итого</span>
+      <span class="val" id="c-total">$42.85</span>
+    </div>
+    <button class="btn-full" id="confirm-go">Подписать</button>
+    <button class="btn-full btn-ghost" data-close="modal-confirm">Отмена</button>
+  </div>
+</div>
+
+<!-- ============ ANIMATION / RESULT MODAL ============ -->
+<div class="modal-bg" id="modal-sign">
+  <div class="modal tx-modal">
+    <button class="tx-close" data-close="modal-sign">✕</button>
+
+    <div class="tx-view active" id="view-forming">
+      <h3 style="text-align:center;justify-content:center;margin-bottom:2px;">
+        ФОРМИРОВАНИЕ
+      </h3>
+      <div class="q-stage">
+        <canvas id="qcanvas"></canvas>
+        <div class="q-caption" id="q-caption">СБОРКА КВАНТОВЫХ СОСТОЯНИЙ</div>
+      </div>
+      <div class="tx-status" id="q-status">АГРЕГАЦИЯ...</div>
+    </div>
+
+    <div class="tx-view" id="view-result">
+      <div class="result-wrap">
+        <div class="result-orb"><span id="result-count">25</span></div>
+        <div class="result-label">ПОДПИСЕЙ ГОТОВО</div>
+        <div class="result-valid">Годны до <b id="result-until">—</b></div>
+        <div class="result-net">Сеть: <b id="result-net">Ethereum</b></div>
+        <div class="result-hash">
+          TX <b id="result-hash">0x0000…0000</b>
+        </div>
+      </div>
+      <button class="btn-full" data-close="modal-sign" style="margin-top:18px;">
+        Готово
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ WHY MODAL ============ -->
+<div class="modal-bg" id="modal-why">
+  <div class="modal">
+    <h3>
+      <span>КВАНТОВЫЕ ПОДПИСИ</span>
+      <button class="close-x" data-close="modal-why">✕</button>
+    </h3>
+    <p>Квантовая подпись заменяет классический ECDSA-подпись. Она устойчива
+      к атакам на квантовых компьютерах и подходит для долгосрочного хранения
+      крупных сумм.</p>
+    <p>Вы можете заранее выпустить пакет подписей — они хранятся на
+      смарт-контракте в выбранной сети и списываются по одной при каждой транзакции.</p>
+    <div class="confirm-box">
+      <div class="confirm-row">
+        <span class="lbl">Срок жизни одной подписи</span>
+        <span class="val good">30 дней</span>
+      </div>
+      <div class="confirm-row">
+        <span class="lbl">Чем больше пакет — тем ниже цена</span>
+        <span class="val">до −62%</span>
+      </div>
+      <div class="confirm-row">
+        <span class="lbl">Контракт</span>
+        <span class="val" style="font-size:10px">0x…0003 REGISTRY</span>
+      </div>
+    </div>
+    <button class="btn-full btn-ghost" data-close="modal-why">Понятно</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   CLANDAI QUANTUM — предзаказ квантовых подписей
+   ========================================================= */
+
+const MIN_Q = 1;
+const MAX_Q = 500;
+const VALID_DAYS = 30;
+
+/* ---------- СЕТИ ---------- */
+const NETWORKS = {
+  ethereum:  { name:'Ethereum',        symbol:'ETH',  chainId:1,      color:'#627eea', fee:2.85 },
+  polygon:   { name:'Polygon',         symbol:'POL',  chainId:137,    color:'#8247e5', fee:0.04 },
+  bsc:       { name:'BNB Chain',       symbol:'BNB',  chainId:56,     color:'#f3ba2f', fee:0.22 },
+  arbitrum:  { name:'Arbitrum',        symbol:'ETH',  chainId:42161,  color:'#2d374b', fee:0.18 },
+  optimism:  { name:'Optimism',        symbol:'ETH',  chainId:10,     color:'#ff0420', fee:0.14 },
+  base:      { name:'Base',            symbol:'ETH',  chainId:8453,   color:'#0052ff', fee:0.09 },
+  avalanche: { name:'Avalanche',       symbol:'AVAX', chainId:43114,  color:'#e84142', fee:0.31 },
+  fantom:    { name:'Fantom',          symbol:'FTM',  chainId:250,    color:'#1969ff', fee:0.06 },
+  gnosis:    { name:'Gnosis',          symbol:'XDAI', chainId:100,    color:'#04795b', fee:0.02 },
+  celo:      { name:'Celo',            symbol:'CELO', chainId:42220,  color:'#35d07f', fee:0.03 },
+  cronos:    { name:'Cronos',          symbol:'CRO',  chainId:25,     color:'#002d74', fee:0.08 },
+  linea:     { name:'Linea',           symbol:'ETH',  chainId:59144,  color:'#61dfff', fee:0.11 },
+  mantle:    { name:'Mantle',          symbol:'MNT',  chainId:5000,   color:'#000000', fee:0.05 },
+  scroll:    { name:'Scroll',          symbol:'ETH',  chainId:534352, color:'#ffd4b0', fee:0.13 },
+  zksync:    { name:'zkSync Era',      symbol:'ETH',  chainId:324,    color:'#8c8dfc', fee:0.10 },
+  blast:     { name:'Blast',           symbol:'ETH',  chainId:81457,  color:'#fcfc03', fee:0.07 },
+  ronin:     { name:'Ronin',           symbol:'RON',  chainId:2020,   color:'#1273ea', fee:0.05 },
+  sei:       { name:'Sei EVM',         symbol:'SEI',  chainId:1329,   color:'#9e1f19', fee:0.04 }
+};
+
+/* ---------- ЛОГОТИПЫ ИЗ TRUSTWALLET ---------- */
+const TW_BASE = 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains';
+const TW_CHAINS = {
+  ethereum:'ethereum', polygon:'polygon', bsc:'smartchain', arbitrum:'arbitrum',
+  optimism:'optimism', base:'base', avalanche:'avalanchec', fantom:'fantom',
+  gnosis:'xdai', celo:'celo', cronos:'cronos', linea:'linea', mantle:'mantle',
+  scroll:'scroll', zksync:'zksync', blast:'blast', ronin:'ronin', sei:'sei'
+};
+function nativeLogo(k){
+  const tw = TW_CHAINS[k];
+  return tw ? `${TW_BASE}/${tw}/info/logo.png` : null;
+}
+
+const state = {
+  qty: 25,
+  network: localStorage.getItem('qs_network') || 'ethereum',
+  dragging: false,
+  stock: parseInt(localStorage.getItem('qs_stock') || '0', 10) || 0,
+  stockUntil: localStorage.getItem('qs_until') || null,
+  stockNetwork: localStorage.getItem('qs_net') || null,
+  netSearch: '',
+  animRaf: null,
+  animRunning: false,
+  quantumRaf: null,
+  quantumRunning: false
+};
+
+const $  = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+/* ---------- УТИЛИТЫ ---------- */
+function toast(msg, err = false) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => (el.className = 'toast'), 2600);
+}
+function openModal(id)  { $('#' + id).classList.add('show'); }
+function closeModal(id) { $('#' + id).classList.remove('show'); }
+function money(n) {
+  return '$' + n.toLocaleString('en-US', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+}
+function randomHash() {
+  const h = '0123456789abcdef';
+  let s = '0x';
+  for (let i = 0; i < 64; i++) s += h[(Math.random() * 16) | 0];
+  return s;
+}
+function shortHash(h) {
+  return h.slice(0, 10) + '…' + h.slice(-6);
+}
+function formatDate(d) {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
+}
+function getNetwork() {
+  return NETWORKS[state.network] || NETWORKS.ethereum;
+}
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  return {
+    r: parseInt(h.slice(0,2),16),
+    g: parseInt(h.slice(2,4),16),
+    b: parseInt(h.slice(4,6),16)
+  };
+}
+
+/* =========================================================
+   КВАНТОВАЯ АНИМАЦИЯ ЧАСТИЦ (TOP-RIGHT CORNER)
+   - частицы дрейфуют
+   - близкие частицы соединяются линиями
+   - каждая частица периодически пульсирует яркостью
+   ========================================================= */
+function startQuantumField() {
+  const cvs = $('#quantumCanvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  function resize() {
+    const rect = cvs.getBoundingClientRect();
+    cvs.width  = Math.max(80, Math.round(rect.width  * dpr));
+    cvs.height = Math.max(60, Math.round(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const W = () => cvs.width  / dpr;
+  const H = () => cvs.height / dpr;
+
+  /* --- частицы --- */
+  const COUNT = 14;
+  const particles = [];
+  for (let i = 0; i < COUNT; i++) {
+    particles.push({
+      x: Math.random() * W(),
+      y: Math.random() * H(),
+      vx: (Math.random() - 0.5) * 0.22,
+      vy: (Math.random() - 0.5) * 0.22,
+      baseR: 1.1 + Math.random() * 1.2,
+      // каждый кадр пульсация
+      pulse: Math.random(),
+      pulseSpeed: 0.008 + Math.random() * 0.018,
+      // фаза "большой вспышки"
+      glowBoost: 0,
+      nextFlash: Math.random() * 400,
+      alt: Math.random() < 0.25
+    });
+  }
+
+  let t = 0;
+  let raf = null;
+
+  function frame() {
+    if (!state.quantumRunning) return;
+    t++;
+
+    const w = W(), h = H();
+    ctx.clearRect(0, 0, w, h);
+
+    const net = getNetwork();
+    const baseRgb = hexToRgb(net.color);
+    const altRgb  = { r: 0, g: 217, b: 255 };
+    const neonRgb = { r: 0, g: 255, b: 170 };
+
+    /* --- движение --- */
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // мягкие границы — отражение
+      if (p.x < 0) { p.x = 0; p.vx *= -1; }
+      if (p.x > w) { p.x = w; p.vx *= -1; }
+      if (p.y < 0) { p.y = 0; p.vy *= -1; }
+      if (p.y > h) { p.y = h; p.vy *= -1; }
+
+      // лёгкое случайное блуждание
+      p.vx += (Math.random() - 0.5) * 0.02;
+      p.vy += (Math.random() - 0.5) * 0.02;
+      // ограничение скорости
+      const sp = Math.hypot(p.vx, p.vy);
+      if (sp > 0.35) { p.vx *= 0.35 / sp; p.vy *= 0.35 / sp; }
+
+      // пульсация яркости
+      p.pulse += p.pulseSpeed;
+      const pulseVal = (Math.sin(p.pulse * Math.PI * 2) + 1) / 2; // 0..1
+
+      // периодические яркие вспышки
+      p.nextFlash -= 1;
+      if (p.nextFlash <= 0) {
+        p.glowBoost = 1;
+        p.nextFlash = 180 + Math.random() * 320;
+      }
+      p.glowBoost *= 0.94;
+
+      p._pulseVal  = pulseVal;
+      p._bright    = Math.min(1, 0.55 + pulseVal * 0.35 + p.glowBoost * 0.9);
+      p._radius    = p.baseR + pulseVal * 0.6 + p.glowBoost * 1.4;
+    });
+
+    /* --- соединения между близкими частицами --- */
+    const LINK_DIST = 46;
+    const LINK_DIST2 = LINK_DIST * LINK_DIST;
+
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i], b = particles[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d2 = dx*dx + dy*dy;
+        if (d2 < LINK_DIST2) {
+          const d = Math.sqrt(d2);
+          const k = 1 - d / LINK_DIST;
+          const alpha = k * 0.55 * (0.5 + (a._bright + b._bright) * 0.25);
+          const mx = (a.x + b.x) / 2;
+          const my = (a.y + b.y) / 2;
+
+          // градиент от частицы к частице
+          const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+          grad.addColorStop(0, `rgba(${baseRgb.r},${baseRgb.g},${baseRgb.b},${alpha})`);
+          grad.addColorStop(0.5, `rgba(${neonRgb.r},${neonRgb.g},${neonRgb.b},${alpha*0.85})`);
+          grad.addColorStop(1, `rgba(${baseRgb.r},${baseRgb.g},${baseRgb.b},${alpha})`);
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 0.6 + k * 0.6;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+
+          // «искра» бежит по линии
+          const phase = (t * 0.02 + (i + j) * 0.13) % 1;
+          const sx = a.x + (b.x - a.x) * phase;
+          const sy = a.y + (b.y - a.y) * phase;
+          ctx.fillStyle = `rgba(255,255,255,${alpha * 0.9})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    /* --- сами частицы --- */
+    particles.forEach(p => {
+      const rgb = p.alt ? altRgb : neonRgb;
+      const bright = p._bright;
+      const r = p._radius;
+
+      // мягкое свечение вокруг
+      const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 5.5);
+      glow.addColorStop(0,    `rgba(${rgb.r},${rgb.g},${rgb.b},${bright * 0.55})`);
+      glow.addColorStop(0.35, `rgba(${rgb.r},${rgb.g},${rgb.b},${bright * 0.18})`);
+      glow.addColorStop(1,    `rgba(${rgb.r},${rgb.g},${rgb.b},0)`);
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r * 5.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ядро
+      ctx.shadowColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+      ctx.shadowBlur = 6 + bright * 10;
+      ctx.fillStyle = `rgba(255,255,255,${0.55 + bright * 0.45})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r * 0.75, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // неоновое кольцо
+      ctx.strokeStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${bright * 0.75})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r * 1.6, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    raf = requestAnimationFrame(frame);
+  }
+
+  state.quantumRunning = true;
+  state.quantumRaf = raf;
+  frame();
+}
+
+function stopQuantumField() {
+  state.quantumRunning = false;
+  if (state.quantumRaf) {
+    cancelAnimationFrame(state.quantumRaf);
+    state.quantumRaf = null;
+  }
+}
+
+/* =========================================================
+   КРУТЯЩИЙСЯ ЛОГОТИП СЕТИ В TOPBAR
+   ========================================================= */
+function renderCoinLogo() {
+  const net = getNetwork();
+  const logoEl = $('#coin-logo');
+  const inner = $('#coin-inner');
+
+  logoEl.style.borderColor = net.color + '88';
+  logoEl.style.boxShadow = `0 0 14px ${net.color}66, inset 0 0 8px ${net.color}55`;
+
+  inner.innerHTML = '';
+
+  const fb = document.createElement('span');
+  fb.className = 'fb';
+  fb.textContent = net.symbol.slice(0, 4);
+  fb.style.color = net.color;
+  fb.style.textShadow = `0 0 8px ${net.color}aa`;
+  inner.appendChild(fb);
+
+  const url = nativeLogo(state.network);
+  if (url) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = net.symbol;
+    img.loading = 'eager';
+    img.decoding = 'async';
+    img.onload = () => { fb.style.display = 'none'; };
+    img.onerror = () => { img.remove(); };
+    inner.appendChild(img);
+  }
+}
+
+/* ---------- ЦЕНООБРАЗОВАНИЕ ---------- */
+function pricePerSig(n) {
+  if (n >= 250) return 0.75;
+  if (n >= 100) return 1.00;
+  if (n >= 50)  return 1.30;
+  if (n >= 10)  return 1.60;
+  return 2.00;
+}
+function discountPct(n) {
+  const base = 2.00;
+  return Math.round((1 - pricePerSig(n) / base) * 100);
+}
+function packCost(n)   { return n * pricePerSig(n); }
+function netFee()      { return getNetwork().fee; }
+function totalCost(n)  { return packCost(n) + netFee(); }
+
+/* ---------- ОБНОВЛЕНИЕ UI ---------- */
+function updatePrice() {
+  const n = state.qty;
+  $('#qty-num').textContent   = n;
+  $('#thumb-val').textContent = n;
+
+  $('#per-sig').firstChild.textContent = money(pricePerSig(n));
+  const disc = discountPct(n);
+  const badge = $('#disc-badge');
+  if (disc > 0) {
+    badge.style.display = '';
+    badge.textContent = '−' + disc + '%';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  $('#pack-cost').textContent  = money(packCost(n));
+  $('#net-fee').textContent    = money(netFee());
+  $('#fee-net-badge').textContent = '· ' + getNetwork().symbol;
+  $('#total-cost').textContent = money(totalCost(n));
+
+  $$('#chips .chip').forEach(c => {
+    c.classList.toggle('active', parseInt(c.dataset.v, 10) === n);
+  });
+
+  const qn = $('#qty-num');
+  qn.classList.add('bump');
+  clearTimeout(qn._bump);
+  qn._bump = setTimeout(() => qn.classList.remove('bump'), 180);
+}
+
+function updateNetPill() {
+  const net = getNetwork();
+  $('#pill-name').textContent = net.name;
+  $('#pill-sym').textContent  = net.symbol;
+  renderCoinLogo();
+}
+
+function applySlider() {
+  const track  = $('#slider');
+  const thumb  = $('#slider-thumb');
+  const fill   = $('#slider-fill');
+  const trackW = track.clientWidth;
+  const thumbW = thumb.offsetWidth;
+  const pad    = 8;
+  const maxLeft = trackW - thumbW - pad * 2;
+  const pct = (state.qty - MIN_Q) / (MAX_Q - MIN_Q);
+  const left = pad + pct * maxLeft;
+
+  thumb.style.left = left + 'px';
+  fill.style.width = (left + thumbW / 2) + 'px';
+  track.classList.toggle('dragged', state.qty > MIN_Q);
+  updatePrice();
+}
+
+/* ---------- ПОЛЗУНОК ---------- */
+let dragStartX = 0, dragStartLeft = 0;
+
+function onSliderDown(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  state.dragging = true;
+  $('#slider-thumb').classList.add('dragging');
+
+  const track  = $('#slider');
+  const thumb  = $('#slider-thumb');
+  const pad    = 8;
+  const maxLeft = track.clientWidth - thumb.offsetWidth - pad * 2;
+  dragStartX = e.clientX;
+  dragStartLeft = ((state.qty - MIN_Q) / (MAX_Q - MIN_Q)) * maxLeft;
+
+  e.preventDefault();
+  window.addEventListener('pointermove', onSliderMove);
+  window.addEventListener('pointerup',   onSliderUp);
+  window.addEventListener('pointercancel', onSliderUp);
+  if (navigator.vibrate) navigator.vibrate(8);
+}
+
+let lastVib = -1;
+function onSliderMove(e) {
+  if (!state.dragging) return;
+  const track  = $('#slider');
+  const thumb  = $('#slider-thumb');
+  const pad    = 8;
+  const maxLeft = track.clientWidth - thumb.offsetWidth - pad * 2;
+
+  const dx = e.clientX - dragStartX;
+  const newLeft = Math.max(0, Math.min(maxLeft, dragStartLeft + dx));
+  const pct = newLeft / maxLeft;
+
+  state.qty = Math.round(MIN_Q + pct * (MAX_Q - MIN_Q));
+  applySlider();
+
+  const v = Math.round(state.qty / 25) * 25;
+  if (v !== lastVib) {
+    lastVib = v;
+    if (navigator.vibrate) navigator.vibrate(3);
+  }
+}
+
+function onSliderUp() {
+  if (!state.dragging) return;
+  state.dragging = false;
+  $('#slider-thumb').classList.remove('dragging');
+  window.removeEventListener('pointermove', onSliderMove);
+  window.removeEventListener('pointerup',   onSliderUp);
+  window.removeEventListener('pointercancel', onSliderUp);
+  if (navigator.vibrate) navigator.vibrate(10);
+}
+
+$('#slider').addEventListener('pointerdown', e => {
+  const track = $('#slider');
+  const thumb = $('#slider-thumb');
+  const rect  = track.getBoundingClientRect();
+  const thumbRect = thumb.getBoundingClientRect();
+
+  if (e.clientX >= thumbRect.left && e.clientX <= thumbRect.right) {
+    onSliderDown(e);
+  } else {
+    const pad = 8;
+    const maxLeft = track.clientWidth - thumb.offsetWidth - pad * 2;
+    const relX = e.clientX - rect.left - pad - thumb.offsetWidth / 2;
+    const pct = Math.max(0, Math.min(1, relX / maxLeft));
+    state.qty = Math.round(MIN_Q + pct * (MAX_Q - MIN_Q));
+    applySlider();
+    onSliderDown(e);
+  }
+});
+
+/* ---------- ЧИПЫ ---------- */
+$$('#chips .chip').forEach(c => {
+  c.onclick = () => {
+    state.qty = parseInt(c.dataset.v, 10);
+    applySlider();
+    if (navigator.vibrate) navigator.vibrate(6);
+  };
+});
+
+/* =========================================================
+   ВЫБОР СЕТИ
+   ========================================================= */
+function renderNetList() {
+  const w = $('#net-list');
+  const q = state.netSearch.trim().toLowerCase();
+  const entries = Object.entries(NETWORKS).filter(([k, n]) => {
+    if (!q) return true;
+    return n.name.toLowerCase().includes(q)
+        || n.symbol.toLowerCase().includes(q)
+        || String(n.chainId).includes(q);
+  });
+
+  if (!entries.length) {
+    w.innerHTML = '<div style="text-align:center;color:var(--muted);' +
+      'font-size:12px;padding:24px 0">Ничего не найдено</div>';
+    return;
+  }
+
+  w.innerHTML = '';
+  const fr = document.createDocumentFragment();
+  entries.forEach(([k, n]) => {
+    const el = document.createElement('div');
+    el.className = 'net-item' + (k === state.network ? ' active' : '');
+    el.innerHTML = `
+      <div class="net-logo" style="border-color:${n.color}55;
+        box-shadow:0 0 8px ${n.color}55;">
+        <span class="net-symbol" style="color:${n.color};
+          text-shadow:0 0 6px ${n.color}88;">
+          ${n.symbol.slice(0, 4)}
+        </span>
+      </div>
+      <div class="net-info">
+        <div class="net-name">${n.name}</div>
+        <div class="net-meta">
+          <span>chainId ${n.chainId}</span>
+          <span class="fee-tag">fee ≈ ${money(n.fee)}</span>
+        </div>
+      </div>
+      <span class="net-check">✓</span>
+    `;
+    el.onclick = () => {
+      state.network = k;
+      localStorage.setItem('qs_network', k);
+      updateNetPill();
+      updatePrice();
+      closeModal('modal-net');
+      toast('✓ ' + n.name);
+      if (navigator.vibrate) navigator.vibrate(8);
+    };
+    fr.appendChild(el);
+  });
+  w.appendChild(fr);
+}
+
+$('#btn-net').onclick = () => {
+  state.netSearch = '';
+  $('#net-search').value = '';
+  renderNetList();
+  openModal('modal-net');
+};
+$('#net-search').addEventListener('input', e => {
+  state.netSearch = e.target.value;
+  renderNetList();
+});
+
+/* ---------- ПОДТВЕРЖДЕНИЕ ---------- */
+$('#btn-sign').onclick = () => {
+  const n = state.qty;
+  const net = getNetwork();
+  $('#c-qty').textContent   = n + ' QS';
+  $('#c-per').textContent   = money(pricePerSig(n));
+  $('#c-net').textContent   = net.name;
+  $('#c-fee').textContent   = money(net.fee);
+  $('#c-total').textContent = money(totalCost(n));
+  openModal('modal-confirm');
+};
+
+$('#confirm-go').onclick = () => {
+  closeModal('modal-confirm');
+  setTimeout(() => startSignFlow(), 160);
+};
+
+$('#btn-why').onclick = () => openModal('modal-why');
+
+/* ---------- ВСЕ [data-close] ---------- */
+$$('[data-close]').forEach(b => {
+  b.onclick = () => {
+    const id = b.dataset.close;
+    closeModal(id);
+    if (id === 'modal-sign') {
+      stopQuantumAnim();
+      $$('#modal-sign .tx-view').forEach(v => v.classList.remove('active'));
+      $('#view-forming').classList.add('active');
+    }
+  };
+});
+
+$$('.modal-bg').forEach(m => m.addEventListener('click', e => {
+  if (e.target === m) {
+    m.classList.remove('show');
+    if (m.id === 'modal-sign') {
+      stopQuantumAnim();
+      $$('#modal-sign .tx-view').forEach(v => v.classList.remove('active'));
+      $('#view-forming').classList.add('active');
+    }
+  }
+}));
+
+/* =========================================================
+   АНИМАЦИЯ ФОРМИРОВАНИЯ КВАНТОВ (BIG MODAL)
+   ========================================================= */
+function stopQuantumAnim() {
+  state.animRunning = false;
+  if (state.animRaf) {
+    cancelAnimationFrame(state.animRaf);
+    state.animRaf = null;
+  }
+}
+
+function startSignFlow() {
+  $$('#modal-sign .tx-view').forEach(v => v.classList.remove('active'));
+  $('#view-forming').classList.add('active');
+  $('#q-status').textContent = 'АГРЕГАЦИЯ КВАНТОВЫХ СОСТОЯНИЙ...';
+  $('#q-status').classList.remove('done');
+  $('#q-caption').textContent = 'СБОРКА КВАНТОВЫХ СОСТОЯНИЙ';
+  openModal('modal-sign');
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => runQuantumAnim());
+  });
+}
+
+function runQuantumAnim() {
+  stopQuantumAnim();
+  state.animRunning = true;
+
+  const cvs = $('#qcanvas');
+  const ctx = cvs.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  const rect = cvs.getBoundingClientRect();
+  const W = Math.max(200, rect.width);
+  const H = Math.max(200, rect.height);
+  cvs.width  = Math.round(W * dpr);
+  cvs.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const cx = W / 2;
+  const cy = H / 2;
+  const R  = Math.min(W, H) * 0.5;
+
+  const netColor = getNetwork().color;
+  const nrgb = hexToRgb(netColor);
+  const netRgb = `${nrgb.r},${nrgb.g},${nrgb.b}`;
+
+  const N = 88;
+  const parts = [];
+  for (let i = 0; i < N; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const rad = R * 1.35 + Math.random() * 90;
+    const sx = cx + Math.cos(ang) * rad;
+    const sy = cy + Math.sin(ang) * rad;
+    parts.push({
+      sx, sy,
+      tx: cx + (Math.random() - 0.5) * 12,
+      ty: cy + (Math.random() - 0.5) * 12,
+      delay: Math.random() * 0.55,
+      dur: 1.15 + Math.random() * 0.85,
+      size: 1.4 + Math.random() * 2.4,
+      alt: Math.random() < 0.28,
+      spin: (Math.random() - 0.5) * 0.6
+    });
+  }
+  const maxT = Math.max(...parts.map(p => p.delay + p.dur));
+
+  const t0 = performance.now();
+  let statusSwitched = false;
+  let captionSwitched = false;
+
+  function frame(now) {
+    if (!state.animRunning) return;
+
+    const el = (now - t0) / 1000;
+    ctx.clearRect(0, 0, W, H);
+
+    const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.15);
+    bgGrad.addColorStop(0, `rgba(${netRgb},0.12)`);
+    bgGrad.addColorStop(1, `rgba(${netRgb},0)`);
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    const orbitAlpha = 0.06 + Math.min(0.10, el * 0.05);
+    ctx.strokeStyle = `rgba(${netRgb},${orbitAlpha})`;
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * (0.35 + i * 0.24), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    parts.forEach(p => {
+      const t = (el - p.delay) / p.dur;
+      if (t < 0) return;
+
+      const e = Math.min(1, t);
+      const eased = 1 - Math.pow(1 - e, 3);
+      const spinAng = p.spin * (1 - e) * Math.PI * 1.2;
+
+      const bx = p.sx + (p.tx - p.sx) * eased;
+      const by = p.sy + (p.ty - p.sy) * eased;
+
+      const dxc = bx - cx;
+      const dyc = by - cy;
+      const cosA = Math.cos(spinAng);
+      const sinA = Math.sin(spinAng);
+      const x = cx + dxc * cosA - dyc * sinA;
+      const y = cy + dxc * sinA + dyc * cosA;
+
+      const rgb = p.alt ? '0,217,255' : netRgb;
+      const alpha = e < 1 ? (1 - e * 0.25) : 0;
+
+      const prevE = Math.max(0, eased - 0.09);
+      const pbx = p.sx + (p.tx - p.sx) * prevE;
+      const pby = p.sy + (p.ty - p.sy) * prevE;
+      const pdx = pbx - cx, pdy = pby - cy;
+      const px = cx + pdx * cosA - pdy * sinA;
+      const py = cy + pdx * sinA + pdy * cosA;
+
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(${rgb},${alpha * 0.45})`;
+      ctx.lineWidth = p.size * 0.7;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      const gg = ctx.createRadialGradient(x, y, 0, x, y, p.size * 5);
+      gg.addColorStop(0, `rgba(${rgb},${alpha})`);
+      gg.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size * 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(255,255,255,${alpha * 0.95})`;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    if (el > maxT - 0.35) {
+      const coreT = Math.min(1, (el - (maxT - 0.35)) / 0.55);
+      const r = 10 + coreT * 30;
+
+      const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 4.2);
+      cg.addColorStop(0,   `rgba(${netRgb},0.95)`);
+      cg.addColorStop(0.22,`rgba(${netRgb},0.38)`);
+      cg.addColorStop(1,   `rgba(${netRgb},0)`);
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 4.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowColor = netColor;
+      ctx.shadowBlur = 34;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.52, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      const rt = el - (maxT - 0.35);
+      for (let i = 0; i < 3; i++) {
+        const phase = (rt * 90 + i * 55) % 190;
+        const a = Math.max(0, 1 - phase / 190);
+        ctx.strokeStyle = `rgba(${netRgb},${a * 0.55})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, phase, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    if (!statusSwitched && el > maxT * 0.55) {
+      statusSwitched = true;
+      $('#q-status').textContent = 'СИНХРОНИЗАЦИЯ...';
+    }
+    if (!captionSwitched && el > maxT - 0.2) {
+      captionSwitched = true;
+      $('#q-caption').textContent = 'ЯДРО СФОРМИРОВАНО';
+    }
+
+    if (el > maxT + 1.25) {
+      finishSignFlow();
+      return;
+    }
+
+    state.animRaf = requestAnimationFrame(frame);
+  }
+
+  state.animRaf = requestAnimationFrame(frame);
+}
+
+/* ---------- ЗАВЕРШЕНИЕ ---------- */
+function finishSignFlow() {
+  stopQuantumAnim();
+
+  const n = state.qty;
+  const net = getNetwork();
+  const until = new Date();
+  until.setDate(until.getDate() + VALID_DAYS);
+
+  state.stock += n;
+  state.stockUntil = until.toISOString();
+  state.stockNetwork = state.network;
+  localStorage.setItem('qs_stock', String(state.stock));
+  localStorage.setItem('qs_until', state.stockUntil);
+  localStorage.setItem('qs_net',   state.stockNetwork);
+  renderStock();
+
+  $('#result-count').textContent = n;
+  $('#result-until').textContent = formatDate(until);
+  $('#result-net').textContent   = net.name;
+  $('#result-hash').textContent  = shortHash(randomHash());
+
+  $$('#modal-sign .tx-view').forEach(v => v.classList.remove('active'));
+  $('#view-result').classList.add('active');
+  if (navigator.vibrate) navigator.vibrate([10, 40, 15, 40, 20]);
+  toast('✓ ' + n + ' подписей в сети ' + net.name);
+}
+
+/* ---------- ЗАПАС ---------- */
+function renderStock() {
+  const cEl = $('#stock-count');
+  const nEl = $('#stock-net');
+  const uEl = $('#stock-until');
+
+  if (state.stock > 0) {
+    cEl.textContent = state.stock + ' QS';
+    cEl.classList.remove('empty');
+  } else {
+    cEl.textContent = '0 QS';
+    cEl.classList.add('empty');
+  }
+
+  if (state.stockNetwork && NETWORKS[state.stockNetwork]) {
+    const sn = NETWORKS[state.stockNetwork];
+    nEl.innerHTML = `<span class="net-mini">
+      <span class="badge-sym" style="color:${sn.color}">${sn.symbol}</span>
+      <span class="badge-chain">${sn.name}</span>
+    </span>`;
+    nEl.classList.remove('empty');
+  } else {
+    nEl.textContent = '—';
+    nEl.classList.add('empty');
+  }
+
+  if (state.stockUntil) {
+    const d = new Date(state.stockUntil);
+    if (d.getTime() > Date.now()) {
+      uEl.textContent = formatDate(d);
+      uEl.classList.remove('empty');
+    } else {
+      uEl.textContent = 'истёк';
+      uEl.classList.add('empty');
+    }
+  } else {
+    uEl.textContent = '—';
+    uEl.classList.add('empty');
+  }
+}
+
+/* ---------- INIT ---------- */
+(function init() {
+  updateNetPill();
+  renderStock();
+  requestAnimationFrame(() => {
+    applySlider();
+    startQuantumField();
+  });
+  window.addEventListener('resize', () => applySlider());
+})();
+</script>
+</body>
+</html>

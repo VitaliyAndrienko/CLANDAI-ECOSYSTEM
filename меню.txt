@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI · МЕНЮ</title>
+<style>
+:root{
+  --bg:#08090b;--panel:rgba(20,22,26,.55);--border:rgba(0,255,170,.18);
+  --neon:#00ffaa;--neon-dim:#00ffaa55;--cyan:#00d9ff;--pink:#ff2bd6;
+  --text:#d8dee6;--muted:#5b6672;--danger:#ff3b6b;--radius:14px;--gold:#ffd400;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent}
+
+/* ==== Ambient background ==== */
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+
+/* ==== Wrapper ==== */
+.page{position:relative;z-index:1;min-height:100vh;display:grid;place-items:center;
+  padding:22px 18px}
+
+/* ==== Modal ==== */
+.modal-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.78);
+  backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;
+  z-index:100;padding:18px;
+}
+.modal{
+  background:#0e1014;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:22px;
+  max-width:420px;width:100%;
+  /* Ослабленное свечение */
+  box-shadow:
+    0 0 15px rgba(0, 255, 170, 0.1),
+    0 0 30px -15px rgba(0, 255, 170, 0.2);
+  max-height:90vh;overflow-y:auto;position:relative;
+  animation:modalIn .3s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes modalIn{
+  from{opacity:0;transform:translateY(10px) scale(.98)}
+  to{opacity:1;transform:none}
+}
+
+/* ==== Header "МЕНЮ" ==== */
+.modal h3{
+  font-size:13px;letter-spacing:4px;color:var(--neon);
+  text-transform:uppercase;margin-bottom:18px;
+  display:flex;align-items:center;gap:10px;
+  text-shadow:0 0 16px var(--neon-dim);
+}
+.modal h3::before{
+  content:'';width:6px;height:6px;border-radius:50%;
+  background:var(--neon);box-shadow:0 0 10px var(--neon);
+  flex-shrink:0;
+}
+.modal h3 .close-x{
+  margin-left:auto;background:transparent;
+  border:1px solid var(--border);color:var(--text);
+  width:28px;height:28px;border-radius:8px;cursor:pointer;
+  display:grid;place-items:center;transition:all .15s;
+  font-size:14px;font-family:inherit;line-height:1;
+}
+.modal h3 .close-x:hover{border-color:var(--danger);color:var(--danger)}
+
+/* ==== Menu list ==== */
+.menu-list{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+
+.menu-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(0,0,0,.35);
+  cursor:pointer;
+  transition:border-color .18s,background .18s,box-shadow .18s,transform .12s;
+  position:relative;
+}
+.menu-item:hover{
+  border-color:var(--neon);
+  background:linear-gradient(135deg,rgba(0,255,170,.07),rgba(0,0,0,.35));
+  box-shadow:0 0 22px -8px var(--neon);
+  transform:translateY(-1px);
+}
+.menu-item:active{transform:translateY(0) scale(.99)}
+
+/* Icon box */
+.menu-item .mi-icon{
+  width:34px;height:34px;border-radius:9px;flex-shrink:0;
+  display:grid;place-items:center;
+  background:radial-gradient(circle at 30% 30%,rgba(0,255,170,.12),rgba(0,0,0,.4));
+  border:1px solid var(--border);
+  color:var(--neon);
+  font-size:15px;line-height:1;
+  position:relative;overflow:hidden;
+}
+.menu-item .mi-icon::after{
+  content:'';position:absolute;inset:0;border-radius:9px;
+  background:linear-gradient(120deg,transparent 40%,rgba(255,255,255,.08) 50%,transparent 60%);
+  pointer-events:none;
+}
+.menu-item .mi-icon svg{width:16px;height:16px;position:relative;z-index:1}
+
+/* Body */
+.menu-item .mi-body{flex:1;min-width:0}
+.menu-item .mi-title{
+  font-size:12px;color:var(--text);letter-spacing:.4px;font-weight:500;
+}
+.menu-item .mi-desc{
+  font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.4px;line-height:1.4;
+}
+
+/* Right value / badge */
+.menu-item .mi-right{
+  font-size:10px;letter-spacing:1.2px;text-transform:uppercase;
+  font-weight:700;flex-shrink:0;
+  color:var(--neon);
+  padding:3px 8px;border-radius:999px;
+  background:rgba(0,255,170,.07);
+  border:1px solid var(--border);
+  white-space:nowrap;
+}
+.menu-item .mi-right.plain{
+  background:transparent;border:none;padding:0;
+  color:var(--cyan);font-size:12px;
+}
+.menu-item .mi-right.purple{
+  color:#a855f7;
+  background:rgba(168,85,247,.08);
+  border-color:rgba(168,85,247,.35);
+}
+.menu-item .mi-right.gold{
+  color:var(--gold);
+  background:rgba(255,212,0,.06);
+  border-color:rgba(255,212,0,.3);
+}
+.menu-item .mi-right.arrow{
+  background:transparent;border:none;
+  color:var(--neon);font-size:14px;
+  padding:0 2px;
+}
+
+/* Divider */
+.menu-divider{
+  height:1px;background:rgba(255,255,255,.06);margin:4px 2px;
+}
+
+/* ==== Close button (footer) ==== */
+.btn-full{
+  width:100%;padding:14px;
+  background:linear-gradient(180deg,var(--neon-dim),transparent);
+  border:1px solid var(--neon);border-radius:12px;
+  color:var(--neon);
+  font-family:inherit;font-size:12px;letter-spacing:2px;
+  text-transform:uppercase;cursor:pointer;font-weight:700;
+  transition:box-shadow .15s,transform .1s;
+}
+.btn-full:hover{box-shadow:0 0 24px var(--neon-dim)}
+.btn-full:active{transform:translateY(1px)}
+
+/* ==== Toast ==== */
+.toast{
+  position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(100px);
+  background:#0e1014;border:1px solid var(--neon);color:var(--neon);
+  padding:12px 20px;border-radius:999px;
+  font-size:12px;letter-spacing:1px;z-index:200;opacity:0;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;
+  box-shadow:0 0 24px var(--neon-dim);
+  max-width:90vw;text-align:center;
+}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:8px}
+
+@media (max-width:640px){
+  .modal{backdrop-filter:none;-webkit-backdrop-filter:none;background:#0e1014}
+  body::after{display:none}
+  .modal{padding:18px}
+  .menu-item{padding:11px 12px;gap:10px}
+  .menu-item .mi-icon{width:32px;height:32px}
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ==================================================
+       MODAL · "МЕНЮ"
+       ================================================== -->
+  <div class="modal-bg" id="modal-menu">
+    <div class="modal">
+
+      <h3>
+        <span>МЕНЮ</span>
+        <button class="close-x" id="menu-close" title="Закрыть">✕</button>
+      </h3>
+
+      <div class="menu-list">
+
+        <!-- 1. Формат кошелька -->
+        <div class="menu-item" data-action="mode">
+          <div class="mi-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9L4.9 19.1"/>
+            </svg>
+          </div>
+          <div class="mi-body">
+            <div class="mi-title">Формат кошелька</div>
+            <div class="mi-desc">Cold требует 3 фактора для HOT2</div>
+          </div>
+          <div class="mi-right" id="mode-val">WARM</div>
+        </div>
+
+        <!-- 2. Тип подписи -->
+        <div class="menu-item" data-action="quantum">
+          <div class="mi-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="2.5"/>
+              <ellipse cx="12" cy="12" rx="10" ry="4"/>
+              <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/>
+              <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/>
+            </svg>
+          </div>
+          <div class="mi-body">
+            <div class="mi-title">Тип подписи</div>
+            <div class="mi-desc">Classical ECDSA / Quantum-resistant</div>
+          </div>
+          <div class="mi-right purple" id="quantum-val">QS · 60 QS</div>
+        </div>
+
+        <div class="menu-divider"></div>
+
+        <!-- 3. Whitelist -->
+        <div class="menu-item" data-action="whitelist">
+          <div class="mi-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <polyline points="9 12 11 14 15 10"/>
+            </svg>
+          </div>
+          <div class="mi-body">
+            <div class="mi-title">Whitelist</div>
+            <div class="mi-desc">Доверенные адреса</div>
+          </div>
+          <div class="mi-right plain" id="wl-count">0</div>
+        </div>
+
+        <!-- 4. Blocklist -->
+        <div class="menu-item" data-action="blocklist">
+          <div class="mi-icon" style="color:var(--danger);background:radial-gradient(circle at 30% 30%,rgba(255,59,107,.14),rgba(0,0,0,.4));border-color:rgba(255,59,107,.3)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>
+            </svg>
+          </div>
+          <div class="mi-body">
+            <div class="mi-title">Blocklist</div>
+            <div class="mi-desc">Запрещённые адреса</div>
+          </div>
+          <div class="mi-right plain" id="bl-count" style="color:var(--danger)">0</div>
+        </div>
+
+        <!-- 5. Активные сессии -->
+        <div class="menu-item" data-action="sessions">
+          <div class="mi-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="14" rx="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="18" x2="12" y2="21"/>
+            </svg>
+          </div>
+          <div class="mi-body">
+            <div class="mi-title">Активные сессии</div>
+            <div class="mi-desc">Устройства и IP</div>
+          </div>
+          <div class="mi-right plain" id="sess-count">1</div>
+        </div>
+
+        <!-- 6. Мои крипто-подписки -->
+        <div class="menu-item" data-action="subs">
+          <div class="mi-icon" style="color:var(--gold);background:radial-gradient(circle at 30% 30%,rgba(255,212,0,.14),rgba(0,0,0,.4));border-color:rgba(255,212,0,.3)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </div>
+          <div class="mi-body">
+            <div class="mi-title">Мои крипто-подписки</div>
+            <div class="mi-desc">Контракты и сервисы</div>
+          </div>
+          <div class="mi-right arrow">→</div>
+        </div>
+
+      </div>
+
+      <button class="btn-full" id="menu-close-btn">ЗАКРЫТЬ</button>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==========================================================
+   CLANDAI · MENU MODAL (demo)
+   ========================================================== */
+const state = {
+  mode: 'warm',           // 'cold' | 'warm'
+  quantum: 'quantum',     // 'classical' | 'quantum'
+  quantumCredits: 60,
+  whitelist: [],
+  blocklist: [],
+  sessions: 1,
+};
+
+const $ = s => document.querySelector(s);
+
+function toast(msg){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => el.classList.remove('show'), 2200);
+}
+function vibrate(ms=8){ if (navigator.vibrate) navigator.vibrate(ms); }
+
+/* ---- RENDER ---- */
+function render(){
+  $('#mode-val').textContent = state.mode === 'cold' ? 'COLD' : 'WARM';
+  $('#mode-val').style.color = state.mode === 'cold' ? 'var(--cyan)' : 'var(--neon)';
+  $('#mode-val').style.background = state.mode === 'cold' ? 'rgba(0,217,255,.08)' : 'rgba(0,255,170,.07)';
+  $('#mode-val').style.borderColor = state.mode === 'cold' ? 'rgba(0,217,255,.4)' : 'var(--border)';
+
+  const q = state.quantum === 'quantum';
+  $('#quantum-val').textContent = (q ? 'QS' : 'CS') + ' · ' + state.quantumCredits + ' QS';
+
+  $('#wl-count').textContent = state.whitelist.length;
+  $('#bl-count').textContent = state.blocklist.length;
+  $('#sess-count').textContent = state.sessions;
+}
+
+/* ---- ACTIONS ---- */
+document.querySelectorAll('.menu-item').forEach(el => {
+  el.addEventListener('click', () => {
+    const action = el.dataset.action;
+    vibrate(6);
+    switch(action){
+      case 'mode':
+        state.mode = state.mode === 'cold' ? 'warm' : 'cold';
+        toast(state.mode === 'cold' ? '❄ Cold mode' : '🔥 Warm mode');
+        break;
+      case 'quantum':
+        state.quantum = state.quantum === 'quantum' ? 'classical' : 'quantum';
+        if (state.quantum === 'quantum' && state.quantumCredits <= 0){
+          toast('⚛ Нет квантовых подписей');
+          state.quantum = 'classical';
+        } else {
+          toast(state.quantum === 'quantum' ? '⚛ Quantum signature' : '⚡ Classical (ECDSA)');
+        }
+        break;
+      case 'whitelist': toast('🛡 Whitelist · ' + state.whitelist.length); break;
+      case 'blocklist': toast('🚫 Blocklist · ' + state.blocklist.length); break;
+      case 'sessions':  toast('🖥 Сессии · ' + state.sessions); break;
+      case 'subs':      toast('⭐ Крипто-подписки'); break;
+    }
+    render();
+  });
+});
+
+/* ---- CLOSE ---- */
+$('#menu-close').addEventListener('click', closeMenu);
+$('#menu-close-btn').addEventListener('click', closeMenu);
+function closeMenu(){
+  const m = $('#modal-menu');
+  m.style.transition = 'opacity .18s';
+  m.style.opacity = '0';
+  setTimeout(() => { m.style.display = 'none'; }, 180);
+  vibrate(6);
+}
+
+/* ---- INIT ---- */
+render();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>CLANDAI DAO — Арбитражный суд</title>
+<style>
+:root{
+  --bg:#08090b;
+  --panel:rgba(20,22,26,.55);
+  --border:rgba(0,255,170,.18);
+  --neon:#00ffaa;
+  --neon-dim:#00ffaa55;
+  --cyan:#00d9ff;
+  --pink:#ff2bd6;
+  --text:#d8dee6;
+  --muted:#5b6672;
+  --danger:#ff3b6b;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow:hidden;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1000px 500px at 15% 0%,var(--neon-dim),transparent 60%),
+    radial-gradient(700px 400px at 100% 100%,rgba(255,43,214,.05),transparent 60%);
+  pointer-events:none;z-index:0;opacity:.15}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--neon-dim) 1px,transparent 1px),
+    linear-gradient(90deg,var(--neon-dim) 1px,transparent 1px);
+  background-size:42px 42px;pointer-events:none;z-index:0;opacity:.06;
+  -webkit-mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%);
+  mask-image:radial-gradient(circle at 50% 40%,black,transparent 85%)}
+
+.app{position:relative;z-index:1;max-width:520px;margin:0 auto;
+  height:100vh;height:100dvh;
+  padding:16px 14px 16px;display:flex;flex-direction:column;gap:10px;
+  overflow:hidden}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:2px;gap:8px;flex-shrink:0}
+.logo{font-weight:700;letter-spacing:3px;font-size:14px;opacity:.85;white-space:nowrap}
+.logo b{color:var(--neon);text-shadow:0 0 12px var(--neon-dim)}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:5px 11px;
+  border:1px solid var(--border);border-radius:999px;background:var(--panel);
+  font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 8px var(--neon);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.badge b{color:var(--neon);font-weight:700;font-size:11px}
+
+/* VOTING PANEL */
+.voting-panel{
+  display:none;position:relative;flex-shrink:0;
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px;backdrop-filter:blur(18px);
+  grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch;
+  animation:fadeIn .35s ease;
+}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.voting-panel.show{display:grid}
+.vote-side{
+  position:relative;padding:12px 6px;border-radius:12px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:96px;overflow:hidden;transition:transform .12s;
+  will-change:transform;
+}
+.vote-side.win{
+  background:linear-gradient(180deg,rgba(0,255,170,.16),rgba(0,255,170,.02));
+  border:1px solid rgba(0,255,170,.45);color:var(--neon);
+  box-shadow:0 0 26px -8px var(--neon);
+}
+.vote-side.lose{
+  background:linear-gradient(180deg,rgba(255,59,107,.16),rgba(255,59,107,.02));
+  border:1px solid rgba(255,59,107,.45);color:var(--danger);
+  box-shadow:0 0 26px -8px var(--danger);
+}
+.vote-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  font-weight:700;opacity:.9;margin-bottom:8px}
+.vote-total{font-size:28px;font-weight:700;line-height:1;
+  font-variant-numeric:tabular-nums;position:relative;z-index:1}
+.vote-side.win .vote-total{text-shadow:0 0 18px var(--neon-dim)}
+.vote-side.lose .vote-total{text-shadow:0 0 18px rgba(255,59,107,.55)}
+.vote-floats{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.vote-float{
+  position:absolute;font-size:15px;font-weight:700;
+  animation:floatUp 1.2s ease-out forwards;
+  text-shadow:0 0 14px currentColor;
+}
+.vote-side.win .vote-float{color:#7dffd0}
+.vote-side.lose .vote-float{color:#ff7a95}
+@keyframes floatUp{
+  0%{opacity:0;transform:translateY(0) scale(.5)}
+  15%{opacity:1;transform:translateY(-8px) scale(1.05)}
+  100%{opacity:0;transform:translateY(-72px) scale(1)}
+}
+.vote-center{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:0 6px;min-width:62px;
+}
+.vote-count{font-size:22px;font-weight:700;color:#fff;
+  text-shadow:0 0 16px var(--neon-dim);font-variant-numeric:tabular-nums;line-height:1}
+.vote-count-label{font-size:8px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;margin-top:7px;text-align:center;line-height:1.3}
+
+/* CHAT PANEL */
+.chat-panel{
+  flex:1;background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:12px;backdrop-filter:blur(18px);
+  min-height:0;display:flex;flex-direction:column;
+  position:relative;overflow:hidden;
+}
+.chat-panel.blurred .chat{filter:blur(7px);transition:filter .4s}
+.chat{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;
+  padding-right:4px;transition:filter .4s;min-height:0}
+.chat::-webkit-scrollbar{width:6px}
+.chat::-webkit-scrollbar-thumb{background:var(--neon-dim);border-radius:4px}
+.msg{display:flex;gap:8px;max-width:92%;animation:msgIn .3s ease}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.msg.me{align-self:flex-end;flex-direction:row-reverse}
+.msg .bubble{
+  padding:9px 13px;border-radius:12px;font-size:12px;line-height:1.5;
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  border-top-left-radius:4px;word-wrap:break-word;max-width:100%;
+}
+.msg.me .bubble{
+  background:var(--neon-dim);border:1px solid var(--neon);
+  border-top-left-radius:12px;border-top-right-radius:4px;color:var(--text);
+}
+.msg .from{font-size:9px;letter-spacing:1px;color:var(--muted);
+  margin-bottom:4px;text-transform:uppercase}
+.msg .from.srv{color:var(--cyan)}
+.msg .from.dao{color:var(--neon)}
+.msg.me .from{text-align:right;color:var(--neon)}
+.msg.system{align-self:center;max-width:100%}
+.msg.system .bubble{
+  background:rgba(0,217,255,.06);border:1px solid rgba(0,217,255,.3);
+  color:#8fd9ff;font-size:11px;text-align:center;border-radius:10px;
+}
+.msg .file-msg{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(0,0,0,.4);border:1px solid var(--border);
+  border-radius:10px;padding:8px 10px;margin-top:7px;
+  cursor:pointer;transition:border-color .15s;
+}
+.msg .file-msg:hover{border-color:var(--neon)}
+.msg .file-msg svg{width:16px;height:16px;color:var(--neon);flex-shrink:0}
+.msg .file-msg .fm-name{font-size:11px;color:var(--text);word-break:break-all}
+.msg .file-msg .fm-size{font-size:9px;color:var(--muted);margin-top:2px}
+
+/* INPUT PANEL */
+.input-panel{
+  flex-shrink:0;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:10px;backdrop-filter:blur(18px);
+  display:flex;flex-direction:column;gap:9px;
+}
+.attached-row{display:flex;gap:6px;flex-wrap:wrap}
+.attached-row:empty{display:none}
+.attached-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 10px;background:rgba(0,255,170,.08);
+  border:1px solid var(--border);border-radius:8px;
+  font-size:11px;color:var(--text);max-width:100%;
+}
+.attached-chip svg{width:12px;height:12px;color:var(--neon);flex-shrink:0}
+.attached-chip span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attached-chip .del{cursor:pointer;color:var(--pink);margin-left:2px;flex-shrink:0}
+.input-row{display:flex;gap:7px;align-items:center}
+.icon-btn{
+  width:38px;height:38px;flex-shrink:0;border-radius:10px;
+  background:rgba(0,0,0,.4);border:1px solid var(--border);
+  color:var(--text);cursor:pointer;display:grid;place-items:center;
+  transition:all .15s;
+}
+.icon-btn:hover{border-color:var(--neon);color:var(--neon)}
+.icon-btn:active{transform:scale(.94)}
+.icon-btn svg{width:16px;height:16px}
+.input-row input[type=text]{
+  flex:1;padding:11px 13px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-family:inherit;font-size:13px;outline:none;
+  transition:border-color .15s;min-width:0;
+}
+.input-row input[type=text]:focus{border-color:var(--neon);
+  box-shadow:0 0 0 3px var(--neon-dim)}
+.input-row input[type=text]::placeholder{color:var(--muted)}
+.send-btn{
+  width:42px;height:42px;flex-shrink:0;border-radius:10px;
+  background:var(--neon);border:none;color:#08090b;
+  font-size:17px;font-weight:700;cursor:pointer;transition:box-shadow .15s;
+}
+.send-btn:hover{box-shadow:0 0 18px var(--neon)}
+.send-btn:active{transform:scale(.94)}
+
+/* ACTIONS ROW */
+.actions-row{display:grid;grid-template-columns:1.35fr 1fr;gap:8px}
+.arbitrade-btn{
+  position:relative;overflow:hidden;
+  padding:14px 12px;border-radius:12px;
+  background:rgba(0,0,0,.4);border:1px solid var(--neon);
+  color:var(--neon);font-family:inherit;font-size:12px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;cursor:pointer;
+  transition:box-shadow .15s,color .15s;
+  font-variant-numeric:tabular-nums;
+}
+.arbitrade-btn:hover:not(:disabled){box-shadow:0 0 22px -6px var(--neon)}
+.arbitrade-btn:disabled{cursor:not-allowed}
+.arbitrade-fill{
+  position:absolute;inset:0 auto 0 0;width:0%;
+  background:linear-gradient(90deg,var(--neon-dim),var(--neon));
+  opacity:.35;transition:width .1s linear;pointer-events:none;
+}
+.arbitrade-text{position:relative;z-index:1}
+.arbitrade-btn.running{color:#fff}
+.arbitrade-btn.waiting{border-color:var(--cyan);color:var(--cyan)}
+.arbitrade-btn.waiting:hover:not(:disabled){box-shadow:0 0 22px -6px var(--cyan)}
+
+.result-btn{
+  padding:14px 12px;border-radius:12px;font-family:inherit;
+  font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  cursor:not-allowed;opacity:.4;
+  background:rgba(0,0,0,.4);
+  border:1px solid var(--border);
+  color:var(--muted);
+  transition:all .25s;
+}
+.result-btn.win{
+  opacity:1;cursor:pointer;
+  border-color:var(--neon);color:#08090b;
+  background:linear-gradient(180deg,var(--neon),#00cc88);
+  box-shadow:0 0 26px var(--neon),0 0 60px var(--neon-dim);
+  animation:winGlow 1.6s ease-in-out infinite;
+}
+@keyframes winGlow{
+  0%,100%{box-shadow:0 0 22px var(--neon),0 0 44px var(--neon-dim)}
+  50%{box-shadow:0 0 34px var(--neon),0 0 70px var(--neon-dim)}
+}
+.result-btn.lose{
+  opacity:1;cursor:pointer;
+  border-color:var(--danger);color:#fff;
+  background:linear-gradient(180deg,var(--danger),#cc1740);
+  box-shadow:0 0 26px var(--danger),0 0 60px rgba(255,59,107,.4);
+  animation:loseGlow 1.6s ease-in-out infinite;
+}
+@keyframes loseGlow{
+  0%,100%{box-shadow:0 0 22px var(--danger),0 0 44px rgba(255,59,107,.4)}
+  50%{box-shadow:0 0 34px var(--danger),0 0 70px rgba(255,59,107,.5)}
+}
+
+/* RESULT MODAL */
+.modal-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.55);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  display:none;align-items:center;justify-content:center;
+  z-index:100;padding:18px;
+}
+.modal-bg.show{display:flex;animation:fadeIn .3s ease}
+.result-modal{
+  background:#0e1014;border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px;max-width:400px;width:100%;
+  box-shadow:0 0 60px var(--neon-dim);
+  animation:popIn .35s cubic-bezier(.2,.8,.2,1);
+  position:relative;
+}
+@keyframes popIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+.result-modal.win{border-color:rgba(0,255,170,.5);box-shadow:0 0 60px var(--neon-dim)}
+.result-modal.lose{border-color:rgba(255,59,107,.5);box-shadow:0 0 60px rgba(255,59,107,.3)}
+
+.auto-close-bar{
+  position:absolute;top:0;left:0;right:0;height:3px;
+  background:rgba(255,255,255,.05);overflow:hidden;
+  border-top-left-radius:var(--radius);border-top-right-radius:var(--radius);
+}
+.auto-close-fill{
+  height:100%;width:100%;transform-origin:left center;
+  transition:transform 1s linear;
+}
+.result-modal.win .auto-close-fill{background:linear-gradient(90deg,var(--neon),#00cc88)}
+.result-modal.lose .auto-close-fill{background:linear-gradient(90deg,var(--danger),#cc1740)}
+.auto-close-timer{
+  position:absolute;top:12px;right:14px;
+  font-size:10px;letter-spacing:1.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
+
+/* TOKEN ANIM RAIL — LINEAR / CONSTANT SPEED */
+.result-anim{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 4px 20px;position:relative;margin-bottom:4px;
+}
+.result-node{
+  width:48px;height:48px;border-radius:12px;flex-shrink:0;
+  display:grid;place-items:center;position:relative;
+  border:1px solid var(--border);background:rgba(0,0,0,.5);
+  box-shadow:0 0 18px -6px var(--neon-dim);
+}
+.result-node svg{width:22px;height:22px}
+.result-node.left{color:var(--cyan)}
+.result-node.right{color:var(--neon)}
+.result-rail{
+  flex:1;height:48px;margin:0 12px;position:relative;
+  border-bottom:2px dashed var(--border);
+}
+.result-coin{
+  position:absolute;width:38px;height:38px;border-radius:50%;
+  top:50%;margin-top:-19px;left:0;
+  display:grid;place-items:center;
+  font-weight:700;font-size:15px;color:#fff;
+  background:radial-gradient(circle at 30% 30%,#fff5,transparent 60%),
+             radial-gradient(circle at 50% 50%,#1a1c22,#0a0b0e);
+  border:2px solid var(--neon);
+  will-change:transform,left;
+}
+.result-coin.win{
+  border-color:var(--neon);
+  box-shadow:0 0 18px var(--neon-dim),0 0 8px #fff inset;
+  animation:rollWin 2.4s linear forwards;
+}
+.result-coin.lose{
+  border-color:var(--danger);
+  box-shadow:0 0 18px rgba(255,59,107,.5),0 0 8px #fff inset;
+  animation:rollLose 2.4s linear forwards;
+}
+@keyframes rollWin{
+  0%   {left:0;                       transform:rotate(0deg)}
+  25%  {left:calc(25% - 9.5px);       transform:rotate(180deg)}
+  50%  {left:calc(50% - 19px);        transform:rotate(360deg)}
+  75%  {left:calc(75% - 28.5px);      transform:rotate(540deg)}
+  100% {left:calc(100% - 38px);       transform:rotate(720deg)}
+}
+@keyframes rollLose{
+  0%   {left:calc(100% - 38px);       transform:rotate(0deg)}
+  25%  {left:calc(75% - 28.5px);      transform:rotate(-180deg)}
+  50%  {left:calc(50% - 19px);        transform:rotate(-360deg)}
+  75%  {left:calc(25% - 9.5px);       transform:rotate(-540deg)}
+  100% {left:0;                       transform:rotate(-720deg)}
+}
+
+.result-amount{
+  text-align:center;font-size:38px;font-weight:700;letter-spacing:-1px;
+  margin:12px 0 18px;line-height:1;
+}
+.result-amount.win{color:var(--neon);text-shadow:0 0 28px var(--neon-dim),0 0 60px var(--neon-dim)}
+.result-amount.lose{color:var(--danger);text-shadow:0 0 28px rgba(255,59,107,.55),0 0 60px rgba(255,59,107,.3)}
+.result-amount small{display:block;font-size:10px;font-weight:400;
+  letter-spacing:3px;text-transform:uppercase;color:var(--muted);
+  margin-top:10px;text-shadow:none;opacity:.9}
+
+.result-id-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:10px;
+  margin-bottom:10px;
+}
+.result-id-label{font-size:9px;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;flex-shrink:0}
+.result-id-value{flex:1;font-size:11px;color:var(--text);
+  word-break:break-all;font-family:inherit;text-align:right}
+.result-file-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;background:rgba(0,255,170,.05);
+  border:1px solid var(--border);border-radius:10px;
+  margin-bottom:14px;cursor:pointer;transition:all .15s;
+}
+.result-file-row:hover{border-color:var(--neon);background:rgba(0,255,170,.1)}
+.result-file-row .rf-ico{
+  width:32px;height:32px;border-radius:8px;
+  display:grid;place-items:center;flex-shrink:0;
+  background:rgba(0,255,170,.12);border:1px solid rgba(0,255,170,.3);
+  color:var(--neon);
+}
+.result-file-row .rf-ico svg{width:16px;height:16px}
+.result-file-row .rf-body{flex:1;min-width:0}
+.result-file-row .rf-name{font-size:11px;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-file-row .rf-hint{font-size:8.5px;color:var(--muted);margin-top:3px;
+  letter-spacing:.8px}
+.result-file-row .rf-dl{color:var(--neon);font-size:15px;flex-shrink:0;font-weight:700}
+
+.confirm-btn{
+  width:100%;padding:14px;border-radius:12px;
+  font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;
+  cursor:pointer;font-weight:700;transition:all .2s;border:1px solid;
+  background:transparent;
+}
+.confirm-btn.win{
+  border-color:var(--neon);color:var(--neon);
+  background:linear-gradient(180deg,var(--neon-dim),transparent);
+  box-shadow:0 0 22px -6px var(--neon);
+}
+.confirm-btn.win:hover{box-shadow:0 0 30px -2px var(--neon)}
+.confirm-btn.lose{
+  border-color:var(--danger);color:var(--danger);
+  background:linear-gradient(180deg,rgba(255,59,107,.18),transparent);
+  box-shadow:0 0 22px -6px var(--danger);
+}
+.confirm-btn.lose:hover{box-shadow:0 0 30px -2px var(--danger)}
+
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);
+  background:#0e1014;border:1px solid var(--neon);color:var(--neon);
+  padding:12px 20px;border-radius:999px;font-size:12px;letter-spacing:1px;
+  z-index:200;opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .25s;
+  box-shadow:0 0 24px var(--neon-dim);max-width:90vw;text-align:center;
+}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--danger);color:var(--danger)}
+
+@media (max-width:400px){
+  .logo{font-size:12px;letter-spacing:2px}
+  .badge{padding:4px 9px;font-size:9px}
+  .vote-total{font-size:22px}
+  .vote-count{font-size:18px}
+  .result-amount{font-size:30px}
+  .arbitrade-btn,.result-btn{font-size:11px;padding:12px 8px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo">CLAN<b>DAI</b> DAO</div>
+    <div class="badge">
+      <span class="dot"></span>
+      <span>УЧАСТНИКИ</span>
+      <b id="participantsBadge">70</b>
+    </div>
+  </div>
+
+  <!-- VOTING BOARD -->
+  <div class="voting-panel" id="votingPanel">
+    <div class="vote-side win" id="voteWinSide">
+      <div class="vote-label">USER WIN</div>
+      <div class="vote-total" id="voteWinTotal">0</div>
+      <div class="vote-floats" id="voteWinFloats"></div>
+    </div>
+    <div class="vote-center">
+      <div class="vote-count" id="voteCenterCount">0</div>
+      <div class="vote-count-label">ГОЛОСУЮТ</div>
+    </div>
+    <div class="vote-side lose" id="voteLoseSide">
+      <div class="vote-label">USER LOSE</div>
+      <div class="vote-total" id="voteLoseTotal">0</div>
+      <div class="vote-floats" id="voteLoseFloats"></div>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-panel" id="chatPanel">
+    <div class="chat" id="chat"></div>
+  </div>
+
+  <!-- INPUT -->
+  <div class="input-panel">
+    <div class="attached-row" id="attachedRow"></div>
+    <div class="input-row">
+      <button class="icon-btn" id="btnAttach" title="Прикрепить файл">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+        </svg>
+      </button>
+      <input type="file" id="fileInput" hidden />
+      <input type="text" id="chatInput" placeholder="Сообщение..." autocomplete="off" />
+      <button class="send-btn" id="btnSend" title="Отправить">→</button>
+    </div>
+    <div class="actions-row">
+      <button class="arbitrade-btn waiting" id="btnArbitrade">
+        <span class="arbitrade-fill" id="arbitradeFill"></span>
+        <span class="arbitrade-text" id="arbitradeText">ARBITRAGE · 60s</span>
+      </button>
+      <button class="result-btn" id="btnResult" disabled>—</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- RESULT MODAL -->
+<div class="modal-bg" id="modalResult">
+  <div class="result-modal" id="resultModal">
+    <div class="auto-close-bar"><div class="auto-close-fill" id="autoCloseFill"></div></div>
+    <div class="auto-close-timer" id="autoCloseTimer">60s</div>
+
+    <div class="result-anim">
+      <div class="result-node left">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="7" rx="2"/>
+          <rect x="3" y="13" width="18" height="7" rx="2"/>
+          <line x1="7" y1="7.5" x2="7.01" y2="7.5"/>
+          <line x1="7" y1="16.5" x2="7.01" y2="16.5"/>
+        </svg>
+      </div>
+      <div class="result-rail">
+        <div class="result-coin" id="resultCoin">₮</div>
+      </div>
+      <div class="result-node right">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <path d="M16 12h4"/>
+          <circle cx="17.5" cy="12" r="1" fill="currentColor"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="result-amount" id="resultAmount">
+      <span id="resultAmountValue">+$100000</span>
+      <small id="resultSubtitle">ВЫ ВЫИГРАЛИ СПОР</small>
+    </div>
+
+    <div class="result-id-row">
+      <div class="result-id-label">ID СПОРА</div>
+      <div class="result-id-value" id="resultDisputeId">—</div>
+    </div>
+
+    <div class="result-file-row" id="resultFileRow">
+      <div class="rf-ico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <div class="rf-body">
+        <div class="rf-name" id="resultFileName">dispute-report.json</div>
+        <div class="rf-hint">НАЖМИТЕ, ЧТОБЫ СКАЧАТЬ ПОЛНЫЙ ОТЧЁТ</div>
+      </div>
+      <div class="rf-dl">↓</div>
+    </div>
+
+    <button class="confirm-btn win" id="btnConfirm">ПОДТВЕРДИТЬ</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CLANDAI DAO — ARBITRATION COURT
+   ============================================================ */
+
+const PARTICIPANTS = 70;
+const DISPUTE_AMOUNT = 100000;
+const PRE_ARBITRATION_SECONDS = 60;   // ожидание перед стартом арбитража
+const RESULT_AUTOCLOSE_SECONDS = 60;  // авто-закрытие окна результата
+const ARBITRATION_DURATION = 11000;   // длительность голосования
+
+const $ = s => document.querySelector(s);
+
+const state = {
+  arbitrationRunning: false,
+  arbitrationDone: false,
+  result: null,
+  winVotes: 0,
+  loseVotes: 0,
+  attachedFile: null,
+  disputeId: '0x' + Array.from({length: 16}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join(''),
+  preCountdownHandle: null,
+  autoCloseHandle: null,
+};
+
+/* ======================= UTIL ======================= */
+
+function toast(msg, err = false) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(el._h);
+  el._h = setTimeout(() => el.className = 'toast', 2400);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function formatBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+/* ======================= CHAT ======================= */
+
+function addMessage({ from, text, me = false, system = false, file = null, fromType = 'user' }) {
+  const chat = $('#chat');
+  const el = document.createElement('div');
+  el.className = 'msg' + (me ? ' me' : '') + (system ? ' system' : '');
+
+  if (system) {
+    el.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+  } else {
+    const fromClass = me ? '' : (fromType === 'server' ? 'srv' : (fromType === 'dao' ? 'dao' : ''));
+    let html = `<div style="max-width:100%;min-width:0;">`;
+    if (from) html += `<div class="from ${fromClass}">${escapeHtml(from)}</div>`;
+    html += `<div class="bubble">`;
+    if (text) html += escapeHtml(text).replace(/\n/g, '<br>');
+    if (file) {
+      html += `
+        <div class="file-msg" data-file="${escapeHtml(file.name)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <div style="min-width:0;">
+            <div class="fm-name">${escapeHtml(file.name)}</div>
+            <div class="fm-size">${formatBytes(file.size)}</div>
+          </div>
+        </div>
+      `;
+    }
+    html += `</div></div>`;
+    el.innerHTML = html;
+  }
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+
+  const fm = el.querySelector('.file-msg');
+  if (fm) {
+    fm.addEventListener('click', () => {
+      const name = fm.dataset.file;
+      const content = `CLANDAI DAO — Файл\nИмя: ${name}\nСгенерирован: ${new Date().toISOString()}\n\n(демо-заглушка содержимого файла)`;
+      downloadFile(name, content);
+    });
+  }
+}
+
+function addSystem(text) {
+  addMessage({ text, system: true });
+}
+
+/* ======================= VOTING ======================= */
+
+function setVoteTotals() {
+  $('#voteWinTotal').textContent = state.winVotes;
+  $('#voteLoseTotal').textContent = state.loseVotes;
+  $('#voteCenterCount').textContent = state.winVotes + state.loseVotes;
+}
+
+function spawnFloat(side) {
+  const container = side === 'win' ? $('#voteWinFloats') : $('#voteLoseFloats');
+  const el = document.createElement('div');
+  el.className = 'vote-float';
+  el.textContent = '+1';
+  el.style.left = (18 + Math.random() * 60) + '%';
+  el.style.bottom = '14%';
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 1300);
+}
+
+function flashVoteSide(side) {
+  const el = side === 'win' ? $('#voteWinSide') : $('#voteLoseSide');
+  el.style.transform = 'scale(1.05)';
+  setTimeout(() => el.style.transform = '', 130);
+}
+
+/* ======================= PRE-ARBITRATION COUNTDOWN ======================= */
+
+function startPreCountdown() {
+  const btn = $('#btnArbitrade');
+  const text = $('#arbitradeText');
+
+  let remaining = PRE_ARBITRATION_SECONDS;
+  state.preCountdownHandle && clearInterval(state.preCountdownHandle);
+
+  const tick = () => {
+    const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const ss = String(remaining % 60).padStart(2, '0');
+    text.textContent = `ARBITRAGE · ${mm}:${ss}`;
+    if (remaining <= 0) {
+      clearInterval(state.preCountdownHandle);
+      state.preCountdownHandle = null;
+      text.textContent = 'ARBITRAGE';
+      startArbitration();
+      return;
+    }
+    remaining--;
+  };
+
+  tick();
+  state.preCountdownHandle = setInterval(tick, 1000);
+
+  addSystem(`⏳ Арбитраж начнётся через ${PRE_ARBITRATION_SECONDS} секунд. Ожидайте.`);
+}
+
+/* ======================= ARBITRATION ======================= */
+
+function startArbitration() {
+  if (state.arbitrationRunning || state.arbitrationDone) return;
+  state.arbitrationRunning = true;
+  state.winVotes = 0;
+  state.loseVotes = 0;
+  setVoteTotals();
+
+  const btn = $('#btnArbitrade');
+  btn.disabled = true;
+  btn.classList.remove('waiting');
+  btn.classList.add('running');
+  $('#arbitradeText').textContent = 'ARBITRAGE...';
+  $('#arbitradeFill').style.width = '0%';
+
+  $('#votingPanel').classList.add('show');
+  addSystem('⚖️ Открыто голосование DAO. Участники рассматривают ваш спор.');
+
+  setTimeout(() => {
+    addMessage({
+      from: 'DAO СЕРВЕР',
+      fromType: 'server',
+      text: 'Для рассмотрения спора пришлите ваш ID пользователя и номер привязанной карты.',
+    });
+  }, 700);
+
+  setTimeout(() => {
+    addMessage({
+      from: 'DAO СЕРВЕР',
+      fromType: 'server',
+      text: 'Ваш спор ' + state.disputeId + ' принят в очередь на рассмотрение ' + PARTICIPANTS + ' участниками.',
+    });
+  }, 1900);
+
+  const startTime = Date.now();
+  const fillInterval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const pct = Math.min(100, (elapsed / ARBITRATION_DURATION) * 100);
+    $('#arbitradeFill').style.width = pct + '%';
+    if (pct >= 100) clearInterval(fillInterval);
+  }, 60);
+
+  const voteInterval = setInterval(() => {
+    if (state.winVotes + state.loseVotes >= PARTICIPANTS) {
+      clearInterval(voteInterval);
+      finishArbitration();
+      return;
+    }
+    const side = Math.random() < 0.5 ? 'win' : 'lose';
+    if (side === 'win') state.winVotes++;
+    else state.loseVotes++;
+    setVoteTotals();
+    spawnFloat(side);
+    flashVoteSide(side);
+  }, ARBITRATION_DURATION / PARTICIPANTS);
+}
+
+function finishArbitration() {
+  state.arbitrationRunning = false;
+  state.arbitrationDone = true;
+
+  // Результат определяется РЕАЛЬНЫМИ голосами DAO.
+  // Голоса бросаются 50/50, поэтому при обновлении страницы
+  // ты попадаешь то на WIN, то на LOSE.
+  //
+  // Если хочешь принудительно протестировать один исход —
+  // раскомментируй одну из строк ниже:
+  //
+  // state.winVotes = 70; state.loseVotes = 0;   // всегда WIN
+  // state.loseVotes = 70; state.winVotes = 0;   // всегда LOSE
+
+  // Обработка ничьей (нечётный счёт не даёт ничьей, но подстрахуемся)
+  if (state.winVotes === state.loseVotes) {
+    if (Math.random() < 0.5) {
+      state.winVotes++;
+      spawnFloat('win');
+      flashVoteSide('win');
+    } else {
+      state.loseVotes++;
+      spawnFloat('lose');
+      flashVoteSide('lose');
+    }
+    setVoteTotals();
+  }
+
+  state.result = state.winVotes > state.loseVotes ? 'win' : 'lose';
+
+  const btn = $('#btnArbitrade');
+  btn.classList.remove('running');
+  $('#arbitradeText').textContent = 'ARBITRAGE ✓';
+
+  const resultBtn = $('#btnResult');
+  resultBtn.disabled = false;
+  resultBtn.classList.add(state.result);
+  resultBtn.textContent = state.result === 'win' ? 'WIN' : 'LOSE';
+
+  addSystem(state.result === 'win'
+    ? '✅ Голосование завершено. Большинство DAO на стороне пользователя.'
+    : '❌ Голосование завершено. Большинство DAO против пользователя.');
+
+  setTimeout(() => showResultModal(), 900);
+}
+
+/* ======================= RESULT MODAL ======================= */
+
+function showResultModal() {
+  if (!state.result) return;
+  const isWin = state.result === 'win';
+
+  const modal = $('#resultModal');
+  modal.className = 'result-modal ' + state.result;
+
+  const amountWrap = $('#resultAmount');
+  amountWrap.className = 'result-amount ' + state.result;
+  $('#resultAmountValue').textContent = (isWin ? '+' : '-') + '$' + DISPUTE_AMOUNT.toLocaleString('en-US');
+  $('#resultSubtitle').textContent = isWin ? 'ВЫ ВЫИГРАЛИ СПОР' : 'ВЫ ПРОИГРАЛИ СПОР';
+
+  $('#resultDisputeId').textContent = state.disputeId;
+
+  const coin = $('#resultCoin');
+  coin.className = 'result-coin';
+  void coin.offsetWidth;
+  coin.textContent = '₮';
+  coin.classList.add(isWin ? 'win' : 'lose');
+
+  const fileName = `dispute-${state.disputeId.slice(2, 10)}.json`;
+  $('#resultFileName').textContent = fileName;
+  $('#resultFileRow').dataset.filename = fileName;
+
+  const cbtn = $('#btnConfirm');
+  cbtn.className = 'confirm-btn ' + state.result;
+  cbtn.textContent = isWin ? 'ПОДТВЕРДИТЬ ПОЛУЧЕНИЕ' : 'ПОДТВЕРДИТЬ СПИСАНИЕ';
+
+  $('#chatPanel').classList.add('blurred');
+  $('#modalResult').classList.add('show');
+
+  startAutoClose();
+}
+
+function startAutoClose() {
+  state.autoCloseHandle && clearInterval(state.autoCloseHandle);
+  let remaining = RESULT_AUTOCLOSE_SECONDS;
+
+  const fill = $('#autoCloseFill');
+  const timerEl = $('#autoCloseTimer');
+  fill.style.transition = 'none';
+  fill.style.transform = 'scaleX(1)';
+  void fill.offsetWidth;
+  fill.style.transition = `transform ${RESULT_AUTOCLOSE_SECONDS}s linear`;
+  fill.style.transform = 'scaleX(0)';
+
+  timerEl.textContent = remaining + 's';
+
+  state.autoCloseHandle = setInterval(() => {
+    remaining--;
+    timerEl.textContent = remaining + 's';
+    if (remaining <= 0) {
+      clearInterval(state.autoCloseHandle);
+      state.autoCloseHandle = null;
+      closeResultModal(true);
+    }
+  }, 1000);
+}
+
+function stopAutoClose() {
+  if (state.autoCloseHandle) {
+    clearInterval(state.autoCloseHandle);
+    state.autoCloseHandle = null;
+  }
+}
+
+function closeResultModal(autoClosed = false) {
+  stopAutoClose();
+  $('#modalResult').classList.remove('show');
+  $('#chatPanel').classList.remove('blurred');
+
+  if (autoClosed) {
+    addSystem('⏱ Время ожидания истекло. Спор закрыт автоматически.');
+    toast('Спор закрыт автоматически');
+  }
+}
+
+/* ======================= FILE ======================= */
+
+function downloadFile(name, content) {
+  const blob = new Blob([content], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildDisputeReport() {
+  const isWin = state.result === 'win';
+  const report = {
+    system: 'CLANDAI DAO',
+    document: 'DISPUTE_REPORT',
+    version: '1.0',
+    disputeId: state.disputeId,
+    createdAt: new Date().toISOString(),
+    result: isWin ? 'WIN' : 'LOSE',
+    amount: (isWin ? '+' : '-') + DISPUTE_AMOUNT,
+    currency: 'USD',
+    participants: PARTICIPANTS,
+    votes: {
+      win: state.winVotes,
+      lose: state.loseVotes,
+      total: state.winVotes + state.loseVotes,
+    },
+    parties: {
+      user: '0x7a3f...b41c',
+      dao: 'clandai.dao',
+    },
+    summary: isWin
+      ? 'Голосование DAO завершено в пользу пользователя. Спорная сумма возвращается на кошелёк пользователя.'
+      : 'Голосование DAO завершено в пользу DAO. Спорная сумма списывается с кошелька пользователя.',
+    timeline: [
+      { step: 'dispute_opened', at: new Date(Date.now() - 90000).toISOString() },
+      { step: 'arbitration_started', at: new Date(Date.now() - 60000).toISOString() },
+      { step: 'vote_completed', at: new Date(Date.now() - 5000).toISOString() },
+      { step: 'verdict_issued', at: new Date().toISOString(), verdict: isWin ? 'WIN' : 'LOSE' },
+    ],
+    signature: '0x' + Array.from({length: 130}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join(''),
+    note: 'Это заглушка отчёта. В боевой версии файл содержит криптографические подписи участников и хеши транзакций.',
+  };
+  return JSON.stringify(report, null, 2);
+}
+
+/* ======================= SEND / ATTACH ======================= */
+
+function sendChat() {
+  const input = $('#chatInput');
+  const text = input.value.trim();
+  if (!text && !state.attachedFile) return;
+
+  if (text) {
+    addMessage({ from: 'ВЫ', text, me: true });
+  }
+  if (state.attachedFile) {
+    addMessage({
+      from: 'ВЫ',
+      text: '',
+      me: true,
+      file: { name: state.attachedFile.name, size: state.attachedFile.size },
+    });
+    state.attachedFile = null;
+    renderAttached();
+  }
+  input.value = '';
+  input.focus();
+}
+
+function renderAttached() {
+  const row = $('#attachedRow');
+  row.innerHTML = '';
+  if (state.attachedFile) {
+    const chip = document.createElement('div');
+    chip.className = 'attached-chip';
+    chip.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span>${escapeHtml(state.attachedFile.name)}</span>
+      <span class="del">✕</span>
+    `;
+    chip.querySelector('.del').onclick = () => {
+      state.attachedFile = null;
+      renderAttached();
+    };
+    row.appendChild(chip);
+  }
+}
+
+/* ======================= EVENTS ======================= */
+
+$('#btnSend').onclick = sendChat;
+$('#chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
+});
+
+$('#btnAttach').onclick = () => $('#fileInput').click();
+$('#fileInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  state.attachedFile = f;
+  renderAttached();
+  e.target.value = '';
+});
+
+// Кнопка арбитража — только для перезапуска (обычно таймер идёт сам)
+$('#btnArbitrade').onclick = () => {
+  if (state.arbitrationRunning || state.arbitrationDone) return;
+  if (state.preCountdownHandle) {
+    toast('⏳ Арбитраж уже начнётся по таймеру');
+    return;
+  }
+  startPreCountdown();
+};
+
+$('#btnResult').onclick = () => { if (state.result) showResultModal(); };
+
+$('#resultFileRow').onclick = () => {
+  const name = $('#resultFileRow').dataset.filename || ('dispute-' + state.disputeId + '.json');
+  downloadFile(name, buildDisputeReport());
+  toast('✓ Файл скачан');
+};
+
+$('#btnConfirm').onclick = () => {
+  const isWin = state.result === 'win';
+  stopAutoClose();
+  closeResultModal(false);
+  addSystem(isWin
+    ? '💰 Пользователь подтвердил получение средств. Спор закрыт.'
+    : '💸 Пользователь подтвердил списание средств. Спор закрыт.');
+  toast(isWin ? '✓ Спор закрыт. Средства зачислены.' : '✓ Спор закрыт. Средства списаны.');
+};
+
+/* ======================= SEED CHAT ======================= */
+
+addMessage({
+  from: 'DAO СЕРВЕР',
+  fromType: 'server',
+  text: 'Добро пожаловать в CLANDAI DAO — децентрализованный арбитражный суд.\nСпор ' + state.disputeId + ' назначен на рассмотрение.',
+});
+
+setTimeout(() => {
+  addMessage({
+    from: 'DAO СЕРВЕР',
+    fromType: 'server',
+    text: 'Пришлите ваш ID пользователя и номер привязанной карты для идентификации.',
+  });
+}, 900);
+
+setTimeout(() => {
+  addMessage({
+    from: 'OPERATOR #12',
+    fromType: 'dao',
+    text: 'Здравствуйте. Начинаем рассмотрение вашего спора. Голосование ' + PARTICIPANTS + ' участников будет открыто автоматически.',
+  });
+}, 2000);
+
+setTimeout(() => {
+  addSystem('⏳ Арбитраж начнётся через ' + PRE_ARBITRATION_SECONDS + ' секунд. Кнопка ARBITRADE показывает таймер.');
+}, 3200);
+
+setVoteTotals();
+
+/* Автостарт: таймер 60с → арбитраж */
+startPreCountdown();
+</script>
+</body>
+</html>
