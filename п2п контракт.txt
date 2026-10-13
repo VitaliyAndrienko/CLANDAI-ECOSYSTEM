@@ -1,0 +1,232 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+interface IERC20 {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
+// Заглушка ДАО — отсюда P2P берёт массив доверенных кошельков
+interface IDAO {
+    function getTrustedMembers() external view returns (address[] memory);
+}
+
+contract AdminUserP2P {
+    IERC20 public immutable token;
+    IDAO public dao;
+    address public admin;
+
+    uint256 public constant TIMEOUT = 10 minutes;
+
+    enum DealType { NONE, USER_RECEIVES, USER_SENDS }
+    enum Status {
+        IDLE,       // нет сделки
+        STARTED,    // юзер инициировал (только USER_RECEIVES)
+        READY,      // юзер нажал "готово"
+        LOCKED,     // токены лежат в контракте, идёт таймер
+        DISPUTED,   // "не получил фиат" — решает ДАО
+        COMPLETED   // сделка закрыта
+    }
+
+    struct Deal {
+        address user;
+        uint256 amount;
+        DealType dealType;
+        Status status;
+        uint256 lockedAt;
+    }
+
+    Deal public deal;
+
+    event DealStarted(address indexed user, uint256 amount, DealType dealType);
+    event UserReady(address indexed user);
+    event TokensLocked(address indexed by, uint256 amount);
+    event TokensReleased(address indexed to, uint256 amount);
+    event FiatReceived(address indexed by);
+    event FiatNotReceived(address indexed by);
+    event ArbitrationStarted();
+    event ArbitrationResolved(address indexed winner);
+    event TimeoutClaimed(address indexed winner);
+    event DealCancelled(address indexed by);
+
+    modifier onlyAdmin() { require(msg.sender == admin, "not admin"); _; }
+    modifier onlyUser()  { require(msg.sender == deal.user, "not user"); _; }
+    modifier onlyDAO()   { require(_isDAO(msg.sender), "not DAO"); _; }
+
+    constructor(address _token, address _dao, address _admin) {
+        token = IERC20(_token);
+        dao = IDAO(_dao);
+        admin = _admin;
+    }
+
+    function _isDAO(address who) internal view returns (bool) {
+        address[] memory members = dao.getTrustedMembers();
+        for (uint256 i = 0; i < members.length; i++) {
+            if (members[i] == who) return true;
+        }
+        return false;
+    }
+
+    function _clear() internal { delete deal; }
+
+    // ============================================================
+    //         FLOW 1: USER хочет ПОЛУЧИТЬ токены (User buys)
+    // ============================================================
+
+    /// Юзер: "хочу получить amount токенов"
+    function startP2PReceive(uint256 amount) external {
+        require(amount > 0, "amount=0");
+        require(deal.status == Status.IDLE || deal.status == Status.COMPLETED, "deal active");
+        _clear();
+        deal.user = msg.sender;
+        deal.amount = amount;
+        deal.dealType = DealType.USER_RECEIVES;
+        deal.status = Status.STARTED;
+        emit DealStarted(msg.sender, amount, DealType.USER_RECEIVES);
+    }
+
+    /// Юзер нажал "готово"
+    function userReady() external onlyUser {
+        require(deal.dealType == DealType.USER_RECEIVES, "wrong flow");
+        require(deal.status == Status.STARTED, "bad status");
+        deal.status = Status.READY;
+        emit UserReady(msg.sender);
+    }
+
+    /// Админ лочит свои токены в контракте (старт 10-минутного таймера)
+    function adminLockForUser() external onlyAdmin {
+        require(deal.dealType == DealType.USER_RECEIVES, "wrong flow");
+        require(deal.status == Status.READY || deal.status == Status.STARTED, "bad status");
+        require(token.transferFrom(admin, address(this), deal.amount), "pull failed");
+        deal.status = Status.LOCKED;
+        deal.lockedAt = block.timestamp;
+        emit TokensLocked(admin, deal.amount);
+    }
+
+    /// Админ нажал "отправить" — токены из контракта уходят юзеру
+    function adminSend() external onlyAdmin {
+        require(deal.dealType == DealType.USER_RECEIVES, "wrong flow");
+        require(deal.status == Status.LOCKED, "not locked");
+        deal.status = Status.COMPLETED;
+        require(token.transfer(deal.user, deal.amount), "send failed");
+        emit TokensReleased(deal.user, deal.amount);
+    }
+
+    // ============================================================
+    //         FLOW 2: USER хочет ОТПРАВИТЬ токены (User sells)
+    // ============================================================
+
+    /// Юзер: "хочу отправить amount токенов" — сразу лочит их
+    function startP2PSend(uint256 amount) external {
+        require(amount > 0, "amount=0");
+        require(deal.status == Status.IDLE || deal.status == Status.COMPLETED, "deal active");
+        require(token.transferFrom(msg.sender, address(this), amount), "pull failed");
+        _clear();
+        deal.user = msg.sender;
+        deal.amount = amount;
+        deal.dealType = DealType.USER_SENDS;
+        deal.status = Status.LOCKED;
+        deal.lockedAt = block.timestamp;
+        emit DealStarted(msg.sender, amount, DealType.USER_SENDS);
+        emit TokensLocked(msg.sender, amount);
+    }
+
+    /// Админ принял — токены уходят админу
+    function adminAccept() external onlyAdmin {
+        require(deal.dealType == DealType.USER_SENDS, "wrong flow");
+        require(deal.status == Status.LOCKED, "not locked");
+        deal.status = Status.COMPLETED;
+        require(token.transfer(admin, deal.amount), "send failed");
+        emit TokensReleased(admin, deal.amount);
+    }
+
+    // ============================================================
+    //         ПОДТВЕРЖДЕНИЕ ФИАТА
+    // ============================================================
+
+    /// Вызывает ПРОДАВЕЦ (тот, кто должен получить фиат).
+    /// Токены уходят ПОКУПАТЕЛЮ.
+    function receivedFiat() external {
+        require(deal.status == Status.LOCKED, "not locked");
+
+        if (deal.dealType == DealType.USER_RECEIVES) {
+            // USER_RECEIVES: админ продавец, юзер покупатель
+            require(msg.sender == admin, "only admin/seller");
+            deal.status = Status.COMPLETED;
+            emit FiatReceived(msg.sender);
+            require(token.transfer(deal.user, deal.amount), "send failed");
+            emit TokensReleased(deal.user, deal.amount);
+        } else {
+            // USER_SENDS: юзер продавец, админ покупатель
+            require(msg.sender == deal.user, "only user/seller");
+            deal.status = Status.COMPLETED;
+            emit FiatReceived(msg.sender);
+            require(token.transfer(admin, deal.amount), "send failed");
+            emit TokensReleased(admin, deal.amount);
+        }
+    }
+
+    /// Продавец не получил фиат → уходим в арбитраж ДАО
+    function notReceivedFiat() external {
+        require(deal.status == Status.LOCKED, "not locked");
+
+        if (deal.dealType == DealType.USER_RECEIVES) {
+            require(msg.sender == admin, "only admin/seller");
+        } else {
+            require(msg.sender == deal.user, "only user/seller");
+        }
+
+        deal.status = Status.DISPUTED;
+        emit FiatNotReceived(msg.sender);
+        emit ArbitrationStarted();
+    }
+
+    // ============================================================
+    //         АРБИТРАЖ ДАО
+    // ============================================================
+
+    function daoResolveToAdmin() external onlyDAO {
+        require(deal.status == Status.DISPUTED, "not disputed");
+        deal.status = Status.COMPLETED;
+        emit ArbitrationResolved(admin);
+        require(token.transfer(admin, deal.amount), "send failed");
+        emit TokensReleased(admin, deal.amount);
+    }
+
+    function daoResolveToUser() external onlyDAO {
+        require(deal.status == Status.DISPUTED, "not disputed");
+        deal.status = Status.COMPLETED;
+        emit ArbitrationResolved(deal.user);
+        require(token.transfer(deal.user, deal.amount), "send failed");
+        emit TokensReleased(deal.user, deal.amount);
+    }
+
+    // ============================================================
+    //         ТАЙМАУТ 10 МИНУТ
+    // ============================================================
+
+    /// Если 10 минут никто не вызвал receivedFiat/notReceivedFiat —
+    /// токены уходят тому, кто их ожидал.
+    function claimByTimeout() external {
+        require(deal.status == Status.LOCKED, "not locked");
+        require(block.timestamp >= deal.lockedAt + TIMEOUT, "too early");
+
+        address winner = (deal.dealType == DealType.USER_RECEIVES) ? deal.user : admin;
+        deal.status = Status.COMPLETED;
+        emit TimeoutClaimed(winner);
+        require(token.transfer(winner, deal.amount), "send failed");
+        emit TokensReleased(winner, deal.amount);
+    }
+
+    // ============================================================
+    //         ОТМЕНА (до лока токенов)
+    // ============================================================
+
+    function cancelDeal() external {
+        require(msg.sender == deal.user || msg.sender == admin, "not party");
+        require(deal.status == Status.STARTED || deal.status == Status.READY, "cannot cancel");
+        deal.status = Status.COMPLETED;
+        emit DealCancelled(msg.sender);
+    }
+}

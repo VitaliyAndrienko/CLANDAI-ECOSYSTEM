@@ -1,0 +1,2008 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+// ОБЯЗАТЕЛЬНО: Enable viaIR = true, Enable optimization = true
+// В Remix: Settings → Compiler →勾 Enable viaIR + Enable optimization
+
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
+contract PolygonHybridAMM {
+    bool private _locked;
+
+    modifier nonReentrant() {
+        require(!_locked, "Reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
+    }
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "only admin");
+        _;
+    }
+
+    modifier onlyPoolX1(address tokenX) {
+        require(poolX1[tokenX].exists, "Pool X1 does not exist");
+        _;
+    }
+
+    modifier onlyPoolX2(address tokenX) {
+        require(poolX2[tokenX].exists, "Pool X2 does not exist");
+        _;
+    }
+
+    // ------------------------------------------------------------
+    // Safe transfers
+    // ------------------------------------------------------------
+    function _safeTransfer(IERC20 token, address to, uint256 amount) internal {
+        (bool ok, bytes memory data) = address(token).call(
+            abi.encodeWithSelector(token.transfer.selector, to, amount)
+        );
+        require(ok && (data.length == 0 || abi.decode(data, (bool))), "Transfer failed");
+    }
+
+    function _safeTransferFrom(IERC20 token, address from, address to, uint256 amount) internal {
+        (bool ok, bytes memory data) = address(token).call(
+            abi.encodeWithSelector(token.transferFrom.selector, from, to, amount)
+        );
+        require(ok && (data.length == 0 || abi.decode(data, (bool))), "TransferFrom failed");
+    }
+
+    function _pullTokenXExact(address tokenX, address from, uint256 amount) internal {
+        uint256 balBefore = IERC20(tokenX).balanceOf(address(this));
+        _safeTransferFrom(IERC20(tokenX), from, address(this), amount);
+        uint256 received = IERC20(tokenX).balanceOf(address(this)) - balBefore;
+        require(received == amount, "Token takes fee on transfer");
+    }
+
+    // ------------------------------------------------------------
+    // Constants & storage
+    // ------------------------------------------------------------
+    IERC20 public constant USDC = IERC20(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174);
+    IERC20 public constant DAI  = IERC20(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063);
+    address public constant FEE_RECIPIENT = 0x1c4E583e380E1366298B34eFF8D000ef1e98bb46;
+
+    uint256 public constant VIRTUAL_RESERVE = 10000 * 10**18;
+    uint256 public constant REFERRAL_PERCENT = 1;
+    uint256 public constant PROJECT_PERCENT  = 1;
+    uint256 public constant PERCENT_DENOMINATOR = 100;
+
+    address public immutable admin;
+    address public router;
+
+    mapping(address => bool) public allowedToken;
+    mapping(address => address) public tokenCreator;
+
+    mapping(address => address) public referrer;
+    mapping(address => uint256) public refCount;
+    mapping(address => uint256) public refBalanceUSDC18;
+    mapping(address => uint256) public refBalanceDAI18;
+
+    uint256 public projectFeeUSDC18;
+    uint256 public projectFeeDAI18;
+
+    struct Pool {
+        address tokenX;
+        uint256 reserveX;
+        uint256 virtualY;
+        uint256 realUSDC18;
+        uint256 realDAI18;
+        bool exists;
+    }
+
+    mapping(address => Pool) public poolX1;
+    mapping(address => Pool) public poolX2;
+
+    // ------------------------------------------------------------
+    // Events
+    // ------------------------------------------------------------
+    event PoolCreated(address indexed tokenX, uint256 reserveX, uint256 virtualY, uint8 poolType);
+    event SwapExecuted(
+        address indexed user,
+        address indexed tokenX,
+        uint8 poolType,
+        bool isBuy,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 priceBefore,
+        uint256 priceAfter
+    );
+    event ReservesUpdated(address indexed tokenX, uint8 poolType, uint256 reserveX, uint256 realUSDC18, uint256 realDAI18);
+    event PriceUpdated(address indexed tokenX, uint8 poolType, uint256 price);
+    event UserTrade(address indexed user, address indexed tokenX, uint8 poolType, bool isBuy, uint256 volumeUSD);
+    event FeeCollected(address indexed tokenFee, uint8 fromPool, uint8 toPool, uint256 feeAmount, uint256 xBought);
+
+    event ReferralSet(address indexed user, address indexed referrer);
+    event ReferralReward(address indexed referrer, address indexed user, address token, uint256 amount18);
+    event ReferralClaimed(address indexed referrer, uint256 usdcPaid, uint256 daiPaid);
+    event ProjectFeeAccrued(address token, uint256 amount18);
+    event ProjectFeeWithdrawn(address token, address to, uint256 amount18);
+
+    event TokenAllowed(address indexed token);
+    event TokenDisallowed(address indexed token);
+    event RouterUpdated(address indexed router);
+    event TokenReceivedFromRouter(
+        address indexed token,
+        address indexed creator,
+        uint256 totalAmount,
+        uint256 toPoolX1,
+        uint256 toPoolX2
+    );
+
+    constructor() {
+        admin = msg.sender;
+    }
+
+    // ------------------------------------------------------------
+    // Admin
+    // ------------------------------------------------------------
+    function setRouter(address _router) external onlyAdmin {
+        require(_router != address(0), "zero router");
+        router = _router;
+        emit RouterUpdated(_router);
+    }
+
+    function allowToken(address token) external onlyAdmin {
+        _require18Decimals(token);
+        allowedToken[token] = true;
+        emit TokenAllowed(token);
+    }
+
+    function disallowToken(address token) external onlyAdmin {
+        require(allowedToken[token], "not allowed");
+        allowedToken[token] = false;
+        emit TokenDisallowed(token);
+    }
+
+    function _require18Decimals(address token) internal view {
+        require(token != address(0), "zero token");
+        require(token != address(USDC) && token != address(DAI), "stablecoin not allowed");
+        (bool ok, bytes memory data) = token.staticcall(abi.encodeWithSignature("decimals()"));
+        require(ok && data.length >= 32, "no decimals()");
+        require(abi.decode(data, (uint256)) == 18, "token must have 18 decimals");
+    }
+
+    // ------------------------------------------------------------
+    // Referral
+    // ------------------------------------------------------------
+    function setReferrer(address _ref) external {
+        require(_ref != address(0), "zero ref");
+        require(_ref != msg.sender, "self ref");
+        require(referrer[msg.sender] == address(0), "already set");
+        referrer[msg.sender] = _ref;
+        refCount[_ref] += 1;
+        emit ReferralSet(msg.sender, _ref);
+    }
+
+    function claimReferralRewards() external nonReentrant {
+        uint256 usdcAmt18 = refBalanceUSDC18[msg.sender];
+        uint256 daiAmt18 = refBalanceDAI18[msg.sender];
+        require(usdcAmt18 > 0 || daiAmt18 > 0, "nothing to claim");
+
+        refBalanceUSDC18[msg.sender] = 0;
+        refBalanceDAI18[msg.sender] = 0;
+
+        uint256 usdcPaid;
+        uint256 daiPaid;
+        if (usdcAmt18 > 0) {
+            usdcPaid = usdcAmt18 / 10**12;
+            if (usdcPaid > 0) _safeTransfer(USDC, msg.sender, usdcPaid);
+        }
+        if (daiAmt18 > 0) {
+            daiPaid = daiAmt18;
+            _safeTransfer(DAI, msg.sender, daiPaid);
+        }
+        emit ReferralClaimed(msg.sender, usdcPaid, daiPaid);
+    }
+
+    // ------------------------------------------------------------
+    // Project fee withdrawal
+    // ------------------------------------------------------------
+    function withdrawProjectFee(address token, address to) external nonReentrant onlyAdmin {
+        require(to != address(0), "zero to");
+        if (token == address(USDC)) {
+            uint256 amt18 = projectFeeUSDC18;
+            require(amt18 > 0, "no USDC fee");
+            projectFeeUSDC18 = 0;
+            _safeTransfer(USDC, to, amt18 / 10**12);
+            emit ProjectFeeWithdrawn(token, to, amt18);
+        } else if (token == address(DAI)) {
+            uint256 amt18 = projectFeeDAI18;
+            require(amt18 > 0, "no DAI fee");
+            projectFeeDAI18 = 0;
+            _safeTransfer(DAI, to, amt18);
+            emit ProjectFeeWithdrawn(token, to, amt18);
+        } else {
+            revert("unsupported token");
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Router integration
+    // ------------------------------------------------------------
+    function onTokenReceived(address token, address creator, uint256 amount) external {
+        require(msg.sender == router, "only router");
+        require(token != address(0), "zero token");
+        require(creator != address(0), "zero creator");
+
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        require(balance >= amount && balance > 0, "bad balance");
+        _setupPoolsFromBalance(token, creator, balance);
+    }
+
+    function adminSetupPools(address token, address creator) external onlyAdmin {
+        require(token != address(0), "zero token");
+        require(creator != address(0), "zero creator");
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        require(balance > 0, "no tokens");
+        _setupPoolsFromBalance(token, creator, balance);
+    }
+
+    function _setupPoolsFromBalance(address token, address creator, uint256 balance) internal {
+        require(!poolX1[token].exists && !poolX2[token].exists, "pools exist");
+        require(balance >= 2, "too small");
+
+        if (!allowedToken[token]) {
+            _require18Decimals(token);
+            allowedToken[token] = true;
+            emit TokenAllowed(token);
+        }
+
+        uint256 halfX1 = balance / 2;
+        uint256 halfX2 = balance - halfX1;
+
+        poolX1[token] = Pool(token, halfX1, VIRTUAL_RESERVE, 0, 0, true);
+        poolX2[token] = Pool(token, halfX2, VIRTUAL_RESERVE, 0, 0, true);
+        tokenCreator[token] = creator;
+
+        emit PoolCreated(token, halfX1, VIRTUAL_RESERVE, 1);
+        emit PoolCreated(token, halfX2, VIRTUAL_RESERVE, 2);
+        emit TokenReceivedFromRouter(token, creator, balance, halfX1, halfX2);
+
+        _emitPoolState(token, true);
+        _emitPoolState(token, false);
+    }
+
+    // ------------------------------------------------------------
+    // Manual pool creation
+    // ------------------------------------------------------------
+    function createPoolX1(address tokenX, uint256 amountX) external nonReentrant {
+        require(allowedToken[tokenX], "Token not allowed");
+        require(!poolX1[tokenX].exists, "Pool X1 exists");
+        require(amountX > 0, "Amount must be > 0");
+        _pullTokenXExact(tokenX, msg.sender, amountX);
+        poolX1[tokenX] = Pool(tokenX, amountX, VIRTUAL_RESERVE, 0, 0, true);
+        emit PoolCreated(tokenX, amountX, VIRTUAL_RESERVE, 1);
+        _emitPoolState(tokenX, true);
+    }
+
+    function createPoolX2(address tokenX, uint256 amountX) external nonReentrant {
+        require(allowedToken[tokenX], "Token not allowed");
+        require(poolX1[tokenX].exists, "Pool X1 must exist");
+        require(!poolX2[tokenX].exists, "Pool X2 exists");
+        require(amountX > 0, "Amount must be > 0");
+        _pullTokenXExact(tokenX, msg.sender, amountX);
+        poolX2[tokenX] = Pool(tokenX, amountX, VIRTUAL_RESERVE, 0, 0, true);
+        emit PoolCreated(tokenX, amountX, VIRTUAL_RESERVE, 2);
+        _emitPoolState(tokenX, false);
+    }
+
+    // ------------------------------------------------------------
+    // Trading entry points
+    // ------------------------------------------------------------
+    function buyX1(address tokenX, address tokenIn, uint256 amountIn) external nonReentrant onlyPoolX1(tokenX) {
+        _buy(tokenX, tokenIn, amountIn, true);
+    }
+
+    function buyX2(address tokenX, address tokenIn, uint256 amountIn) external nonReentrant onlyPoolX2(tokenX) {
+        _buy(tokenX, tokenIn, amountIn, false);
+    }
+
+    function sellX1(address tokenX, uint256 amountX) external nonReentrant onlyPoolX1(tokenX) {
+        _sell(tokenX, amountX, true);
+    }
+
+    function sellX2(address tokenX, uint256 amountX) external nonReentrant onlyPoolX2(tokenX) {
+        _sell(tokenX, amountX, false);
+    }
+
+    // ------------------------------------------------------------
+    // Helpers for buy/sell math
+    // ------------------------------------------------------------
+    function _to18(address tokenIn, uint256 amount) internal pure returns (uint256) {
+        return tokenIn == address(USDC) ? amount * 10**12 : amount;
+    }
+
+    function _accrueInputFees(uint256 amountIn, address tokenIn) internal returns (uint256 netInput) {
+        uint256 refFee = (amountIn * REFERRAL_PERCENT) / PERCENT_DENOMINATOR;
+        uint256 projFee = (amountIn * PROJECT_PERCENT) / PERCENT_DENOMINATOR;
+        _accrueTradeFees(tokenIn, refFee, projFee);
+        netInput = amountIn - refFee - projFee;
+    }
+
+    function _maybeReinvest(address tokenX, address tokenIn, uint256 fee18, bool usePoolX1) internal {
+        if (fee18 == 0) return;
+        Pool storage target = usePoolX1 ? poolX2[tokenX] : poolX1[tokenX];
+        if (!target.exists) return;
+        _reinvestFee(tokenX, tokenIn, fee18, target, !usePoolX1);
+    }
+
+    // ------------------------------------------------------------
+    // BUY
+    // ------------------------------------------------------------
+    function _buy(address tokenX, address tokenIn, uint256 amountIn, bool usePoolX1) internal {
+        require(tokenIn == address(USDC) || tokenIn == address(DAI), "Only USDC or DAI");
+        require(amountIn > 0, "Amount > 0");
+
+        uint256 netInput = _accrueInputFees(amountIn, tokenIn);
+
+        uint256 amountForPool18 = _to18(tokenIn, netInput);
+        uint256 fee18 = amountForPool18 / 10;
+        amountForPool18 -= fee18;
+
+        Pool storage pool = usePoolX1 ? poolX1[tokenX] : poolX2[tokenX];
+        uint256 amountXOut = _swapBuyInPool(pool, tokenX, amountForPool18, tokenIn, amountIn, usePoolX1);
+
+        _safeTransferFrom(IERC20(tokenIn), msg.sender, address(this), amountIn);
+        _safeTransfer(IERC20(tokenX), msg.sender, amountXOut);
+
+        emit UserTrade(msg.sender, tokenX, usePoolX1 ? 1 : 2, true, amountForPool18 + fee18);
+
+        _maybeReinvest(tokenX, tokenIn, fee18, usePoolX1);
+
+        _emitPoolState(tokenX, usePoolX1);
+        _emitPrice(tokenX, usePoolX1);
+    }
+
+    function _swapBuyInPool(
+        Pool storage pool,
+        address tokenX,
+        uint256 amountForPool18,
+        address tokenIn,
+        uint256 rawAmountIn,
+        bool usePoolX1
+    ) internal returns (uint256 amountXOut) {
+        uint256 reserveX = pool.reserveX;
+        uint256 oldY = pool.virtualY + pool.realUSDC18 + pool.realDAI18;
+        uint256 newY = oldY + amountForPool18;
+        uint256 newReserveX = (reserveX * oldY) / newY;
+        amountXOut = reserveX - newReserveX;
+        require(amountXOut > 0 && amountXOut < reserveX, "Insufficient liquidity");
+
+        pool.reserveX = newReserveX;
+        if (tokenIn == address(USDC)) {
+            pool.realUSDC18 += amountForPool18;
+        } else {
+            pool.realDAI18 += amountForPool18;
+        }
+
+        uint256 priceBefore = reserveX > 0 ? oldY / reserveX : 0;
+        uint256 priceAfter = newReserveX > 0 ? newY / newReserveX : 0;
+
+        emit SwapExecuted(
+            msg.sender,
+            tokenX,
+            usePoolX1 ? 1 : 2,
+            true,
+            rawAmountIn,
+            amountXOut,
+            priceBefore,
+            priceAfter
+        );
+    }
+
+    // ------------------------------------------------------------
+    // SELL
+    // ------------------------------------------------------------
+    function _sell(address tokenX, uint256 amountX, bool usePoolX1) internal {
+        require(amountX > 0, "Amount > 0");
+
+        Pool storage pool = usePoolX1 ? poolX1[tokenX] : poolX2[tokenX];
+        require(amountX < pool.reserveX, "Not enough X");
+
+        uint256 stableOut18 = _swapSellInPool(pool, tokenX, amountX, usePoolX1);
+
+        uint256 refFee18 = stableOut18 / 100;
+        uint256 projFee18 = stableOut18 / 100;
+        uint256 userOut18 = stableOut18 - refFee18 - projFee18;
+
+        _pullTokenXExact(tokenX, msg.sender, amountX);
+
+        _deductAndAccrueSellFees(pool, refFee18, projFee18);
+        _payoutStable(pool, msg.sender, userOut18);
+
+        emit UserTrade(msg.sender, tokenX, usePoolX1 ? 1 : 2, false, userOut18);
+
+        _emitPoolState(tokenX, usePoolX1);
+        _emitPrice(tokenX, usePoolX1);
+    }
+
+    function _swapSellInPool(
+        Pool storage pool,
+        address tokenX,
+        uint256 amountX,
+        bool usePoolX1
+    ) internal returns (uint256 stableOut18) {
+        uint256 reserveX = pool.reserveX;
+        uint256 oldRealY = pool.realUSDC18 + pool.realDAI18;
+        uint256 effectiveY = pool.virtualY + oldRealY;
+        uint256 newReserveX = reserveX + amountX;
+        uint256 newEffectiveY = (reserveX * effectiveY) / newReserveX;
+        require(newEffectiveY > pool.virtualY, "No real stable left");
+
+        uint256 newRealY = newEffectiveY - pool.virtualY;
+        stableOut18 = oldRealY - newRealY;
+        require(stableOut18 > 0 && stableOut18 <= oldRealY, "Invalid output");
+
+        pool.reserveX = newReserveX;
+
+        uint256 priceBefore = reserveX > 0 ? effectiveY / reserveX : 0;
+        uint256 priceAfter = newReserveX > 0 ? newEffectiveY / newReserveX : 0;
+
+        emit SwapExecuted(
+            msg.sender,
+            tokenX,
+            usePoolX1 ? 1 : 2,
+            false,
+            amountX,
+            stableOut18,
+            priceBefore,
+            priceAfter
+        );
+    }
+
+    // ------------------------------------------------------------
+    // Payouts
+    // ------------------------------------------------------------
+    function _payoutStable(Pool storage pool, address user, uint256 stableOut18) internal {
+        uint256 usdc18 = pool.realUSDC18;
+        if (stableOut18 <= usdc18) {
+            pool.realUSDC18 = usdc18 - stableOut18;
+            _safeTransfer(USDC, user, stableOut18 / 10**12);
+        } else {
+            pool.realUSDC18 = 0;
+            _safeTransfer(USDC, user, usdc18 / 10**12);
+            uint256 remaining = stableOut18 - usdc18;
+            require(pool.realDAI18 >= remaining, "Not enough DAI");
+            pool.realDAI18 -= remaining;
+            _safeTransfer(DAI, user, remaining);
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Fee accrual
+    // ------------------------------------------------------------
+    function _accrueTradeFees(address tokenIn, uint256 refFeeIn, uint256 projFeeIn) internal {
+        address ref = referrer[msg.sender];
+
+        if (tokenIn == address(USDC)) {
+            uint256 projFee18 = projFeeIn * 10**12;
+            if (projFee18 > 0) {
+                projectFeeUSDC18 += projFee18;
+                emit ProjectFeeAccrued(address(USDC), projFee18);
+            }
+            if (refFeeIn > 0) {
+                uint256 refFee18 = refFeeIn * 10**12;
+                if (ref != address(0)) {
+                    refBalanceUSDC18[ref] += refFee18;
+                    emit ReferralReward(ref, msg.sender, address(USDC), refFee18);
+                } else {
+                    projectFeeUSDC18 += refFee18;
+                    emit ProjectFeeAccrued(address(USDC), refFee18);
+                }
+            }
+        } else {
+            if (projFeeIn > 0) {
+                projectFeeDAI18 += projFeeIn;
+                emit ProjectFeeAccrued(address(DAI), projFeeIn);
+            }
+            if (refFeeIn > 0) {
+                if (ref != address(0)) {
+                    refBalanceDAI18[ref] += refFeeIn;
+                    emit ReferralReward(ref, msg.sender, address(DAI), refFeeIn);
+                } else {
+                    projectFeeDAI18 += refFeeIn;
+                    emit ProjectFeeAccrued(address(DAI), refFeeIn);
+                }
+            }
+        }
+    }
+
+    function _deductAndAccrueSellFees(Pool storage pool, uint256 refFee18, uint256 projFee18) internal {
+        if (projFee18 > 0) {
+            (uint256 projUSDC, uint256 projDAI) = _deductStableFromPool(pool, projFee18);
+            if (projUSDC > 0) {
+                projectFeeUSDC18 += projUSDC;
+                emit ProjectFeeAccrued(address(USDC), projUSDC);
+            }
+            if (projDAI > 0) {
+                projectFeeDAI18 += projDAI;
+                emit ProjectFeeAccrued(address(DAI), projDAI);
+            }
+        }
+        if (refFee18 == 0) return;
+        (uint256 refUSDC, uint256 refDAI) = _deductStableFromPool(pool, refFee18);
+        address ref = referrer[msg.sender];
+        if (ref != address(0)) {
+            if (refUSDC > 0) {
+                refBalanceUSDC18[ref] += refUSDC;
+                emit ReferralReward(ref, msg.sender, address(USDC), refUSDC);
+            }
+            if (refDAI > 0) {
+                refBalanceDAI18[ref] += refDAI;
+                emit ReferralReward(ref, msg.sender, address(DAI), refDAI);
+            }
+        } else {
+            if (refUSDC > 0) {
+                projectFeeUSDC18 += refUSDC;
+                emit ProjectFeeAccrued(address(USDC), refUSDC);
+            }
+            if (refDAI > 0) {
+                projectFeeDAI18 += refDAI;
+                emit ProjectFeeAccrued(address(DAI), refDAI);
+            }
+        }
+    }
+
+    function _deductStableFromPool(Pool storage pool, uint256 amount18)
+        internal
+        returns (uint256 usdcPart, uint256 daiPart)
+    {
+        uint256 usdcBal = pool.realUSDC18;
+        if (amount18 <= usdcBal) {
+            pool.realUSDC18 = usdcBal - amount18;
+            return (amount18, 0);
+        }
+        pool.realUSDC18 = 0;
+        uint256 remaining = amount18 - usdcBal;
+        require(pool.realDAI18 >= remaining, "Not enough DAI for fees");
+        pool.realDAI18 -= remaining;
+        return (usdcBal, remaining);
+    }
+
+    // ------------------------------------------------------------
+    // Reinvest
+    // ------------------------------------------------------------
+    function _reinvestFee(
+        address tokenX,
+        address tokenFee,
+        uint256 fee18,
+        Pool storage target,
+        bool targetIsX1
+    ) internal {
+        uint256 oldEffectiveY = target.virtualY + target.realUSDC18 + target.realDAI18;
+        uint256 newY = oldEffectiveY + fee18;
+        uint256 newReserveX = (target.reserveX * oldEffectiveY) / newY;
+        uint256 amountX = target.reserveX - newReserveX;
+        require(amountX > 0 && amountX < target.reserveX, "Reinvest insufficient");
+
+        target.reserveX = newReserveX;
+        if (tokenFee == address(USDC)) {
+            target.realUSDC18 += fee18;
+        } else {
+            target.realDAI18 += fee18;
+        }
+
+        _safeTransfer(IERC20(tokenX), FEE_RECIPIENT, amountX);
+
+        emit FeeCollected(
+            tokenFee,
+            targetIsX1 ? 2 : 1,
+            targetIsX1 ? 1 : 2,
+            fee18,
+            amountX
+        );
+        _emitPoolState(tokenX, targetIsX1);
+        _emitPrice(tokenX, targetIsX1);
+    }
+
+    // ------------------------------------------------------------
+    // Emit helpers
+    // ------------------------------------------------------------
+    function _emitPoolState(address tokenX, bool isX1) internal {
+        Pool storage p = isX1 ? poolX1[tokenX] : poolX2[tokenX];
+        emit ReservesUpdated(tokenX, isX1 ? 1 : 2, p.reserveX, p.realUSDC18, p.realDAI18);
+    }
+
+    function _emitPrice(address tokenX, bool isX1) internal {
+        Pool storage p = isX1 ? poolX1[tokenX] : poolX2[tokenX];
+        if (p.reserveX > 0) {
+            uint256 price = (p.virtualY + p.realUSDC18 + p.realDAI18) / p.reserveX;
+            emit PriceUpdated(tokenX, isX1 ? 1 : 2, price);
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Views
+    // ------------------------------------------------------------
+    function getPoolBalances(address tokenX, bool isX1)
+        external
+        view
+        returns (uint256 usdc, uint256 dai, uint256 total18)
+    {
+        Pool storage p = isX1 ? poolX1[tokenX] : poolX2[tokenX];
+        require(p.exists, "Pool does not exist");
+        usdc = p.realUSDC18 / 10**12;
+        dai = p.realDAI18;
+        total18 = p.realUSDC18 + p.realDAI18;
+    }
+
+    function getTokenPrice(address tokenX, bool isX1) external view returns (uint256 price18) {
+        Pool storage p = isX1 ? poolX1[tokenX] : poolX2[tokenX];
+        require(p.exists && p.reserveX > 0, "Invalid pool");
+        price18 = (p.virtualY + p.realUSDC18 + p.realDAI18) / p.reserveX;
+    }
+
+    function getTotalLiquidity(address tokenX)
+        external
+        view
+        returns (uint256 liquidityX1, uint256 liquidityX2, uint256 total)
+    {
+        if (poolX1[tokenX].exists) {
+            liquidityX1 = poolX1[tokenX].virtualY + poolX1[tokenX].realUSDC18 + poolX1[tokenX].realDAI18;
+        }
+        if (poolX2[tokenX].exists) {
+            liquidityX2 = poolX2[tokenX].virtualY + poolX2[tokenX].realUSDC18 + poolX2[tokenX].realDAI18;
+        }
+        total = liquidityX1 + liquidityX2;
+    }
+
+    function getActualStableBalances() external view returns (uint256 usdcBalance, uint256 daiBalance) {
+        usdcBalance = USDC.balanceOf(address(this));
+        daiBalance = DAI.balanceOf(address(this));
+    }
+
+    function getPoolState(address tokenX, bool isX1)
+        external
+        view
+        returns (
+            uint256 reserveX,
+            uint256 virtualY,
+            uint256 usdc,
+            uint256 dai,
+            uint256 price,
+            uint256 liquidity
+        )
+    {
+        Pool storage p = isX1 ? poolX1[tokenX] : poolX2[tokenX];
+        require(p.exists, "Pool does not exist");
+        reserveX = p.reserveX;
+        virtualY = p.virtualY;
+        usdc = p.realUSDC18 / 10**12;
+        dai = p.realDAI18;
+        liquidity = p.virtualY + p.realUSDC18 + p.realDAI18;
+        price = reserveX > 0 ? liquidity / reserveX : 0;
+    }
+
+    function getPoolX1(address tokenX)
+        external
+        view
+        returns (uint256 reserveX, uint256 virtualY, uint256 realUSDC18, uint256 realDAI18)
+    {
+        Pool memory p = poolX1[tokenX];
+        return (p.reserveX, p.virtualY, p.realUSDC18, p.realDAI18);
+    }
+
+    function getPoolX2(address tokenX)
+        external
+        view
+        returns (uint256 reserveX, uint256 virtualY, uint256 realUSDC18, uint256 realDAI18)
+    {
+        Pool memory p = poolX2[tokenX];
+        return (p.reserveX, p.virtualY, p.realUSDC18, p.realDAI18);
+    }
+
+    function getReferrer(address user) external view returns (address) {
+        return referrer[user];
+    }
+
+    function getReferralBalance(address ref) external view returns (uint256 usdc18, uint256 dai18) {
+        return (refBalanceUSDC18[ref], refBalanceDAI18[ref]);
+    }
+
+    function getProjectFeeBalance() external view returns (uint256 usdc18, uint256 dai18) {
+        return (projectFeeUSDC18, projectFeeDAI18);
+    }
+}
+
+
+0x8E0B3918F37E0274f847490b16aD45195777ad4D
+
+
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      }
+    ],
+    "name": "adminSetupPools",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "allowToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "tokenIn",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountIn",
+        "type": "uint256"
+      }
+    ],
+    "name": "buyX1",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "tokenIn",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountIn",
+        "type": "uint256"
+      }
+    ],
+    "name": "buyX2",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "claimReferralRewards",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountX",
+        "type": "uint256"
+      }
+    ],
+    "name": "createPoolX1",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountX",
+        "type": "uint256"
+      }
+    ],
+    "name": "createPoolX2",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "disallowToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "onTokenReceived",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenFee",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "fromPool",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "toPool",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "feeAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "xBought",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeeCollected",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "reserveX",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "virtualY",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "poolType",
+        "type": "uint8"
+      }
+    ],
+    "name": "PoolCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "poolType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      }
+    ],
+    "name": "PriceUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount18",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProjectFeeAccrued",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount18",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProjectFeeWithdrawn",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "referrer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "usdcPaid",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "daiPaid",
+        "type": "uint256"
+      }
+    ],
+    "name": "ReferralClaimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "referrer",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount18",
+        "type": "uint256"
+      }
+    ],
+    "name": "ReferralReward",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "referrer",
+        "type": "address"
+      }
+    ],
+    "name": "ReferralSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "poolType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "reserveX",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "realUSDC18",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "realDAI18",
+        "type": "uint256"
+      }
+    ],
+    "name": "ReservesUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "router",
+        "type": "address"
+      }
+    ],
+    "name": "RouterUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountX",
+        "type": "uint256"
+      }
+    ],
+    "name": "sellX1",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountX",
+        "type": "uint256"
+      }
+    ],
+    "name": "sellX2",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_ref",
+        "type": "address"
+      }
+    ],
+    "name": "setReferrer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_router",
+        "type": "address"
+      }
+    ],
+    "name": "setRouter",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "poolType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isBuy",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amountIn",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amountOut",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "priceBefore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "priceAfter",
+        "type": "uint256"
+      }
+    ],
+    "name": "SwapExecuted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "TokenAllowed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "TokenDisallowed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "toPoolX1",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "toPoolX2",
+        "type": "uint256"
+      }
+    ],
+    "name": "TokenReceivedFromRouter",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "poolType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isBuy",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "volumeUSD",
+        "type": "uint256"
+      }
+    ],
+    "name": "UserTrade",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      }
+    ],
+    "name": "withdrawProjectFee",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "admin",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "allowedToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "DAI",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "FEE_RECIPIENT",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getActualStableBalances",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "usdcBalance",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "daiBalance",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "isX1",
+        "type": "bool"
+      }
+    ],
+    "name": "getPoolBalances",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "usdc",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dai",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "total18",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "isX1",
+        "type": "bool"
+      }
+    ],
+    "name": "getPoolState",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "reserveX",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "virtualY",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "usdc",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dai",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "liquidity",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      }
+    ],
+    "name": "getPoolX1",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "reserveX",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "virtualY",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "realUSDC18",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "realDAI18",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      }
+    ],
+    "name": "getPoolX2",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "reserveX",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "virtualY",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "realUSDC18",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "realDAI18",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getProjectFeeBalance",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "usdc18",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dai18",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "ref",
+        "type": "address"
+      }
+    ],
+    "name": "getReferralBalance",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "usdc18",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dai18",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "getReferrer",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "isX1",
+        "type": "bool"
+      }
+    ],
+    "name": "getTokenPrice",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "price18",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      }
+    ],
+    "name": "getTotalLiquidity",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "liquidityX1",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "liquidityX2",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "total",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PERCENT_DENOMINATOR",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "poolX1",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "reserveX",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "virtualY",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "realUSDC18",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "realDAI18",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "exists",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "poolX2",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "tokenX",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "reserveX",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "virtualY",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "realUSDC18",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "realDAI18",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "exists",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PROJECT_PERCENT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "projectFeeDAI18",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "projectFeeUSDC18",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "refBalanceDAI18",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "refBalanceUSDC18",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "refCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "REFERRAL_PERCENT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "referrer",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "router",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "tokenCreator",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "USDC",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "VIRTUAL_RESERVE",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
+
+
+0x608060405234801561000f575f5ffd5b5060043610610260575f3560e01c806399fc97bf1161014b578063d79e9b98116100bf578063e7b8978e11610084578063e7b8978e14610798578063ebd09054146107ab578063ec8f95fc146107c6578063f0dd1e23146107e5578063f851a440146107f8578063f887ea401461081f575f5ffd5b8063d79e9b981461074d578063dca94c7614610760578063dd6fc7d814610769578063e0bab4c414610771578063e79767af14610785575f5ffd5b8063af862bd311610110578063af862bd3146106ad578063b53472ef146106cc578063b5b86a51146106df578063b840a4ff14610714578063c0d7865514610727578063d6b1dd381461073a575f5ffd5b806399fc97bf146106275780639de8ef79146106305780639e6c295914610643578063a18a7bfc1461064b578063a4f9cf2e1461065e575f5ffd5b8063343bec80116101e257806355a04174116101a757806355a04174146104ff5780635b62770b146105125780635be2325b14610594578063756742f8146105c25780637a96bcc4146105f457806389a3027114610613575f5ffd5b8063343bec801461037b578063383f7a981461041d5780634a9fefc7146104305780634bc9fbbc1461045b5780634efce3e1146104e3575f5ffd5b806329552bbe1161022857806329552bbe146102ed5780632b5f9749146103005780632c8baf22146103405780632cf003c21461035357806333a8915a14610281575f5ffd5b806305eaab4b1461026457806306ff2b891461026e57806315548ae31461028157806320a7bd321461029c57806323774af2146102ad575b5f5ffd5b61026c610836565b005b61026c61027c366004613995565b610990565b610289600181565b6040519081526020015b60405180910390f35b61028969021e19e0c9bab240000081565b6102d56102bb3660046139c6565b60026020525f90815260409020546001600160a01b031681565b6040516001600160a01b039091168152602001610293565b61026c6102fb3660046139df565b610beb565b61031361030e366004613a17565b610c96565b604080519687526020870195909552938501929092526060840152608083015260a082015260c001610293565b61026c61034e3660046139df565b610d98565b6102d56103613660046139c6565b60036020525f90815260409020546001600160a01b031681565b6103fd6103893660046139c6565b6001600160a01b039081165f908152600a6020908152604091829020825160c081018452815490941684526001810154918401829052600281015492840183905260038101546060850181905260048201546080860181905260059092015460ff16151560a0909501949094529093919291565b604080519485526020850193909352918301526060820152608001610293565b61026c61042b3660046139df565b611003565b6102d561043e3660046139c6565b6001600160a01b039081165f908152600360205260409020541690565b6104aa6104693660046139c6565b60096020525f90815260409020805460018201546002830154600384015460048501546005909501546001600160a01b039094169492939192909160ff1686565b604080516001600160a01b03909716875260208701959095529385019290925260608401526080830152151560a082015260c001610293565b6007546008545b60408051928352602083019190915201610293565b61026c61050d3660046139df565b611209565b6103fd6105203660046139c6565b6001600160a01b039081165f90815260096020908152604091829020825160c081018452815490941684526001810154918401829052600281015492840183905260038101546060850181905260048201546080860181905260059092015460ff16151560a0909501949094529093919291565b6105a76105a2366004613a17565b6112a5565b60408051938452602084019290925290820152606001610293565b6105e46105d03660046139c6565b60016020525f908152604090205460ff1681565b6040519015158152602001610293565b6102896106023660046139c6565b60066020525f908152604090205481565b6102d55f516020613c0f5f395f51905f5281565b61028960075481565b6105a761063e3660046139c6565b611368565b610289606481565b61026c6106593660046139c6565b611442565b6104aa61066c3660046139c6565b600a6020525f90815260409020805460018201546002830154600384015460048501546005909501546001600160a01b039094169492939192909160ff1686565b6102896106bb3660046139c6565b60056020525f908152604090205481565b61026c6106da3660046139c6565b61159d565b6104ea6106ed3660046139c6565b6001600160a01b03165f908152600560209081526040808320546006909252909120549091565b61026c610722366004613995565b61163c565b61026c6107353660046139c6565b6117a4565b61026c610748366004613a4c565b61187f565b61026c61075b366004613a4c565b6119fa565b61028960085481565b6104ea611aa6565b6102d55f516020613c2f5f395f51905f5281565b61026c6107933660046139c6565b611b87565b61026c6107a6366004613a4c565b611c6c565b6102d5731c4e583e380e1366298b34eff8d000ef1e98bb4681565b6102896107d43660046139c6565b60046020525f908152604090205481565b6102896107f3366004613a17565b611d0a565b6102d57f0000000000000000000000004fa34cfae93d29585a83f8f6df0e67b656db39c481565b5f546102d59061010090046001600160a01b031681565b5f5460ff16156108615760405162461bcd60e51b815260040161085890613a86565b60405180910390fd5b5f805460ff19166001178155338152600560209081526040808320546006909252909120548115158061089357505f81115b6108d25760405162461bcd60e51b815260206004820152601060248201526f6e6f7468696e6720746f20636c61696d60801b6044820152606401610858565b335f908152600560209081526040808320839055600690915281208190558083156109265761090664e8d4a5100085613ac2565b91508115610926576109265f516020613c0f5f395f51905f523384611dd4565b82156109465750816109465f516020613c2f5f395f51905f523383611dd4565b604080518381526020810183905233917f87868ba1c786734addd143353d0f2a04d279d2bcb52c8ec17eb04c8534d0ee94910160405180910390a250505f805460ff191690555050565b5f5460ff16156109b25760405162461bcd60e51b815260040161085890613a86565b5f805460ff19166001179055336001600160a01b037f0000000000000000000000004fa34cfae93d29585a83f8f6df0e67b656db39c41614610a065760405162461bcd60e51b815260040161085890613ae1565b6001600160a01b038116610a465760405162461bcd60e51b81526020600482015260076024820152667a65726f20746f60c81b6044820152606401610858565b732791bca1f2de4661ed88a30c99a7a9449aa84173196001600160a01b03831601610b245760075480610aa95760405162461bcd60e51b815260206004820152600b60248201526a6e6f20555344432066656560a81b6044820152606401610858565b5f600755610ad35f516020613c0f5f395f51905f5283610ace64e8d4a5100085613ac2565b611dd4565b604080516001600160a01b038086168252841660208201529081018290527f7be9958ac22464faeb065aacc28fa93b042acabe1bde26b26c92194785b57a3d9060600160405180910390a150610bde565b738f3cf7ad23cd3cadbd9735aff958023239c6a062196001600160a01b03831601610ba25760085480610b865760405162461bcd60e51b815260206004820152600a6024820152696e6f204441492066656560b01b6044820152606401610858565b5f600855610ad35f516020613c2f5f395f51905f528383611dd4565b60405162461bcd60e51b81526020600482015260116024820152703ab739bab83837b93a32b2103a37b5b2b760791b6044820152606401610858565b50505f805460ff19169055565b5f5460ff1615610c0d5760405162461bcd60e51b815260040161085890613a86565b5f805460ff191660011781556001600160a01b038316815260096020526040902060050154829060ff16610c7c5760405162461bcd60e51b8152602060048201526016602482015275141bdbdb08160c48191bd95cc81b9bdd08195e1a5cdd60521b6044820152606401610858565b610c8883836001611ee6565b50505f805460ff1916905550565b5f5f5f5f5f5f5f87610cbe576001600160a01b0389165f908152600a60205260409020610cd6565b6001600160a01b0389165f9081526009602052604090205b600581015490915060ff16610d235760405162461bcd60e51b8152602060048201526013602482015272141bdbdb08191bd95cc81b9bdd08195e1a5cdd606a1b6044820152606401610858565b806001015496508060020154955064e8d4a510008160030154610d469190613ac2565b945080600401549350806004015481600301548260020154610d689190613b05565b610d729190613b05565b91505f8711610d81575f610d8b565b610d8b8783613ac2565b9250509295509295509295565b5f5460ff1615610dba5760405162461bcd60e51b815260040161085890613a86565b5f805460ff1916600190811782556001600160a01b0384168252602052604090205460ff16610e1f5760405162461bcd60e51b8152602060048201526011602482015270151bdad95b881b9bdd08185b1b1bddd959607a1b6044820152606401610858565b6001600160a01b0382165f9081526009602052604090206005015460ff16610e7e5760405162461bcd60e51b8152602060048201526012602482015271141bdbdb08160c481b5d5cdd08195e1a5cdd60721b6044820152606401610858565b6001600160a01b0382165f908152600a602052604090206005015460ff1615610eda5760405162461bcd60e51b815260206004820152600e60248201526d506f6f6c2058322065786973747360901b6044820152606401610858565b5f8111610f1e5760405162461bcd60e51b81526020600482015260126024820152710416d6f756e74206d757374206265203e20360741b6044820152606401610858565b610f2982338361207e565b6040805160c0810182526001600160a01b03848116808352602080840186815269021e19e0c9bab24000008587018181525f606080890182815260808a01838152600160a08c018181528a8652600a8a52948d90209b518c546001600160a01b0319169b169a909a178b559551988a019890985591516002808a0191909155965160038901559251600488015591516005909601805460ff19169615159690961790955585518781529182019490945293840191909152915f516020613c4f5f395f51905f52910160405180910390a2610bde825f6121b9565b5f5460ff16156110255760405162461bcd60e51b815260040161085890613a86565b5f805460ff1916600190811782556001600160a01b0384168252602052604090205460ff1661108a5760405162461bcd60e51b8152602060048201526011602482015270151bdad95b881b9bdd08185b1b1bddd959607a1b6044820152606401610858565b6001600160a01b0382165f9081526009602052604090206005015460ff16156110e65760405162461bcd60e51b815260206004820152600e60248201526d506f6f6c2058312065786973747360901b6044820152606401610858565b5f811161112a5760405162461bcd60e51b81526020600482015260126024820152710416d6f756e74206d757374206265203e20360741b6044820152606401610858565b61113582338361207e565b6040805160c0810182526001600160a01b03848116808352602080840186815269021e19e0c9bab24000008587018181525f606080890182815260808a01838152600160a08c018181528a865260098a52948d90209b518c546001600160a01b0319169b169a909a178b5595518a8a0155925160028a0155915160038901559251600488015591516005909601805460ff19169615159690961790955585518781529182019490945293840191909152915f516020613c4f5f395f51905f52910160405180910390a2610bde8260016121b9565b5f5460ff161561122b5760405162461bcd60e51b815260040161085890613a86565b5f805460ff191660011781556001600160a01b0383168152600a6020526040902060050154829060ff1661129a5760405162461bcd60e51b8152602060048201526016602482015275141bdbdb08160c88191bd95cc81b9bdd08195e1a5cdd60521b6044820152606401610858565b610c8883835f611ee6565b5f5f5f5f846112ca576001600160a01b0386165f908152600a602052604090206112e2565b6001600160a01b0386165f9081526009602052604090205b600581015490915060ff1661132f5760405162461bcd60e51b8152602060048201526013602482015272141bdbdb08191bd95cc81b9bdd08195e1a5cdd606a1b6044820152606401610858565b64e8d4a5100081600301546113449190613ac2565b60048201546003830154919550935061135e908490613b05565b9150509250925092565b6001600160a01b0381165f908152600960205260408120600501548190819060ff16156113ce576001600160a01b0384165f9081526009602052604090206004810154600382015460029092015490916113c191613b05565b6113cb9190613b05565b92505b6001600160a01b0384165f908152600a602052604090206005015460ff1615611430576001600160a01b0384165f908152600a6020526040902060048101546003820154600290920154909161142391613b05565b61142d9190613b05565b91505b61143a8284613b05565b929491935050565b6001600160a01b0381166114835760405162461bcd60e51b81526020600482015260086024820152673d32b937903932b360c11b6044820152606401610858565b336001600160a01b038216036114c65760405162461bcd60e51b815260206004820152600860248201526739b2b633103932b360c11b6044820152606401610858565b335f908152600360205260409020546001600160a01b0316156115195760405162461bcd60e51b815260206004820152600b60248201526a185b1c9958591e481cd95d60aa1b6044820152606401610858565b335f90815260036020908152604080832080546001600160a01b0319166001600160a01b038616908117909155835260049091528120805460019290611560908490613b05565b90915550506040516001600160a01b0382169033907fdf63218877cb126f6c003f2b7f77327674cd6a0b53ad51deac392548ec12b0ed905f90a350565b336001600160a01b037f0000000000000000000000004fa34cfae93d29585a83f8f6df0e67b656db39c416146115e55760405162461bcd60e51b815260040161085890613ae1565b6115ee8161226a565b6001600160a01b0381165f818152600160208190526040808320805460ff1916909217909155517fbeceb48aeaa805aeae57be163cca6249077a18734e408a85aa74e875c43738099190a250565b336001600160a01b037f0000000000000000000000004fa34cfae93d29585a83f8f6df0e67b656db39c416146116845760405162461bcd60e51b815260040161085890613ae1565b6001600160a01b0382166116aa5760405162461bcd60e51b815260040161085890613b18565b6001600160a01b0381166116ef5760405162461bcd60e51b815260206004820152600c60248201526b3d32b9379031b932b0ba37b960a11b6044820152606401610858565b6040516370a0823160e01b81523060048201525f906001600160a01b038416906370a0823190602401602060405180830381865afa158015611733573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906117579190613b3c565b90505f81116117945760405162461bcd60e51b81526020600482015260096024820152686e6f20746f6b656e7360b81b6044820152606401610858565b61179f838383612443565b505050565b336001600160a01b037f0000000000000000000000004fa34cfae93d29585a83f8f6df0e67b656db39c416146117ec5760405162461bcd60e51b815260040161085890613ae1565b6001600160a01b0381166118305760405162461bcd60e51b815260206004820152600b60248201526a3d32b937903937baba32b960a91b6044820152606401610858565b5f8054610100600160a81b0319166101006001600160a01b03841690810291909117825560405190917f7aed1d3e8155a07ccf395e44ea3109a0e2d6c9b29bbbe9f142d9790596f4dc8091a250565b5f5461010090046001600160a01b031633146118cb5760405162461bcd60e51b815260206004820152600b60248201526a37b7363c903937baba32b960a91b6044820152606401610858565b6001600160a01b0383166118f15760405162461bcd60e51b815260040161085890613b18565b6001600160a01b0382166119365760405162461bcd60e51b815260206004820152600c60248201526b3d32b9379031b932b0ba37b960a11b6044820152606401610858565b6040516370a0823160e01b81523060048201525f906001600160a01b038516906370a0823190602401602060405180830381865afa15801561197a573d5f5f3e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061199e9190613b3c565b90508181101580156119af57505f81115b6119e95760405162461bcd60e51b815260206004820152600b60248201526a6261642062616c616e636560a81b6044820152606401610858565b6119f4848483612443565b50505050565b5f5460ff1615611a1c5760405162461bcd60e51b815260040161085890613a86565b5f805460ff191660011781556001600160a01b0384168152600a6020526040902060050154839060ff16611a8b5760405162461bcd60e51b8152602060048201526016602482015275141bdbdb08160c88191bd95cc81b9bdd08195e1a5cdd60521b6044820152606401610858565b611a978484845f612883565b50505f805460ff191690555050565b6040516370a0823160e01b81523060048201525f9081905f516020613c0f5f395f51905f52906370a0823190602401602060405180830381865afa158015611af0573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190611b149190613b3c565b6040516370a0823160e01b81523060048201529092505f516020613c2f5f395f51905f52906370a0823190602401602060405180830381865afa158015611b5d573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190611b819190613b3c565b90509091565b336001600160a01b037f0000000000000000000000004fa34cfae93d29585a83f8f6df0e67b656db39c41614611bcf5760405162461bcd60e51b815260040161085890613ae1565b6001600160a01b0381165f9081526001602052604090205460ff16611c245760405162461bcd60e51b815260206004820152600b60248201526a1b9bdd08185b1b1bddd95960aa1b6044820152606401610858565b6001600160a01b0381165f81815260016020526040808220805460ff19169055517feaa9136602e3b70a4e689b5b6f55bda25ca62b917d839c0ff87f5902387f77b99190a250565b5f5460ff1615611c8e5760405162461bcd60e51b815260040161085890613a86565b5f805460ff191660011781556001600160a01b038416815260096020526040902060050154839060ff16611cfd5760405162461bcd60e51b8152602060048201526016602482015275141bdbdb08160c48191bd95cc81b9bdd08195e1a5cdd60521b6044820152606401610858565b611a978484846001612883565b5f5f82611d2d576001600160a01b0384165f908152600a60205260409020611d45565b6001600160a01b0384165f9081526009602052604090205b600581015490915060ff168015611d5f57505f8160010154115b611d9a5760405162461bcd60e51b815260206004820152600c60248201526b125b9d985b1a59081c1bdbdb60a21b6044820152606401610858565b8060010154816004015482600301548360020154611db89190613b05565b611dc29190613b05565b611dcc9190613ac2565b949350505050565b5f5f846001600160a01b031663a9059cbb60e01b8585604051602401611dfb929190613b53565b60408051601f198184030181529181526020820180516001600160e01b03166001600160e01b0319909416939093179092529051611e399190613b6c565b5f604051808303815f865af19150503d805f8114611e72576040519150601f19603f3d011682016040523d82523d5f602084013e611e77565b606091505b5091509150818015611ea1575080511580611ea1575080806020019051810190611ea19190613b82565b611edf5760405162461bcd60e51b815260206004820152600f60248201526e151c985b9cd9995c8819985a5b1959608a1b6044820152606401610858565b5050505050565b5f8211611f225760405162461bcd60e51b815260206004820152600a6024820152690416d6f756e74203e20360b41b6044820152606401610858565b5f81611f44576001600160a01b0384165f908152600a60205260409020611f5c565b6001600160a01b0384165f9081526009602052604090205b905080600101548310611fa05760405162461bcd60e51b815260206004820152600c60248201526b09cdee840cadcdeeaced040b60a31b6044820152606401610858565b5f611fad82868686612a63565b90505f611fbb606483613ac2565b90505f611fc9606484613ac2565b90505f81611fd78486613ba4565b611fe19190613ba4565b9050611fee88338961207e565b611ff9858484612c29565b612004853383612eb7565b6001600160a01b038816337ff3c30284bf6b18ce39e4d161084dd42d95cfd5fdfbfbcd1428a4dc5e84a953768861203c57600261203f565b60015b6040805160ff90921682525f6020830152810185905260600160405180910390a361206a88876121b9565b6120748887612fa2565b5050505050505050565b6040516370a0823160e01b81523060048201525f906001600160a01b038516906370a0823190602401602060405180830381865afa1580156120c2573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906120e69190613b3c565b90506120f484843085613079565b6040516370a0823160e01b81523060048201525f9082906001600160a01b038716906370a0823190602401602060405180830381865afa15801561213a573d5f5f3e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061215e9190613b3c565b6121689190613ba4565b9050828114611edf5760405162461bcd60e51b815260206004820152601b60248201527f546f6b656e2074616b657320666565206f6e207472616e7366657200000000006044820152606401610858565b5f816121db576001600160a01b0383165f908152600a602052604090206121f3565b6001600160a01b0383165f9081526009602052604090205b9050826001600160a01b03167fa6bb248a4eacec07a565b31d3ee9bec6c54615a43a752fce0fe5119a6b6ebe6c8361222c57600261222f565b60015b6001840154600385015460048601546040805160ff9095168552602085019390935291830152606082015260800160405180910390a2505050565b6001600160a01b0381166122905760405162461bcd60e51b815260040161085890613b18565b6001600160a01b0381165f516020613c0f5f395f51905f52148015906122cc57506001600160a01b0381165f516020613c2f5f395f51905f5214155b6123115760405162461bcd60e51b81526020600482015260166024820152751cdd18589b1958dbda5b881b9bdd08185b1b1bddd95960521b6044820152606401610858565b60408051600481526024810182526020810180516001600160e01b031663313ce56760e01b17905290515f9182916001600160a01b0385169161235391613b6c565b5f60405180830381855afa9150503d805f811461238b576040519150601f19603f3d011682016040523d82523d5f602084013e612390565b606091505b50915091508180156123a457506020815110155b6123e05760405162461bcd60e51b815260206004820152600d60248201526c6e6f20646563696d616c73282960981b6044820152606401610858565b808060200190518101906123f49190613b3c565b60121461179f5760405162461bcd60e51b815260206004820152601b60248201527f746f6b656e206d757374206861766520313820646563696d616c7300000000006044820152606401610858565b6001600160a01b0383165f9081526009602052604090206005015460ff1615801561248957506001600160a01b0383165f908152600a602052604090206005015460ff16155b6124c35760405162461bcd60e51b815260206004820152600b60248201526a1c1bdbdb1cc8195e1a5cdd60aa1b6044820152606401610858565b60028110156125005760405162461bcd60e51b81526020600482015260096024820152681d1bdbc81cdb585b1b60ba1b6044820152606401610858565b6001600160a01b0383165f9081526001602052604090205460ff16612574576125288361226a565b6001600160a01b0383165f818152600160208190526040808320805460ff1916909217909155517fbeceb48aeaa805aeae57be163cca6249077a18734e408a85aa74e875c43738099190a25b5f612580600283613ac2565b90505f61258d8284613ba4565b90506040518060c00160405280866001600160a01b0316815260200183815260200169021e19e0c9bab240000081526020015f81526020015f81526020016001151581525060095f876001600160a01b03166001600160a01b031681526020019081526020015f205f820151815f015f6101000a8154816001600160a01b0302191690836001600160a01b031602179055506020820151816001015560408201518160020155606082015181600301556080820151816004015560a0820151816005015f6101000a81548160ff0219169083151502179055509050506040518060c00160405280866001600160a01b0316815260200182815260200169021e19e0c9bab240000081526020015f81526020015f815260200160011515815250600a5f876001600160a01b03166001600160a01b031681526020019081526020015f205f820151815f015f6101000a8154816001600160a01b0302191690836001600160a01b031602179055506020820151816001015560408201518160020155606082015181600301556080820151816004015560a0820151816005015f6101000a81548160ff0219169083151502179055509050508360025f876001600160a01b03166001600160a01b031681526020019081526020015f205f6101000a8154816001600160a01b0302191690836001600160a01b03160217905550846001600160a01b03165f516020613c4f5f395f51905f528369021e19e0c9bab240000060016040516127d393929190928352602083019190915260ff16604082015260600190565b60405180910390a26040805182815269021e19e0c9bab2400000602082015260028183015290516001600160a01b038716915f516020613c4f5f395f51905f52919081900360600190a260408051848152602081018490529081018290526001600160a01b0380861691908716907f8d5fd2af6099fc0a7ac58c61ee5e7a819d3a2da5adf93f68f83f92252113de379060600160405180910390a36128798560016121b9565b611edf855f6121b9565b6001600160a01b0383165f516020613c0f5f395f51905f5214806128bc57506001600160a01b0383165f516020613c2f5f395f51905f52145b6128fb5760405162461bcd60e51b815260206004820152601060248201526f4f6e6c792055534443206f722044414960801b6044820152606401610858565b5f82116129375760405162461bcd60e51b815260206004820152600a6024820152690416d6f756e74203e20360b41b6044820152606401610858565b5f6129428385613186565b90505f61294f85836131e4565b90505f61295d600a83613ac2565b90506129698183613ba4565b91505f8461298d576001600160a01b0388165f908152600a602052604090206129a5565b6001600160a01b0388165f9081526009602052604090205b90505f6129b6828a868b8b8b613220565b90506129c48833308a613079565b6129cf893383611dd4565b6001600160a01b038916337ff3c30284bf6b18ce39e4d161084dd42d95cfd5fdfbfbcd1428a4dc5e84a9537688612a07576002612a0a565b60015b6001612a16888a613b05565b6040805160ff909416845291151560208401529082015260600160405180910390a3612a44898985896133ec565b612a4e89876121b9565b612a588987612fa2565b505050505050505050565b5f5f856001015490505f86600401548760030154612a819190613b05565b90505f818860020154612a949190613b05565b90505f612aa18785613b05565b90505f81612aaf8487613bb7565b612ab99190613ac2565b905089600201548111612b045760405162461bcd60e51b8152602060048201526013602482015272139bc81c99585b081cdd18589b19481b19599d606a1b6044820152606401610858565b5f8a6002015482612b159190613ba4565b9050612b218186613ba4565b96505f87118015612b325750848711155b612b6f5760405162461bcd60e51b815260206004820152600e60248201526d125b9d985b1a59081bdd5d1c1d5d60921b6044820152606401610858565b60018b018390555f86612b82575f612b8c565b612b8c8786613ac2565b90505f5f8511612b9c575f612ba6565b612ba68585613ac2565b90506001600160a01b038c16337f1794817fddc5ff899b22bc24e1ac7427a7a1c3c9de0b88ab27f61c2c4026b76c8c612be0576002612be3565b60015b6040805160ff90921682525f602083015281018f9052606081018d90526080810186905260a0810185905260c00160405180910390a35050505050505050949350505050565b8015612ce5575f5f612c3b858461344f565b90925090508115612c91578160075f828254612c579190613b05565b90915550506040515f516020613bcf5f395f51905f5290612c88905f516020613c0f5f395f51905f52908590613b53565b60405180910390a15b8015612ce2578060085f828254612ca89190613b05565b90915550506040515f516020613bcf5f395f51905f5290612cd9905f516020613c2f5f395f51905f52908490613b53565b60405180910390a15b50505b815f03612cf157505050565b5f5f612cfd858561344f565b335f9081526003602052604090205491935091506001600160a01b03168015612e0d578215612d94576001600160a01b0381165f9081526005602052604081208054859290612d4d908490613b05565b909155505060405133906001600160a01b038316905f516020613bef5f395f51905f5290612d8b905f516020613c0f5f395f51905f52908890613b53565b60405180910390a35b8115612e08576001600160a01b0381165f9081526006602052604081208054849290612dc1908490613b05565b909155505060405133906001600160a01b038316905f516020613bef5f395f51905f5290612dff905f516020613c2f5f395f51905f52908790613b53565b60405180910390a35b612eaf565b8215612e5e578260075f828254612e249190613b05565b90915550506040515f516020613bcf5f395f51905f5290612e55905f516020613c0f5f395f51905f52908690613b53565b60405180910390a15b8115612eaf578160085f828254612e759190613b05565b90915550506040515f516020613bcf5f395f51905f5290612ea6905f516020613c2f5f395f51905f52908590613b53565b60405180910390a15b505050505050565b6003830154808211612ef857612ecd8282613ba4565b6003850155612ef35f516020613c0f5f395f51905f5284610ace64e8d4a5100086613ac2565b6119f4565b5f6003850155612f1f5f516020613c0f5f395f51905f5284610ace64e8d4a5100085613ac2565b5f612f2a8284613ba4565b90508085600401541015612f715760405162461bcd60e51b815260206004820152600e60248201526d4e6f7420656e6f7567682044414960901b6044820152606401610858565b80856004015f828254612f849190613ba4565b90915550611edf90505f516020613c2f5f395f51905f528583611dd4565b5f81612fc4576001600160a01b0383165f908152600a60205260409020612fdc565b6001600160a01b0383165f9081526009602052604090205b60018101549091501561179f575f81600101548260040154836003015484600201546130089190613b05565b6130129190613b05565b61301c9190613ac2565b9050836001600160a01b03167f955c15ba9d6293fc542b72eb53360214bf724676217850f01efb4a331c9da9c284613055576002613058565b60015b6040805160ff9092168252602082018590520160405180910390a250505050565b604080516001600160a01b0385811660248301528481166044830152606480830185905283518084039091018152608490920183526020820180516001600160e01b03166323b872dd60e01b17905291515f928392908816916130dc9190613b6c565b5f604051808303815f865af19150503d805f8114613115576040519150601f19603f3d011682016040523d82523d5f602084013e61311a565b606091505b50915091508180156131445750805115806131445750808060200190518101906131449190613b82565b612eaf5760405162461bcd60e51b8152602060048201526013602482015272151c985b9cd9995c919c9bdb4819985a5b1959606a1b6044820152606401610858565b5f806064613195600186613bb7565b61319f9190613ac2565b90505f60646131af600187613bb7565b6131b99190613ac2565b90506131c6848383613507565b806131d18387613ba4565b6131db9190613ba4565b95945050505050565b5f6001600160a01b0383165f516020613c0f5f395f51905f52146132085781613217565b6132178264e8d4a51000613bb7565b90505b92915050565b5f5f876001015490505f886004015489600301548a600201546132439190613b05565b61324d9190613b05565b90505f61325a8883613b05565b90505f816132688486613bb7565b6132729190613ac2565b905061327e8185613ba4565b94505f8511801561328e57508385105b6132d35760405162461bcd60e51b8152602060048201526016602482015275496e73756666696369656e74206c697175696469747960501b6044820152606401610858565b60018b01819055732791bca1f2de4661ed88a30c99a7a9449aa84173196001600160a01b0389160161331d57888b6003015f8282546133129190613b05565b909155506133369050565b888b6004015f8282546133309190613b05565b90915550505b5f5f8511613344575f61334e565b61334e8585613ac2565b90505f5f831161335e575f613368565b6133688385613ac2565b90506001600160a01b038c16337f1794817fddc5ff899b22bc24e1ac7427a7a1c3c9de0b88ab27f61c2c4026b76c8a6133a25760026133a5565b60015b6040805160ff90921682526001602083015281018d9052606081018b90526080810186905260a0810185905260c00160405180910390a35050505050509695505050505050565b81156119f4575f81613414576001600160a01b0385165f90815260096020526040902061342c565b6001600160a01b0385165f908152600a602052604090205b600581015490915060ff1661344157506119f4565b611edf8585858486156137b6565b60038201545f90819080841161347a576134698482613ba4565b6003860155508291505f9050613500565b5f6003860181905561348c8286613ba4565b905080866004015410156134e25760405162461bcd60e51b815260206004820152601760248201527f4e6f7420656e6f7567682044414920666f7220666565730000000000000000006044820152606401610858565b80866004015f8282546134f59190613ba4565b909155509193509150505b9250929050565b335f908152600360205260409020546001600160a01b03908116908416732791bca1f2de4661ed88a30c99a7a9449aa84173190161368e575f61354f8364e8d4a51000613bb7565b905080156135a2578060075f8282546135689190613b05565b90915550506040515f516020613bcf5f395f51905f5290613599905f516020613c0f5f395f51905f52908490613b53565b60405180910390a15b8315613688575f6135b88564e8d4a51000613bb7565b90506001600160a01b0383161561363b576001600160a01b0383165f90815260056020526040812080548392906135f0908490613b05565b909155505060405133906001600160a01b038516905f516020613bef5f395f51905f529061362e905f516020613c0f5f395f51905f52908690613b53565b60405180910390a3613686565b8060075f82825461364c9190613b05565b90915550506040515f516020613bcf5f395f51905f529061367d905f516020613c0f5f395f51905f52908490613b53565b60405180910390a15b505b506119f4565b81156136df578160085f8282546136a59190613b05565b90915550506040515f516020613bcf5f395f51905f52906136d6905f516020613c2f5f395f51905f52908590613b53565b60405180910390a15b82156119f4576001600160a01b03811615613766576001600160a01b0381165f908152600660205260408120805485929061371b908490613b05565b909155505060405133906001600160a01b038316905f516020613bef5f395f51905f5290613759905f516020613c2f5f395f51905f52908890613b53565b60405180910390a36119f4565b8260085f8282546137779190613b05565b90915550506040515f516020613bcf5f395f51905f52906137a8905f516020613c2f5f395f51905f52908690613b53565b60405180910390a150505050565b5f8260040154836003015484600201546137d09190613b05565b6137da9190613b05565b90505f6137e78583613b05565b90505f818386600101546137fb9190613bb7565b6138059190613ac2565b90505f8186600101546138189190613ba4565b90505f8111801561382c5750856001015481105b6138705760405162461bcd60e51b815260206004820152601560248201527414995a5b9d995cdd081a5b9cdd59999a58da595b9d605a1b6044820152606401610858565b60018601829055732791bca1f2de4661ed88a30c99a7a9449aa84173196001600160a01b038916016138ba5786866003015f8282546138af9190613b05565b909155506138d39050565b86866004015f8282546138cd9190613b05565b90915550505b6138f289731c4e583e380e1366298b34eff8d000ef1e98bb4683611dd4565b876001600160a01b03167f377f3fccf1a2c576cd618bbd8b8aa7f9eb0801a593a4bef8d3db6891b2458fe08661392957600161392c565b60025b8761393857600261393b565b60015b6040805160ff938416815292909116602083015281018a90526060810184905260800160405180910390a261397089866121b9565b612a588986612fa2565b80356001600160a01b0381168114613990575f5ffd5b919050565b5f5f604083850312156139a6575f5ffd5b6139af8361397a565b91506139bd6020840161397a565b90509250929050565b5f602082840312156139d6575f5ffd5b6132178261397a565b5f5f604083850312156139f0575f5ffd5b6139f98361397a565b946020939093013593505050565b8015158114613a14575f5ffd5b50565b5f5f60408385031215613a28575f5ffd5b613a318361397a565b91506020830135613a4181613a07565b809150509250929050565b5f5f5f60608486031215613a5e575f5ffd5b613a678461397a565b9250613a756020850161397a565b929592945050506040919091013590565b6020808252600e908201526d1499595b9d1c985b9d0818d85b1b60921b604082015260600190565b634e487b7160e01b5f52601160045260245ffd5b5f82613adc57634e487b7160e01b5f52601260045260245ffd5b500490565b6020808252600a908201526937b7363c9030b236b4b760b11b604082015260600190565b8082018082111561321a5761321a613aae565b6020808252600a90820152693d32b937903a37b5b2b760b11b604082015260600190565b5f60208284031215613b4c575f5ffd5b5051919050565b6001600160a01b03929092168252602082015260400190565b5f82518060208501845e5f920191825250919050565b5f60208284031215613b92575f5ffd5b8151613b9d81613a07565b9392505050565b8181038181111561321a5761321a613aae565b808202811582820484141761321a5761321a613aae56feb4c65216877d7b80eef9e5a7bd6756fa822ed73e65e1b6ac905c1432d1514ca7c54706d98ca919307d5af412345f8ee95227369f9d4d8915736661e520ef5d0b0000000000000000000000002791bca1f2de4661ed88a30c99a7a9449aa841740000000000000000000000008f3cf7ad23cd3cadbd9735aff958023239c6a0639a9fd6bb0980ac872b0ac8e694e92abf8ca93b24f99b03e4e4961b5014d610bba2646970667358221220ff77eebab9c3db4e37be554c3bd85ade3911375ffb6d8a6405fcfba59385d4d664736f6c63430008220033
+
+

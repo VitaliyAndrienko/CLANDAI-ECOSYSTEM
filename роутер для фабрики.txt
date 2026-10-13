@@ -1,0 +1,673 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+// ------------------------------------------------------------------------
+// Интерфейс фабрики — роутер спрашивает у неё креатора токена
+// ------------------------------------------------------------------------
+interface ITokenFactory {
+    function creatorOf(address token) external view returns (address);
+}
+
+// ------------------------------------------------------------------------
+// Интерфейс получателя — если vault реализует эту функцию,
+// роутер вызовет её после перевода токенов и передаст креатора
+// ------------------------------------------------------------------------
+interface ITokenReceiver {
+    function onTokenReceived(address token, address creator, uint256 amount) external;
+}
+
+// ------------------------------------------------------------------------
+// TokenRouter
+// ------------------------------------------------------------------------
+contract TokenRouter is Ownable {
+    using SafeERC20 for IERC20;
+
+    // Адрес фабрики (устанавливается владельцем через setFactory)
+    address public factory;
+
+    // Список vault-адресов (получателей токенов)
+    address[] public vaults;
+    mapping(address => bool) public isVault;
+
+    // token => vault, куда уже отправлен (защита от повторного роутинга)
+    mapping(address => address) public tokenVault;
+    // vault => список полученных токенов
+    mapping(address => address[]) public vaultTokens;
+
+    // Ручной режим (по умолчанию). true — авто-роутинг по кругу.
+    bool public autoRoundRobin = false;
+
+    // События
+    event VaultAdded(uint256 indexed index, address indexed vault);
+    event VaultRemoved(address indexed vault);
+    event FactoryUpdated(address indexed factory);
+    event AutoRoundRobinUpdated(bool enabled);
+    event TokenRouted(
+        address indexed token,
+        address indexed vault,
+        address indexed creator,
+        uint256 amount
+    );
+    event VaultNotified(address indexed vault, address indexed token, bool success);
+
+    // --------------------------------------------------------------------
+    // Конструктор — пустой, фабрика подключается позже через setFactory
+    // --------------------------------------------------------------------
+    constructor() Ownable(msg.sender) {}
+
+    // --------------------------------------------------------------------
+    // Админ-функции
+    // --------------------------------------------------------------------
+
+    /// @notice Установить адрес фабрики (только владелец).
+    function setFactory(address _factory) external onlyOwner {
+        require(_factory != address(0), "Zero factory");
+        factory = _factory;
+        emit FactoryUpdated(_factory);
+    }
+
+    /// @notice Добавить vault-адрес (только владелец).
+    function addVault(address vault) external onlyOwner {
+        require(vault != address(0), "Zero vault");
+        require(!isVault[vault], "Already vault");
+        vaults.push(vault);
+        isVault[vault] = true;
+        emit VaultAdded(vaults.length - 1, vault);
+    }
+
+    /// @notice Удалить vault-адрес (только владелец).
+    function removeVault(address vault) external onlyOwner {
+        require(isVault[vault], "Not vault");
+        isVault[vault] = false;
+        for (uint i = 0; i < vaults.length; i++) {
+            if (vaults[i] == vault) {
+                vaults[i] = vaults[vaults.length - 1];
+                vaults.pop();
+                break;
+            }
+        }
+        emit VaultRemoved(vault);
+    }
+
+    /// @notice Включить/выключить авто-режим (round-robin).
+    function setAutoRoundRobin(bool enabled) external onlyOwner {
+        autoRoundRobin = enabled;
+        emit AutoRoundRobinUpdated(enabled);
+    }
+
+    // --------------------------------------------------------------------
+    // Вызывается фабрикой при создании токена
+    // --------------------------------------------------------------------
+    /// @notice Фабрика вызывает эту функцию сразу после минта токенов.
+    ///         В ручном режиме ничего не делает — ждёт выбора юзера.
+    function routeToken(address token) external returns (address) {
+        require(msg.sender == factory, "Only factory");
+        if (!autoRoundRobin) return address(0); // ручной режим — ждём юзера
+
+        require(vaults.length > 0, "No vaults configured");
+        address v = vaults[0];
+        return _route(token, v);
+    }
+
+    // --------------------------------------------------------------------
+    // Вызывается юзером — выбор vault по индексу
+    // --------------------------------------------------------------------
+    /// @notice Юзер выбирает vault по индексу из getAllVaults().
+    /// @param token Адрес токена, который нужно отправить
+    /// @param vaultIndex Индекс в массиве vaults (0 — первый добавленный)
+    function routeTokenToVault(address token, uint256 vaultIndex)
+        external
+        returns (address)
+    {
+        require(vaultIndex < vaults.length, "Invalid vault index");
+        return _route(token, vaults[vaultIndex]);
+    }
+
+    // --------------------------------------------------------------------
+    // Внутренняя логика перевода
+    // --------------------------------------------------------------------
+    function _route(address token, address vault) internal returns (address) {
+        require(token != address(0), "Zero token");
+        require(isVault[vault], "Not a vault");
+        require(tokenVault[token] == address(0), "Already routed");
+        require(factory != address(0), "Factory not set");
+
+        // Узнаём креатора токена у фабрики
+        address creator = ITokenFactory(factory).creatorOf(token);
+        require(creator != address(0), "Not a factory token");
+
+        // Проверяем баланс роутера для этого токена
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        require(balance > 0, "No balance to route");
+
+        // Запоминаем, куда ушёл токен
+        tokenVault[token] = vault;
+        vaultTokens[vault].push(token);
+
+        // 1. Переводим токены в vault
+        IERC20(token).safeTransfer(vault, balance);
+
+        // 2. Пытаемся уведомить vault (если он реализует onTokenReceived).
+        //    Если vault — обычный кошелёк или контракт без функции — просто пропускаем.
+        bool notified = false;
+        if (vault.code.length > 0) {
+            try ITokenReceiver(vault).onTokenReceived(token, creator, balance) {
+                notified = true;
+            } catch {
+                notified = false;
+            }
+        }
+        emit VaultNotified(vault, token, notified);
+
+        emit TokenRouted(token, vault, creator, balance);
+        return vault;
+    }
+
+    // --------------------------------------------------------------------
+    // Просмотр
+    // --------------------------------------------------------------------
+    function getAllVaults() external view returns (address[] memory) {
+        return vaults;
+    }
+
+    function vaultsLength() external view returns (uint256) {
+        return vaults.length;
+    }
+
+    function getVaultByIndex(uint256 i) external view returns (address) {
+        require(i < vaults.length, "Invalid index");
+        return vaults[i];
+    }
+
+    function getVaultTokens(address vault) external view returns (address[] memory) {
+        return vaultTokens[vault];
+    }
+
+    /// @notice Проверка: висит ли токен на роутере и ждёт выбора vault
+    function isPending(address token) external view returns (bool) {
+        return tokenVault[token] == address(0)
+            && IERC20(token).balanceOf(address(this)) > 0;
+    }
+}
+
+
+0x2C312e36015c634fbD5067ca67B29c8Ec1ce2204
+
+
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      }
+    ],
+    "name": "addVault",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      }
+    ],
+    "name": "removeVault",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "AutoRoundRobinUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "factory",
+        "type": "address"
+      }
+    ],
+    "name": "FactoryUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "routeToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "vaultIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "routeTokenToVault",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setAutoRoundRobin",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_factory",
+        "type": "address"
+      }
+    ],
+    "name": "setFactory",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "TokenRouted",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      }
+    ],
+    "name": "VaultAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      }
+    ],
+    "name": "VaultRemoved",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "autoRoundRobin",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "factory",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAllVaults",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "i",
+        "type": "uint256"
+      }
+    ],
+    "name": "getVaultByIndex",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      }
+    ],
+    "name": "getVaultTokens",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "isPending",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "isVault",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "tokenVault",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "vaults",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "vaultsLength",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "vaultTokens",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
+
+
+
+0x608060405234801561000f575f5ffd5b506004361061012a575f3560e01c80638c3d6090116100ab578063b22540f91161006f578063b22540f914610354578063bf17535314610384578063c45a0155146103b4578063ceb68c23146103d2578063f2fde38b146103ee5761012a565b80638c3d6090146102885780638c64ea4a146102b85780638da5cb5b146102e857806397331bf914610306578063a00745b6146103245761012a565b80636c61edf7116100f25780636c61edf7146101e2578063715018a61461021257806380cd7e8d1461021c57806382af54c91461023a5780638504b931146102585761012a565b80632343a9aa1461012e578063256b5a021461015e578063491833751461017a5780635bb4780814610196578063652b9b41146101b2575b5f5ffd5b610148600480360381019061014391906118f5565b61040a565b604051610155919061192f565b60405180910390f35b610178600480360381019061017391906118f5565b61043a565b005b610194600480360381019061018f919061197d565b610647565b005b6101b060048036038101906101ab91906118f5565b6106a2565b005b6101cc60048036038101906101c791906118f5565b61079e565b6040516101d991906119b7565b60405180910390f35b6101fc60048036038101906101f791906118f5565b6107bb565b604051610209919061192f565b60405180910390f35b61021a6108ff565b005b610224610912565b60405161023191906119b7565b60405180910390f35b610242610924565b60405161024f91906119e8565b60405180910390f35b610272600480360381019061026d9190611a2b565b610930565b60405161027f919061192f565b60405180910390f35b6102a2600480360381019061029d9190611a69565b610978565b6040516102af919061192f565b60405180910390f35b6102d260048036038101906102cd9190611a69565b610a03565b6040516102df919061192f565b60405180910390f35b6102f0610a3e565b6040516102fd919061192f565b60405180910390f35b61030e610a65565b60405161031b9190611b4b565b60405180910390f35b61033e600480360381019061033991906118f5565b610af0565b60405161034b91906119b7565b60405180910390f35b61036e600480360381019061036991906118f5565b610c05565b60405161037b9190611b4b565b60405180910390f35b61039e60048036038101906103999190611a2b565b610ccd565b6040516103ab919061192f565b60405180910390f35b6103bc610d62565b6040516103c9919061192f565b60405180910390f35b6103ec60048036038101906103e791906118f5565b610d87565b005b610408600480360381019061040391906118f5565b61102f565b005b6004602052805f5260405f205f915054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b6104426110b3565b5f73ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff16036104b0576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016104a790611bc5565b60405180910390fd5b60035f8273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f205f9054906101000a900460ff161561053a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161053190611c2d565b60405180910390fd5b600281908060018154018082558091505060019003905f5260205f20015f9091909190916101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff160217905550600160035f8373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f205f6101000a81548160ff0219169083151502179055508073ffffffffffffffffffffffffffffffffffffffff1660016002805490506106189190611c78565b7fa3ccd9b56d18a571b67b97905e5ef425788000d31a490513f7cad937175beeeb60405160405180910390a350565b61064f6110b3565b8060065f6101000a81548160ff0219169083151502179055507f4582c642ba419d6ee031bcf29cad7fdd1418689585ea25d4e2efc0aa46e6b5468160405161069791906119b7565b60405180910390a150565b6106aa6110b3565b5f73ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff1603610718576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161070f90611cf5565b60405180910390fd5b8060015f6101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055508073ffffffffffffffffffffffffffffffffffffffff167f24cd1310c8883cbeaf5b805ab13586ce018b79c022827158ff3e8df14d34493660405160405180910390a250565b6003602052805f5260405f205f915054906101000a900460ff1681565b5f60015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161461084b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161084290611d5d565b60405180910390fd5b60065f9054906101000a900460ff16610866575f90506108fa565b5f600280549050116108ad576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016108a490611dc5565b60405180910390fd5b5f60025f815481106108c2576108c1611de3565b5b905f5260205f20015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690506108f6838261113a565b9150505b919050565b6109076110b3565b6109105f61171a565b565b60065f9054906101000a900460ff1681565b5f600280549050905090565b6005602052815f5260405f208181548110610949575f80fd5b905f5260205f20015f915091509054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b5f60028054905082106109c0576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016109b790611e5a565b60405180910390fd5b600282815481106109d4576109d3611de3565b5b905f5260205f20015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff169050919050565b60028181548110610a12575f80fd5b905f5260205f20015f915054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b5f5f5f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b60606002805480602002602001604051908101604052809291908181526020018280548015610ae657602002820191905f5260205f20905b815f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019060010190808311610a9d575b5050505050905090565b5f5f73ffffffffffffffffffffffffffffffffffffffff1660045f8473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f205f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16148015610bfe57505f8273ffffffffffffffffffffffffffffffffffffffff166370a08231306040518263ffffffff1660e01b8152600401610bbd919061192f565b602060405180830381865afa158015610bd8573d5f5f3e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610bfc9190611e8c565b115b9050919050565b606060055f8373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f20805480602002602001604051908101604052809291908181526020018280548015610cc157602002820191905f5260205f20905b815f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019060010190808311610c78575b50505050509050919050565b5f6002805490508210610d15576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610d0c90611f01565b60405180910390fd5b610d5a8360028481548110610d2d57610d2c611de3565b5b905f5260205f20015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1661113a565b905092915050565b60015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b610d8f6110b3565b60035f8273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f205f9054906101000a900460ff16610e18576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610e0f90611f69565b60405180910390fd5b5f60035f8373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f205f6101000a81548160ff0219169083151502179055505f5f90505b600280549050811015610fe8578173ffffffffffffffffffffffffffffffffffffffff1660028281548110610ea957610ea8611de3565b5b905f5260205f20015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1603610fdb5760026001600280549050610f009190611c78565b81548110610f1157610f10611de3565b5b905f5260205f20015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1660028281548110610f4d57610f4c611de3565b5b905f5260205f20015f6101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055506002805480610fa457610fa3611f87565b5b600190038181905f5260205f20015f6101000a81549073ffffffffffffffffffffffffffffffffffffffff02191690559055610fe8565b8080600101915050610e71565b508073ffffffffffffffffffffffffffffffffffffffff167fe71f3a50e5ad81964f352c411f1d45e35438ecd1acecef59ac81d9fbbf6cbc0a60405160405180910390a250565b6110376110b3565b5f73ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff16036110a7575f6040517f1e4fbdf700000000000000000000000000000000000000000000000000000000815260040161109e919061192f565b60405180910390fd5b6110b08161171a565b50565b6110bb6117db565b73ffffffffffffffffffffffffffffffffffffffff166110d9610a3e565b73ffffffffffffffffffffffffffffffffffffffff1614611138576110fc6117db565b6040517f118cdaa700000000000000000000000000000000000000000000000000000000815260040161112f919061192f565b60405180910390fd5b565b5f5f73ffffffffffffffffffffffffffffffffffffffff168373ffffffffffffffffffffffffffffffffffffffff16036111a9576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016111a090611ffe565b60405180910390fd5b60035f8373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f205f9054906101000a900460ff16611232576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161122990612066565b60405180910390fd5b5f73ffffffffffffffffffffffffffffffffffffffff1660045f8573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f205f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16146112fc576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016112f3906120ce565b60405180910390fd5b5f73ffffffffffffffffffffffffffffffffffffffff1660015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff160361138b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161138290612136565b60405180910390fd5b5f60015f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663dea5c2e0856040518263ffffffff1660e01b81526004016113e6919061192f565b602060405180830381865afa158015611401573d5f5f3e3d5ffd5b505050506040513d601f19601f820116820180604052508101906114259190612168565b90505f73ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff1603611495576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161148c906121dd565b60405180910390fd5b5f8473ffffffffffffffffffffffffffffffffffffffff166370a08231306040518263ffffffff1660e01b81526004016114cf919061192f565b602060405180830381865afa1580156114ea573d5f5f3e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061150e9190611e8c565b90505f8111611552576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161154990612245565b60405180910390fd5b8360045f8773ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f205f6101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555060055f8573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020015f2085908060018154018082558091505060019003905f5260205f20015f9091909190916101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555061169384828773ffffffffffffffffffffffffffffffffffffffff166117e29092919063ffffffff16565b8173ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff168673ffffffffffffffffffffffffffffffffffffffff167fc8a979cbaa58219e7970723d81c7fd941235a3bfad49547278d08f43f6d8a02f8460405161170791906119e8565b60405180910390a4839250505092915050565b5f5f5f9054906101000a900473ffffffffffffffffffffffffffffffffffffffff169050815f5f6101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055508173ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e060405160405180910390a35050565b5f33905090565b6117ef8383836001611835565b61183057826040517f5274afe7000000000000000000000000000000000000000000000000000000008152600401611827919061192f565b60405180910390fd5b505050565b5f5f63a9059cbb60e01b9050604051815f525f1960601c86166004528460245260205f60445f5f8b5af1925060015f5114831661188957838315161561187d573d5f823e3d81fd5b5f873b113d1516831692505b806040525050949350505050565b5f5ffd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f6118c48261189b565b9050919050565b6118d4816118ba565b81146118de575f5ffd5b50565b5f813590506118ef816118cb565b92915050565b5f6020828403121561190a57611909611897565b5b5f611917848285016118e1565b91505092915050565b611929816118ba565b82525050565b5f6020820190506119425f830184611920565b92915050565b5f8115159050919050565b61195c81611948565b8114611966575f5ffd5b50565b5f8135905061197781611953565b92915050565b5f6020828403121561199257611991611897565b5b5f61199f84828501611969565b91505092915050565b6119b181611948565b82525050565b5f6020820190506119ca5f8301846119a8565b92915050565b5f819050919050565b6119e2816119d0565b82525050565b5f6020820190506119fb5f8301846119d9565b92915050565b611a0a816119d0565b8114611a14575f5ffd5b50565b5f81359050611a2581611a01565b92915050565b5f5f60408385031215611a4157611a40611897565b5b5f611a4e858286016118e1565b9250506020611a5f85828601611a17565b9150509250929050565b5f60208284031215611a7e57611a7d611897565b5b5f611a8b84828501611a17565b91505092915050565b5f81519050919050565b5f82825260208201905092915050565b5f819050602082019050919050565b611ac6816118ba565b82525050565b5f611ad78383611abd565b60208301905092915050565b5f602082019050919050565b5f611af982611a94565b611b038185611a9e565b9350611b0e83611aae565b805f5b83811015611b3e578151611b258882611acc565b9750611b3083611ae3565b925050600181019050611b11565b5085935050505092915050565b5f6020820190508181035f830152611b638184611aef565b905092915050565b5f82825260208201905092915050565b7f5a65726f207661756c74000000000000000000000000000000000000000000005f82015250565b5f611baf600a83611b6b565b9150611bba82611b7b565b602082019050919050565b5f6020820190508181035f830152611bdc81611ba3565b9050919050565b7f416c7265616479207661756c74000000000000000000000000000000000000005f82015250565b5f611c17600d83611b6b565b9150611c2282611be3565b602082019050919050565b5f6020820190508181035f830152611c4481611c0b565b9050919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f611c82826119d0565b9150611c8d836119d0565b9250828203905081811115611ca557611ca4611c4b565b5b92915050565b7f5a65726f20666163746f727900000000000000000000000000000000000000005f82015250565b5f611cdf600c83611b6b565b9150611cea82611cab565b602082019050919050565b5f6020820190508181035f830152611d0c81611cd3565b9050919050565b7f4f6e6c7920666163746f727900000000000000000000000000000000000000005f82015250565b5f611d47600c83611b6b565b9150611d5282611d13565b602082019050919050565b5f6020820190508181035f830152611d7481611d3b565b9050919050565b7f4e6f207661756c747320636f6e666967757265640000000000000000000000005f82015250565b5f611daf601483611b6b565b9150611dba82611d7b565b602082019050919050565b5f6020820190508181035f830152611ddc81611da3565b9050919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b7f496e76616c696420696e646578000000000000000000000000000000000000005f82015250565b5f611e44600d83611b6b565b9150611e4f82611e10565b602082019050919050565b5f6020820190508181035f830152611e7181611e38565b9050919050565b5f81519050611e8681611a01565b92915050565b5f60208284031215611ea157611ea0611897565b5b5f611eae84828501611e78565b91505092915050565b7f496e76616c6964207661756c7420696e646578000000000000000000000000005f82015250565b5f611eeb601383611b6b565b9150611ef682611eb7565b602082019050919050565b5f6020820190508181035f830152611f1881611edf565b9050919050565b7f4e6f74207661756c7400000000000000000000000000000000000000000000005f82015250565b5f611f53600983611b6b565b9150611f5e82611f1f565b602082019050919050565b5f6020820190508181035f830152611f8081611f47565b9050919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603160045260245ffd5b7f5a65726f20746f6b656e000000000000000000000000000000000000000000005f82015250565b5f611fe8600a83611b6b565b9150611ff382611fb4565b602082019050919050565b5f6020820190508181035f83015261201581611fdc565b9050919050565b7f4e6f742061207661756c740000000000000000000000000000000000000000005f82015250565b5f612050600b83611b6b565b915061205b8261201c565b602082019050919050565b5f6020820190508181035f83015261207d81612044565b9050919050565b7f416c726561647920726f757465640000000000000000000000000000000000005f82015250565b5f6120b8600e83611b6b565b91506120c382612084565b602082019050919050565b5f6020820190508181035f8301526120e5816120ac565b9050919050565b7f466163746f7279206e6f742073657400000000000000000000000000000000005f82015250565b5f612120600f83611b6b565b915061212b826120ec565b602082019050919050565b5f6020820190508181035f83015261214d81612114565b9050919050565b5f81519050612162816118cb565b92915050565b5f6020828403121561217d5761217c611897565b5b5f61218a84828501612154565b91505092915050565b7f4e6f74206120666163746f727920746f6b656e000000000000000000000000005f82015250565b5f6121c7601383611b6b565b91506121d282612193565b602082019050919050565b5f6020820190508181035f8301526121f4816121bb565b9050919050565b7f4e6f2062616c616e636520746f20726f757465000000000000000000000000005f82015250565b5f61222f601383611b6b565b915061223a826121fb565b602082019050919050565b5f6020820190508181035f83015261225c81612223565b905091905056fea2646970667358221220aa72cf4e14de86b57375370735cc7a4463add0935c046c8fddb8491b5cecab0964736f6c63430008220033
+
+
+
